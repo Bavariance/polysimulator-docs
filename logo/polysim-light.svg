@@ -1,5 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 32" fill="none">
-  <circle cx="16" cy="16" r="14" fill="#00d26a"/>
-  <path d="M10 16l4 4 8-8" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="38" y="22" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="700" fill="#0a0f1c">PolySim</text>
+<svg width="160" height="40" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(20, 10)">
+    <path d="M24 28 L40 20 L56 28 L56 60 L40 68 L24 60 Z" fill="#10B981" opacity="0.3"/>
+    <path d="M24 28 L40 20 L40 52 L24 60 Z" fill="#10B981" opacity="0.6"/>
+    <path d="M40 20 L56 28 L56 60 L40 52 Z" fill="#10B981"/>
+    <path d="M40 20 L40 52" stroke="rgba(0,0,0,0.2)" stroke-width="1.2"/>
+  </g>
+  <text x="105" y="61" fill="#0F172A" style="font-size: 32px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.01em; font-weight: 500;">PolySimulator</text>
 </svg>
