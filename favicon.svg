@@ -1,7 +1,9 @@
-<svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Folded paper geometric shape -->
-  <path d="M30 35 L50 25 L70 35 L70 75 L50 85 L30 75 Z" fill="#10B981" opacity="0.3"/>
-  <path d="M30 35 L50 25 L50 65 L30 75 Z" fill="#10B981" opacity="0.6"/>
-  <path d="M50 25 L70 35 L70 75 L50 65 Z" fill="#10B981"/>
-  <path d="M50 25 L50 65" stroke="rgba(0,0,0,0.2)" stroke-width="1.5"/>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PolySimulator favicon (dark)">
+  <rect width="64" height="64" rx="16" fill="#0B1120" stroke="#776E62" stroke-width="1" />
+  <g transform="translate(16 8)">
+    <path opacity="0.3" d="M0 8L15.984 0L31.968 8V40L15.984 48L0 40V8Z" fill="#4BE4B1" />
+    <path opacity="0.6" d="M0 8L15.984 0V32L0 40V8Z" fill="#4BE4B1" />
+    <path d="M15.984 0L31.968 8V40L15.984 32V0Z" fill="#4BE4B1" />
+    <path d="M15.984 0V32" stroke="#DCDBD8" stroke-opacity="0.2" stroke-width="1.2" />
+  </g>
 </svg>
