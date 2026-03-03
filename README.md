@@ -54,5 +54,5 @@ This repo is updated automatically when `docs-site/` changes are merged to `main
 
 ## License
 
-Documentation content © 2025 PolySimulator. All rights reserved.  
+Documentation content © 2026 PolySimulator. All rights reserved.  
 Not for redistribution without permission.
