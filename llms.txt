@@ -44,7 +44,7 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - POST /v1/prices/batch — Batch price lookup (body: {"token_ids": [...]})
 
 ### Trading
-- POST /v1/clob/order — Place order (body: token_id, side, size, price, order_type, max_slippage_bps, client_order_id)
+- POST /v1/clob/order — Place CLOB-compatible order (body: token_id, side, quantity, price, order_type, client_order_id)
 - GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
 - DELETE /v1/orders/{order_id} — Cancel open order
 - POST /v1/orders/batch — Place multiple orders (body: {"orders": [...]})
@@ -71,7 +71,7 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - GET /metrics — Prometheus metrics
 
 ### WebSocket
-- WS /v1/ws/prices — Real-time price stream (subscribe/unsubscribe by token_ids)
+- WS /v1/ws/prices — Real-time price stream (subscribe/unsubscribe by market condition_ids)
 - WS /v1/ws/executions — Trade fill notifications
 - POST /v1/keys/ws-token — Mint short-lived WebSocket auth token (60s TTL)
 

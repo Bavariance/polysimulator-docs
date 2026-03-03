@@ -160,7 +160,7 @@
     ]
   },
   "api": {
-    "baseUrl": "https://staging-api.polysimulator.com",
+    "baseUrl": "https://api.polysimulator.com",
     "auth": {
       "method": "key",
       "name": "X-API-Key"
