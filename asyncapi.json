@@ -1,0 +1,215 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "PolySimulator WebSocket API",
+    "version": "1.0.0",
+    "description": "Real-time price feeds and trade execution notifications via WebSocket."
+  },
+  "servers": {
+    "production": {
+      "host": "api.polysimulator.com",
+      "protocol": "wss",
+      "description": "Production WebSocket server"
+    },
+    "local": {
+      "host": "localhost:8000",
+      "protocol": "ws",
+      "description": "Local development server"
+    }
+  },
+  "channels": {
+    "prices": {
+      "address": "/v1/ws/prices",
+      "description": "Real-time market price updates. Connect with a short-lived token from POST /v1/keys/ws-token.",
+      "parameters": {
+        "token": {
+          "description": "Authentication token from POST /v1/keys/ws-token"
+        }
+      },
+      "messages": {
+        "subscribe": {
+          "$ref": "#/components/messages/SubscribeRequest"
+        },
+        "unsubscribe": {
+          "$ref": "#/components/messages/UnsubscribeRequest"
+        },
+        "priceUpdate": {
+          "$ref": "#/components/messages/PriceUpdate"
+        },
+        "ping": {
+          "$ref": "#/components/messages/Ping"
+        },
+        "pong": {
+          "$ref": "#/components/messages/Pong"
+        }
+      }
+    },
+    "executions": {
+      "address": "/v1/ws/executions",
+      "description": "Real-time trade execution (fill) notifications. Connect with a short-lived token from POST /v1/keys/ws-token.",
+      "parameters": {
+        "token": {
+          "description": "Authentication token from POST /v1/keys/ws-token"
+        }
+      },
+      "messages": {
+        "execution": {
+          "$ref": "#/components/messages/ExecutionUpdate"
+        }
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "SubscribeRequest": {
+        "name": "subscribe",
+        "summary": "Subscribe to price updates for specific markets",
+        "payload": {
+          "type": "object",
+          "required": ["type", "channel", "market_ids"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "subscribe"
+            },
+            "channel": {
+              "type": "string",
+              "const": "prices"
+            },
+            "market_ids": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "List of condition IDs to subscribe to"
+            }
+          }
+        }
+      },
+      "UnsubscribeRequest": {
+        "name": "unsubscribe",
+        "summary": "Unsubscribe from specific markets",
+        "payload": {
+          "type": "object",
+          "required": ["type", "channel", "market_ids"],
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "unsubscribe"
+            },
+            "channel": {
+              "type": "string",
+              "const": "prices"
+            },
+            "market_ids": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      },
+      "PriceUpdate": {
+        "name": "price_update",
+        "summary": "Real-time price change for a subscribed market",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "price_update"
+            },
+            "market_id": {
+              "type": "string",
+              "description": "Condition ID"
+            },
+            "prices": {
+              "type": "object",
+              "properties": {
+                "yes": { "type": "string", "description": "Yes outcome price (0-1)" },
+                "no": { "type": "string", "description": "No outcome price (0-1)" }
+              }
+            },
+            "volume": {
+              "type": "string",
+              "description": "24h trading volume"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "Ping": {
+        "name": "ping",
+        "summary": "Client heartbeat to keep connection alive",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ping"
+            }
+          }
+        }
+      },
+      "Pong": {
+        "name": "pong",
+        "summary": "Server heartbeat response",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pong"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "ExecutionUpdate": {
+        "name": "execution",
+        "summary": "Trade fill notification sent when an order is executed",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "execution"
+            },
+            "order_id": {
+              "type": "string"
+            },
+            "market_id": {
+              "type": "string"
+            },
+            "side": {
+              "type": "string",
+              "enum": ["BUY", "SELL"]
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "string",
+              "description": "Filled quantity (string numeric)"
+            },
+            "price": {
+              "type": "string",
+              "description": "Execution price (string numeric)"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["FILLED", "PARTIALLY_FILLED"]
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      }
+    }
+  }
+}

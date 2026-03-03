@@ -1,0 +1,162 @@
+---
+title: "Placing Orders"
+sidebarTitle: "Placing Orders"
+description: "Place market and limit orders with slippage protection and fill diagnostics."
+---
+
+# Placing Orders
+
+```
+POST /v1/orders
+```
+
+Place a market or limit order. Requires `trade` permission.
+
+---
+
+## Market Orders
+
+Executed immediately via **CLOB book walking** — the fill price reflects real order book depth, not just the midpoint.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.polysimulator.com/v1/orders \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: my-bot-order-001" \
+  -d '{
+    "market_id": "0xabc123...",
+    "side": "BUY",
+    "outcome": "Yes",
+    "quantity": "10",
+    "order_type": "market",
+    "max_slippage_bps": 100
+  }'
+```
+
+```python Python
+resp = requests.post(
+    f"{BASE_URL}/v1/orders",
+    headers={"X-API-Key": API_KEY, "Idempotency-Key": "my-bot-order-001"},
+    json={
+        "market_id": "0xabc123...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "10",
+        "order_type": "market",
+        "max_slippage_bps": 100,
+    },
+)
+order = resp.json()
+```
+</CodeGroup>
+
+---
+
+## Limit Orders
+
+Queued and filled by the background matching engine (~1s polling cycle).
+
+```json
+{
+  "market_id": "0xabc123...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55",
+  "time_in_force": "GTC"
+}
+```
+
+**Fill conditions:**
+- **BUY limit**: Fills when market ask ≤ your limit price. Funds reserved upfront.
+- **SELL limit**: Fills when market bid ≥ your limit price. Shares reserved upfront.
+
+---
+
+## Request Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `market_id` | string | Yes | Polymarket condition_id |
+| `side` | string | Yes | `BUY` or `SELL` |
+| `outcome` | string | Yes | Outcome label: `Yes`, `No`, or custom |
+| `quantity` | string | Yes | Number of shares as decimal string |
+| `order_type` | string | No | `market` (default) or `limit` |
+| `price` | string | Limit only | Limit price 0.01–0.99 |
+| `time_in_force` | string | No | `GTC` (default) or `IOC` |
+| `client_order_id` | string | No | Idempotency key |
+| `max_slippage_bps` | int | No | Max slippage in basis points (market orders) |
+
+### Time in Force
+
+| Value | Description |
+|-------|-------------|
+| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired |
+| `IOC` | Immediate-or-Cancel — fills on first matching cycle or cancels |
+
+---
+
+## Response
+
+```json
+{
+  "order_id": 42,
+  "status": "FILLED",
+  "order_type": "market",
+  "side": "BUY",
+  "outcome": "Yes",
+  "price": "0.65",
+  "quantity": "10",
+  "notional": "6.50",
+  "fee": "0",
+  "filled_at": "2026-02-06T12:00:45Z",
+  "price_source": "clob_book",
+  "slippage_bps": 15,
+  "account_balance": "993.50",
+  "position": {
+    "market_id": "0xabc123...",
+    "outcome": "Yes",
+    "quantity": "10",
+    "avg_entry_price": "0.65",
+    "status": "OPEN"
+  }
+}
+```
+
+### Fill Diagnostics
+
+Every market order includes transparency metadata:
+
+| Field | Description |
+|-------|-------------|
+| `price_source` | Where the price came from: `clob_book`, `clob_midpoint`, `gamma_api`, `redis_cache` |
+| `slippage_bps` | Actual slippage from expected mid-price in basis points |
+
+---
+
+## Idempotency
+
+Use the `Idempotency-Key` header or `client_order_id` field to prevent duplicate executions on retries:
+
+```bash
+curl -X POST https://api.polysimulator.com/v1/orders \
+  -H "Idempotency-Key: my-bot-2026-02-06-001" \
+  ...
+```
+
+If the same key is submitted twice, the second request returns the result of the first execution without creating a new order.
+
+<Tip>
+  Include a timestamp or sequence number in your idempotency key to make
+  debugging easier: `"bot-alpha-20260206-001"`
+</Tip>
+
+---
+
+## Next Steps
+
+- [Order Management](/trading/order-management) — List and cancel orders
+- [Batch Orders](/trading/batch-orders) — Place multiple orders at once
+- [Slippage Protection](/trading/slippage-protection) — Fine-tune fill quality

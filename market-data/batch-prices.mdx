@@ -1,0 +1,93 @@
+---
+title: "Batch Prices"
+sidebarTitle: "Batch Prices"
+description: "Fetch live prices for multiple markets in a single request."
+---
+
+# Batch Prices
+
+```
+POST /v1/prices/batch
+```
+
+Returns live prices for multiple markets in a single request. Much more efficient than calling `GET /v1/markets/{id}` individually.
+
+---
+
+## Request
+
+```bash
+curl -X POST https://api.polysimulator.com/v1/prices/batch \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"market_ids": ["0x1a2b3c...", "0x4d5e6f..."]}'
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `market_ids` | string[] | Yes | Array of condition_ids (max 50) |
+
+---
+
+## Response
+
+```json
+[
+  {
+    "condition_id": "0x1a2b3c...",
+    "price": {
+      "buy": "0.65",
+      "sell": "0.35",
+      "outcomes": [
+        {"label": "Yes", "price": "0.65", "token_id": "71321..."},
+        {"label": "No", "price": "0.35", "token_id": "71322..."}
+      ]
+    }
+  },
+  {
+    "condition_id": "0x4d5e6f...",
+    "error": "Price not available"
+  }
+]
+```
+
+<Info>
+  Markets with unavailable prices return an `error` field instead of `price`.
+  This can happen when a market is newly listed and hasn't been cached yet.
+</Info>
+
+---
+
+## Use Cases
+
+- **Portfolio valuation**: Fetch current prices for all your positions at once
+- **Watchlist monitoring**: Track prices for markets you're interested in
+- **Batch strategies**: Evaluate multiple markets before submitting batch orders
+
+```python
+# Fetch prices for all positions
+positions = requests.get(
+    f"{BASE}/v1/account/positions",
+    headers=headers,
+    params={"status": "OPEN"},
+).json()
+
+market_ids = [p["market_id"] for p in positions]
+
+prices = requests.post(
+    f"{BASE}/v1/prices/batch",
+    headers=headers,
+    json={"market_ids": market_ids},
+).json()
+
+for p in prices:
+    if "price" in p:
+        print(f"{p['condition_id'][:16]}: Yes={p['price']['buy']}")
+```
+
+---
+
+## Next Steps
+
+- [Markets](/market-data/markets) — Full market metadata
+- [Order Book](/market-data/order-book) — Detailed liquidity depth

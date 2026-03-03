@@ -1,0 +1,40 @@
+# Context7 configuration for PolySimulator API docs
+# https://context7.com/docs/config
+
+title: "PolySimulator API"
+description: "HFT API for algorithmic trading on Polymarket prediction markets. Paper trade with simulated money using real data; switch to live trading with one config change."
+version: "1.0"
+
+# Primary machine-readable docs
+llms_txt: "/llms.txt"
+openapi: "/openapi.json"
+
+# Topic tags for discoverability
+tags:
+  - trading
+  - prediction-markets
+  - api
+  - polymarket
+  - algorithmic-trading
+  - paper-trading
+  - clob
+  - order-book
+
+# Folders that contain useful documentation
+include:
+  - "*.mdx"
+  - "trading/**"
+  - "account/**"
+  - "market-data/**"
+  - "websockets/**"
+  - "bots/**"
+  - "authentication.mdx"
+  - "quickstart.mdx"
+  - "llms.txt"
+  - "openapi.json"
+
+# Exclude generated / non-docs content
+exclude:
+  - "logo/**"
+  - "favicon.svg"
+  - "docs.json"

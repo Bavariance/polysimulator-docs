@@ -1,0 +1,106 @@
+---
+title: "Slippage Protection"
+sidebarTitle: "Slippage Protection"
+description: "Understand and configure slippage protection for market orders."
+---
+
+# Slippage Protection
+
+Market orders execute via **CLOB book walking** — walking through the real Polymarket order book to find liquidity. Slippage protection ensures you don't get a worse price than expected.
+
+---
+
+## How It Works
+
+1. The trading engine fetches the real-time order book from Polymarket's CLOB
+2. Your order is "walked" through bid/ask levels to compute a depth-weighted fill price
+3. The actual fill price is compared to the expected mid-price
+4. If slippage exceeds your `max_slippage_bps` threshold, the order is **rejected**
+
+```
+Expected mid: $0.65
+Actual fill:  $0.67 (walked through thin liquidity)
+Slippage:     200 bps (2%)
+
+If max_slippage_bps = 100 → ORDER REJECTED
+If max_slippage_bps = 500 → ORDER FILLED at $0.67
+```
+
+---
+
+## Setting Slippage Tolerance
+
+Add `max_slippage_bps` to your order request:
+
+```json
+{
+  "market_id": "0xabc...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "market",
+  "max_slippage_bps": 100
+}
+```
+
+| Value | Meaning |
+|-------|---------|
+| `100` | 1% max slippage |
+| `500` | 5% max slippage (default) |
+| `1000` | 10% max slippage |
+| Not set | Uses server default (500 bps / 5%) |
+
+---
+
+## Fill Diagnostics
+
+Every market order response includes transparency metadata:
+
+```json
+{
+  "order_id": 42,
+  "status": "FILLED",
+  "price": "0.67",
+  "price_source": "clob_book",
+  "slippage_bps": 200
+}
+```
+
+### Price Sources
+
+| Source | Description | Reliability |
+|--------|-------------|-------------|
+| `clob_book` | Full order book walk from CLOB API | Highest — real depth |
+| `clob_midpoint` | CLOB mid-price (thin book fallback) | High |
+| `gamma_api` | Gamma API price feed | Medium — may be delayed |
+| `redis_cache` | Cached price from background poller | Lower — up to 45s stale |
+
+<Tip>
+  **Monitor `price_source`** in your bot logs. If you see frequent
+  `redis_cache` fills, the CLOB API may be experiencing issues.
+  Consider pausing trading during degraded price quality.
+</Tip>
+
+---
+
+## Recommendations by Strategy
+
+| Strategy | Suggested `max_slippage_bps` |
+|----------|:----------------------------:|
+| Scalping / HFT | 50–100 (0.5%–1%) |
+| Swing trading | 200–500 (2%–5%) |
+| Bulk accumulation | 500–1000 (5%–10%) |
+| Illiquid markets | 1000+ or use limit orders |
+
+<Warning>
+  For illiquid markets with wide spreads, consider **limit orders** instead
+  of market orders. Limits give you price certainty at the cost of fill
+  uncertainty.
+</Warning>
+
+---
+
+## Next Steps
+
+- [Placing Orders](/trading/placing-orders) — Full order API reference
+- [Order Book](/market-data/order-book) — Inspect liquidity before trading

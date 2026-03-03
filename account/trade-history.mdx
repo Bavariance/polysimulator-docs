@@ -1,0 +1,68 @@
+---
+title: "Trade History"
+sidebarTitle: "Trade History"
+description: "View your filled orders with filtering and pagination."
+---
+
+# Trade History
+
+```
+GET /v1/account/history
+```
+
+Returns your filled orders (trade history) with filtering and pagination.
+
+---
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `market_id` | string | — | Filter by condition_id |
+| `side` | string | — | Filter: `BUY` or `SELL` |
+| `limit` | int | 50 | Max results (1–500) |
+| `offset` | int | 0 | Pagination offset |
+
+---
+
+## Request
+
+```bash
+# All recent trades
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/history?limit=20"
+
+# Only sells for a specific market
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/history?market_id=0x1a2b3c&side=SELL"
+```
+
+---
+
+## Response
+
+```json
+[
+  {
+    "order_id": 42,
+    "market_id": "0x1a2b3c...",
+    "side": "BUY",
+    "outcome": "Yes",
+    "order_type": "market",
+    "price": "0.65",
+    "quantity": "10.0",
+    "notional": "6.50",
+    "fee": "0",
+    "filled_at": "2026-02-06T12:00:45Z",
+    "price_source": "clob_book",
+    "slippage_bps": 15
+  }
+]
+```
+
+---
+
+## Next Steps
+
+- [Equity Curve](/account/equity-curve) — Visualize portfolio value over time
+- [Portfolio](/account/portfolio) — Aggregate portfolio snapshot

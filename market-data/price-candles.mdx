@@ -1,0 +1,104 @@
+---
+title: "Price Candles"
+sidebarTitle: "Price Candles"
+description: "Historical OHLCV candlestick data for backtesting and charting."
+---
+
+# Price Candles
+
+```
+GET /v1/markets/{condition_id}/candles
+```
+
+Returns OHLCV candlestick data sourced from Polymarket's CLOB `/prices-history` endpoint. Useful for backtesting and chart visualization.
+
+---
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `interval` | string | `1h` | Candle interval |
+| `limit` | int | 100 | Number of candles (1–500) |
+
+### Available Intervals
+
+| Interval | Description |
+|----------|-------------|
+| `1m` | 1 minute |
+| `5m` | 5 minutes |
+| `15m` | 15 minutes |
+| `1h` | 1 hour |
+| `4h` | 4 hours |
+| `1d` | 1 day |
+
+---
+
+## Example
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets/0x1a2b3c/candles?interval=1h&limit=24"
+```
+
+---
+
+## Response
+
+```json
+[
+  {
+    "timestamp": "2026-02-06T11:00:00Z",
+    "open": "0.64",
+    "high": "0.67",
+    "low": "0.63",
+    "close": "0.65",
+    "volume": null
+  },
+  {
+    "timestamp": "2026-02-06T10:00:00Z",
+    "open": "0.62",
+    "high": "0.65",
+    "low": "0.61",
+    "close": "0.64",
+    "volume": null
+  }
+]
+```
+
+<Info>
+  `volume` may be `null` for some candles — Polymarket's CLOB does not always
+  provide volume data for all time intervals.
+</Info>
+
+---
+
+## Backtesting Example
+
+```python
+from decimal import Decimal
+
+# Fetch 7 days of hourly candles
+candles = requests.get(
+    f"{BASE}/v1/markets/0x1a2b3c/candles",
+    headers=headers,
+    params={"interval": "1h", "limit": 168},
+).json()
+
+# Simple moving average crossover
+prices = [Decimal(c["close"]) for c in candles]
+sma_short = sum(prices[:12]) / 12   # 12-hour SMA
+sma_long = sum(prices[:48]) / 48    # 48-hour SMA
+
+if sma_short > sma_long:
+    print("Bullish crossover — consider BUY")
+else:
+    print("Bearish crossover — consider SELL")
+```
+
+---
+
+## Next Steps
+
+- [Batch Prices](/market-data/batch-prices) — Multi-market price lookup
+- [Equity Curve](/account/equity-curve) — Track your portfolio over time

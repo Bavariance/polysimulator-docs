@@ -1,0 +1,104 @@
+---
+title: "Rate Limits"
+sidebarTitle: "Rate Limits"
+description: "Per-key rate limiting tiers, headers, and best practices for staying within limits."
+---
+
+# Rate Limits
+
+Rate limits are enforced **per API key** using Redis sliding-window counters with both per-second (RPS) and per-minute (RPM) buckets.
+
+---
+
+## Tiers
+
+| Tier | Requests/sec | Requests/min | Max WS Connections | Max Batch Size |
+|------|:-----------:|:------------:|:------------------:|:--------------:|
+| `free` | 5 | 300 | 2 | 5 |
+| `pro` | 20 | 1,200 | 10 | 20 |
+| `enterprise` | 50 | 3,000 | 50 | 50 |
+
+<Tip>
+  Check available tiers and their quotas via `GET /v1/keys/tiers`.
+</Tip>
+
+---
+
+## Rate Limit Response
+
+When you exceed your limit, the API returns **HTTP 429**:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 1
+Content-Type: application/json
+```
+
+```json
+{
+  "detail": "Rate limit exceeded. Retry after 1s."
+}
+```
+
+The `Retry-After` header tells you exactly how many seconds to wait.
+
+---
+
+## Handling Rate Limits
+
+Implement exponential backoff with the `Retry-After` header:
+
+```python
+import time
+import requests
+
+def api_request(url, headers, json_data=None, max_retries=3):
+    for attempt in range(max_retries):
+        resp = requests.post(url, headers=headers, json=json_data)
+
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", 1))
+            time.sleep(retry_after)
+            continue
+
+        if resp.status_code >= 500:
+            time.sleep(2 ** attempt)  # Exponential backoff
+            continue
+
+        return resp
+
+    raise Exception(f"Failed after {max_retries} retries")
+```
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Batch Endpoints" icon="layer-group">
+    `POST /v1/orders/batch` and `POST /v1/prices/batch` let you combine multiple
+    operations into a single request, dramatically reducing your request count.
+  </Card>
+
+  <Card title="Use WebSocket Feeds" icon="bolt">
+    Subscribe to `WS /v1/ws/prices` instead of polling `GET /v1/markets`.
+    WebSocket connections don't count against your REST rate limit.
+  </Card>
+
+  <Card title="Cache Market Metadata" icon="database">
+    Market metadata (slug, question, outcomes) changes infrequently.
+    Cache it locally and only refresh periodically.
+  </Card>
+
+  <Card title="Idempotency Keys" icon="key">
+    Use `Idempotency-Key` headers to safely retry failed requests
+    without risking duplicate orders.
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+- [String Numerics](/concepts/string-numerics) — Why all numbers are strings
+- [Batch Orders](/trading/batch-orders) — Reduce request count with batching

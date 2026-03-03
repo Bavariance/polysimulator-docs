@@ -1,0 +1,192 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "PolySimulator",
+  "description": "Virtual prediction market trading API — practice with real Polymarket data, go live with one config change.",
+  "colors": {
+    "primary": "#00d26a",
+    "light": "#e6fff2",
+    "dark": "#0a0f1c"
+  },
+  "logo": {
+    "light": "/logo/polysim-light.svg",
+    "dark": "/logo/polysim-dark.svg",
+    "href": "https://polysimulator.com"
+  },
+  "favicon": "/favicon.svg",
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://polysimulator.com/markets"
+      },
+      {
+        "label": "GitHub",
+        "href": "https://github.com/Bavariance/polysimulator"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get API Key",
+      "href": "https://polysimulator.com/profile"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "icon": "book",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "icon": "rocket",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "icon": "lightbulb",
+            "pages": [
+              "concepts/api-keys",
+              "concepts/rate-limits",
+              "concepts/string-numerics",
+              "concepts/clob-compatibility"
+            ]
+          },
+          {
+            "group": "Trading Guide",
+            "icon": "chart-line",
+            "pages": [
+              "trading/placing-orders",
+              "trading/order-management",
+              "trading/batch-orders",
+              "trading/slippage-protection"
+            ]
+          },
+          {
+            "group": "Market Data",
+            "icon": "chart-bar",
+            "pages": [
+              "market-data/markets",
+              "market-data/order-book",
+              "market-data/price-candles",
+              "market-data/batch-prices"
+            ]
+          },
+          {
+            "group": "Account & Portfolio",
+            "icon": "wallet",
+            "pages": [
+              "account/balance",
+              "account/positions",
+              "account/portfolio",
+              "account/trade-history",
+              "account/equity-curve"
+            ]
+          },
+          {
+            "group": "WebSocket Feeds",
+            "icon": "signal-stream",
+            "pages": [
+              "websockets/overview",
+              "websockets/price-feed",
+              "websockets/execution-feed"
+            ]
+          },
+          {
+            "group": "Bot Development",
+            "icon": "robot",
+            "pages": [
+              "bots/example-trading-bot",
+              "bots/websocket-bot",
+              "bots/error-handling",
+              "bots/best-practices"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "icon": "server",
+            "pages": [
+              "deployment/setup",
+              "deployment/docker",
+              "deployment/monitoring",
+              "deployment/live-migration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "icon": "square-terminal",
+        "openapi": "openapi.json"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Bavariance/polysimulator",
+      "x": "https://x.com/polysimulator"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          {
+            "label": "Markets",
+            "href": "https://polysimulator.com/markets"
+          },
+          {
+            "label": "Leaderboard",
+            "href": "https://polysimulator.com/leaderboard"
+          }
+        ]
+      },
+      {
+        "header": "Developers",
+        "items": [
+          {
+            "label": "API Reference",
+            "href": "/api-reference"
+          },
+          {
+            "label": "GitHub",
+            "href": "https://github.com/Bavariance/polysimulator"
+          }
+        ]
+      }
+    ]
+  },
+  "api": {
+    "baseUrl": "https://staging-api.polysimulator.com",
+    "auth": {
+      "method": "key",
+      "name": "X-API-Key"
+    },
+    "playground": {
+      "mode": "simple"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "mcp": {
+    "enabled": true
+  },
+  "seo": {
+    "indexHiddenPages": false
+  },
+  "errors": {
+    "404": {
+      "title": "Page Not Found",
+      "description": "The page you're looking for doesn't exist. Check the sidebar or search for what you need."
+    }
+  }
+}

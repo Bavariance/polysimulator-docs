@@ -1,0 +1,162 @@
+---
+title: "Monitoring"
+sidebarTitle: "Monitoring"
+description: "Health endpoints, Prometheus metrics, and observability for the PolySimulator API."
+---
+
+# Monitoring
+
+PolySimulator exposes health endpoints and Prometheus metrics for production observability.
+
+---
+
+## Health Endpoints
+
+Three health endpoints at increasing levels of detail:
+
+### `GET /v1/health`
+
+Basic liveness probe — returns immediately.
+
+```bash
+curl http://localhost:8000/v1/health
+```
+
+```json
+{
+  "status": "ok",
+  "version": "1.0.0"
+}
+```
+
+### `GET /v1/health/ready`
+
+Readiness probe — checks database and Redis connectivity.
+
+```bash
+curl http://localhost:8000/v1/health/ready
+```
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "checks": {
+    "database": { "status": "ok", "latency_ms": 1.2 },
+    "redis": { "status": "ok", "latency_ms": 0.8, "cached_markets": 150 }
+  }
+}
+```
+
+<Tip>
+  Use `/v1/health` for Kubernetes liveness probes and `/v1/health/ready` for readiness probes.
+</Tip>
+
+### `GET /v1/status`
+
+Detailed system status including market sync and price feed info.
+
+```bash
+curl http://localhost:8000/v1/status
+```
+
+```json
+{
+  "status": "healthy",
+  "trading_mode": "virtual",
+  "markets_synced": 847,
+  "hot_markets_tracked": 142,
+  "price_feed_active": true,
+  "last_sync": "2025-01-15T10:28:00Z",
+  "uptime_seconds": 86400
+}
+```
+
+---
+
+## Prometheus Metrics
+
+The API exposes a Prometheus-compatible metrics endpoint:
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+### Available Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `http_requests_total` | Counter | Total HTTP requests by method, path, status |
+| `http_request_duration_seconds` | Histogram | Request latency distribution |
+| `orders_placed_total` | Counter | Total orders placed by side and type |
+| `orders_filled_total` | Counter | Total orders filled |
+| `active_websocket_connections` | Gauge | Current WebSocket connections |
+| `price_cache_hits_total` | Counter | Redis cache hits |
+| `price_cache_misses_total` | Counter | Redis cache misses |
+| `market_sync_duration_seconds` | Histogram | Market sync job duration |
+
+### Grafana Dashboard
+
+Import these metrics into Grafana for visual monitoring:
+
+```promql
+# Request rate (5m average)
+rate(http_requests_total[5m])
+
+# P95 latency
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Error rate
+rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])
+
+# Order fill rate
+rate(orders_filled_total[1h])
+```
+
+---
+
+## Alerting Rules
+
+Recommended alert thresholds:
+
+| Condition | Threshold | Severity |
+|-----------|-----------|----------|
+| API down | `/v1/health` fails for 30s | Critical |
+| Database unreachable | `/v1/health/ready` reports DB down | Critical |
+| Redis unreachable | `/v1/health/ready` reports Redis down | Warning |
+| High error rate | >5% 5xx responses (5m window) | Warning |
+| High latency | P95 > 2s (5m window) | Warning |
+| Price feed stale | No updates for > 60s | Warning |
+
+---
+
+## Logging
+
+The API uses structured JSON logging in production:
+
+```json
+{
+  "timestamp": "2025-01-15T10:30:00Z",
+  "level": "INFO",
+  "message": "Order placed",
+  "order_id": "abc-123",
+  "market_id": "0x1234...",
+  "side": "BUY",
+  "quantity": "10",
+  "price": "0.42",
+  "latency_ms": 23
+}
+```
+
+Configure log level via environment:
+
+```bash
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR
+```
+
+---
+
+## Next Steps
+
+- [Live Migration](/deployment/live-migration) — Switch from virtual to live trading
+- [Setup](/deployment/setup) — Initial installation guide

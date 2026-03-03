@@ -1,0 +1,140 @@
+---
+title: "CLOB Compatibility"
+sidebarTitle: "CLOB Compatibility"
+description: "How the CLOB-compatible endpoint enables URL-swap migration to live Polymarket trading."
+---
+
+# CLOB Compatibility
+
+The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, enabling one-URL-swap migration from paper trading to live trading.
+
+---
+
+## The Migration Promise
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Change ONLY the base URL and credentials to go live             │
+│                                                                  │
+│  Virtual: https://api.polysimulator.com/v1/clob/order            │
+│  Live:    https://clob.polymarket.com/order                      │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+<CodeGroup>
+```python Virtual Mode (PolySimulator)
+BASE = "https://api.polysimulator.com/v1"
+headers = {"X-API-Key": "ps_live_kJ9mNx2p..."}
+
+order = requests.post(f"{BASE}/clob/order", headers=headers, json={
+    "token_id": "71321045679252...",
+    "side": "BUY",
+    "price": 0.65,
+    "size": 10.0,
+    "order_type": "GTC",
+}).json()
+```
+
+```python Live Mode (Polymarket)
+BASE = "https://clob.polymarket.com"
+headers = {"Authorization": "Bearer <polymarket_jwt>"}
+
+order = requests.post(f"{BASE}/order", headers=headers, json={
+    "token_id": "71321045679252...",
+    "side": "BUY",
+    "price": 0.65,
+    "size": 10.0,
+    "order_type": "GTC",
+}).json()
+```
+</CodeGroup>
+
+---
+
+## Request Schema
+
+```json
+{
+  "token_id": "71321045679252212594626385532706912750332728571942532289631379312455583992563",
+  "side": "BUY",
+  "price": 0.65,
+  "size": 10.0,
+  "order_type": "GTC",
+  "fee_rate_bps": 0,
+  "nonce": "optional-nonce",
+  "client_order_id": "my-order-001"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token_id` | string | Yes | CLOB outcome token ID |
+| `side` | string | Yes | `BUY` or `SELL` |
+| `price` | float | Yes | Price 0.01–0.99 |
+| `size` | float | Yes | Number of shares (> 0) |
+| `order_type` | string | No | `GTC` (default), `FOK`, `IOC`, `GTD` |
+| `fee_rate_bps` | int | No | Accepted but ignored in virtual mode |
+| `nonce` | string | No | Accepted but ignored in virtual mode |
+| `taker` | string | No | Accepted but ignored in virtual mode |
+| `client_order_id` | string | No | Idempotency key |
+
+---
+
+## Response Schema
+
+Mirrors the Polymarket CLOB response shape:
+
+```json
+{
+  "success": true,
+  "orderID": "42",
+  "status": "MATCHED",
+  "transactID": "42",
+  "errorMsg": null,
+  "price": "0.65",
+  "size": "10.0",
+  "side": "BUY",
+  "takingAmount": "6.50",
+  "makingAmount": "10.0"
+}
+```
+
+---
+
+## Field Mapping
+
+| Polymarket CLOB | PolySimulator `/v1/clob/order` | Notes |
+|-----------------|-------------------------------|-------|
+| `tokenId` / `token_id` | `token_id` | Resolved to condition_id via Redis |
+| `side` (0=BUY, 1=SELL) | `side` ("BUY"/"SELL") | String enum |
+| `price` (string) | `price` (float) | Virtual mode accepts float |
+| `size` (string) | `size` (float) | Virtual mode accepts float |
+| `feeRateBps` | `fee_rate_bps` | Accepted; no fees in virtual mode |
+| `orderType` | `order_type` | GTC/FOK/IOC/GTD |
+| `signature` | — | Not required (virtual mode) |
+| `salt` | — | Not required (virtual mode) |
+
+<Info>
+  Fields like `signature`, `salt`, `maker`, and `signer` that are required
+  for Polymarket's blockchain settlement are **accepted but ignored** in
+  virtual mode. This means you can develop your bot with (or without) these
+  fields — either way works.
+</Info>
+
+---
+
+## When to Use CLOB-Compat vs Native API
+
+| Use Case | Recommended Endpoint |
+|----------|---------------------|
+| New bot development | `POST /v1/orders` — richer features, string numerics |
+| Porting existing Polymarket bot | `POST /v1/clob/order` — minimal code changes |
+| Planning to go live on Polymarket | `POST /v1/clob/order` — URL-swap ready |
+| Advanced features (batch, limit, slippage) | `POST /v1/orders` — full feature set |
+
+---
+
+## Next Steps
+
+- [Placing Orders](/trading/placing-orders) — Full-featured native order API
+- [Live Migration](/deployment/live-migration) — Step-by-step migration guide

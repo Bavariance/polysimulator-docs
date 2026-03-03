@@ -1,0 +1,137 @@
+---
+title: "Live Migration"
+sidebarTitle: "Live Migration"
+description: "Switch from virtual paper trading to live trading on Polymarket."
+---
+
+# Virtual → Live Migration
+
+PolySimulator is designed so your entire bot codebase works unchanged when switching from virtual (paper) trading to live (real-money) trading on Polymarket.
+
+---
+
+## Comparison
+
+| Aspect | Virtual Mode | Live Mode |
+|--------|-------------|-----------|
+| Money at risk | None (simulated $1,000) | Real funds |
+| Order execution | Local ledger | Polymarket CLOB |
+| Market data | Real prices from Polymarket | Real prices from Polymarket |
+| API surface | Full HFT API v1 | Same endpoints |
+| Settlement | Automatic on resolution | Polymarket blockchain |
+
+<Warning>
+  Live mode executes real trades with real money on Polymarket. Ensure your strategy is thoroughly tested in virtual mode before migrating.
+</Warning>
+
+---
+
+## Migration Steps
+
+<Steps>
+  <Step title="Test thoroughly in virtual mode">
+    Run your bot through multiple market cycles. Verify:
+    - Order placement works correctly
+    - Error handling covers all edge cases
+    - P&L tracking is accurate
+    - WebSocket reconnection is stable
+  </Step>
+
+  <Step title="Get Polymarket API credentials">
+    Obtain your Polymarket CLOB API credentials:
+    - API Key
+    - API Secret
+    - API Passphrase
+
+    See [Polymarket's documentation](https://docs.polymarket.com) for credential setup.
+  </Step>
+
+  <Step title="Update environment variables">
+    Change only the environment variables — **no code changes required**:
+
+    ```bash
+    # Before (virtual mode)
+    TRADING_MODE=virtual
+
+    # After (live mode)
+    TRADING_MODE=live
+    POLYMARKET_API_KEY=your_api_key
+    POLYMARKET_API_SECRET=your_api_secret
+    POLYMARKET_API_PASSPHRASE=your_api_passphrase
+    ```
+  </Step>
+
+  <Step title="Use CLOB-compatible endpoint (optional)">
+    For bots already targeting the Polymarket CLOB API, use the CLOB compatibility endpoint which mirrors Polymarket's schema:
+
+    ```bash
+    # PolySimulator CLOB-compat endpoint
+    POST /v1/clob-compat/order
+
+    # Same request body works on both:
+    {
+      "token_id": "71321045...",
+      "side": "BUY",
+      "price": "0.50",
+      "size": "10"
+    }
+    ```
+
+    This means you can **swap only the base URL** to switch between virtual and live:
+
+    ```python
+    # Virtual
+    BASE_URL = "https://api.polysimulator.com"
+
+    # Live — same code, different URL
+    BASE_URL = "https://clob.polymarket.com"
+    ```
+  </Step>
+
+  <Step title="Verify with small orders">
+    Start with minimal order sizes to verify live execution:
+    ```python
+    # Start with quantity=1 to verify connectivity
+    place_order(market_id, "BUY", "Yes", quantity=1)
+    ```
+  </Step>
+</Steps>
+
+---
+
+## CLOB Compatibility Layer
+
+The CLOB-compat endpoint translates between PolySimulator's virtual ledger and Polymarket's CLOB schema:
+
+| PolySimulator Field | CLOB Field | Notes |
+|--------------------|-----------| ------|
+| `market_id` | `token_id` | Same underlying identifier |
+| `side` | `side` | `BUY` / `SELL` |
+| `quantity` | `size` | String numeric |
+| `price` | `price` | 0–1 range |
+| `order_type` | `type` | `market` / `limit` / `GTC` / `GTD` |
+
+---
+
+## Rollback
+
+To return to virtual mode:
+
+```bash
+TRADING_MODE=virtual
+# Remove or comment out Polymarket credentials
+# POLYMARKET_API_KEY=...
+```
+
+Restart the API server and your bot resumes paper trading with the simulated balance.
+
+---
+
+## Checklist
+
+- [ ] Bot tested across multiple market scenarios in virtual mode
+- [ ] Error handling verified (network errors, rate limits, slippage)
+- [ ] Polymarket API credentials obtained and secured
+- [ ] Environment variables updated
+- [ ] Initial live test with minimal order size
+- [ ] Monitoring and alerting configured for live trading

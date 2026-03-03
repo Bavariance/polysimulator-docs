@@ -1,0 +1,95 @@
+---
+title: "Portfolio"
+sidebarTitle: "Portfolio"
+description: "Complete portfolio snapshot with balance, positions, and aggregate P&L."
+---
+
+# Portfolio
+
+```
+GET /v1/account/portfolio
+```
+
+Returns a complete portfolio snapshot combining balance, positions, and aggregate metrics.
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/account/portfolio
+```
+
+---
+
+## Response
+
+```json
+{
+  "balance": {
+    "user_id": 1,
+    "balance": "993.50",
+    "currency": "USD",
+    "starting_balance": "1000.00",
+    "pnl": "-6.50",
+    "pnl_percent": "-0.65"
+  },
+  "positions": [
+    {
+      "id": 1,
+      "market_id": "0x1a2b3c...",
+      "outcome": "Yes",
+      "quantity": "10.0",
+      "avg_entry_price": "0.65",
+      "current_price": "0.70",
+      "market_value": "7.00",
+      "unrealized_pnl": "0.50",
+      "status": "OPEN"
+    }
+  ],
+  "total_position_value": "7.00",
+  "total_portfolio_value": "1000.50",
+  "total_unrealized_pnl": "0.50",
+  "total_trades": 5,
+  "win_rate": "60.00"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `total_position_value` | Sum of all open position market values |
+| `total_portfolio_value` | Cash balance + total position value |
+| `total_unrealized_pnl` | Sum of all unrealized P&L |
+| `total_trades` | Total filled orders |
+| `win_rate` | Percentage of profitable closed positions |
+
+---
+
+## Bot Integration
+
+```python
+portfolio = requests.get(
+    f"{BASE}/v1/account/portfolio",
+    headers=headers,
+).json()
+
+cash = Decimal(portfolio["balance"]["balance"])
+total = Decimal(portfolio["total_portfolio_value"])
+positions = portfolio["positions"]
+
+print(f"Cash: ${cash} | Total: ${total} | Positions: {len(positions)}")
+print(f"Win rate: {portfolio['win_rate']}%")
+
+# Check if over-allocated
+cash_pct = cash / total * 100
+if cash_pct < 20:
+    print("Warning: Low cash — consider reducing positions")
+```
+
+---
+
+## Next Steps
+
+- [Trade History](/account/trade-history) — View filled orders
+- [Equity Curve](/account/equity-curve) — Portfolio value over time

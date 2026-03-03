@@ -1,0 +1,231 @@
+---
+title: "Error Handling"
+sidebarTitle: "Error Handling"
+description: "Comprehensive error handling patterns for resilient trading bots."
+---
+
+# Error Handling
+
+Every API response uses standard HTTP status codes with structured JSON error bodies.
+
+---
+
+## Error Response Format
+
+All errors return a consistent JSON structure:
+
+```json
+{
+  "error": "INSUFFICIENT_BALANCE",
+  "message": "Account balance $12.50 insufficient for order cost $25.00",
+  "details": {
+    "available": "12.50",
+    "required": "25.00"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error` | string | Machine-readable error code |
+| `message` | string | Human-readable description |
+| `details` | object | Optional additional context |
+
+---
+
+## HTTP Status Codes
+
+| Code | Meaning | Retry? | Action |
+|------|---------|--------|--------|
+| `200` | Success | — | Process response |
+| `400` | Bad request | No | Fix request payload |
+| `401` | Invalid or missing API key | No | Check `X-API-Key` header |
+| `403` | Insufficient permissions | No | Check key scopes |
+| `404` | Resource not found | No | Verify market ID or order ID |
+| `409` | Conflict (duplicate idempotency key) | No | Use original response |
+| `422` | Validation error | No | Fix input fields |
+| `429` | Rate limited | **Yes** | Wait for `Retry-After` header |
+| `500` | Internal server error | **Yes** | Retry with backoff |
+| `502` | Upstream error | **Yes** | Retry with backoff |
+| `503` | Service unavailable | **Yes** | Retry with backoff |
+
+---
+
+## Common Error Codes
+
+### Trading Errors
+
+| Error Code | HTTP | Description |
+|-----------|------|-------------|
+| `INSUFFICIENT_BALANCE` | 400 | Not enough funds for order |
+| `INVALID_QUANTITY` | 422 | Quantity must be positive integer |
+| `INVALID_PRICE` | 422 | Price must be between 0 and 1 |
+| `MARKET_NOT_FOUND` | 404 | Unknown `market_id` |
+| `MARKET_CLOSED` | 400 | Market is resolved or inactive |
+| `ORDER_NOT_FOUND` | 404 | Unknown `order_id` |
+| `CANNOT_CANCEL` | 400 | Order already filled or cancelled |
+| `SLIPPAGE_EXCEEDED` | 400 | Price moved beyond `max_slippage_bps` |
+
+### Authentication Errors
+
+| Error Code | HTTP | Description |
+|-----------|------|-------------|
+| `MISSING_API_KEY` | 401 | No `X-API-Key` header |
+| `INVALID_API_KEY` | 401 | Key doesn't exist or is revoked |
+| `KEY_EXPIRED` | 401 | API key has expired |
+| `INSUFFICIENT_SCOPE` | 403 | Key lacks required permission |
+
+### Rate Limit Errors
+
+| Error Code | HTTP | Description |
+|-----------|------|-------------|
+| `RATE_LIMITED` | 429 | Too many requests |
+
+---
+
+## Retry Strategy
+
+<CodeGroup>
+
+```python Python — Exponential Backoff
+import time
+import requests
+
+def api_call_with_retry(method, url, max_retries=3, **kwargs):
+    """Make API call with exponential backoff on retryable errors."""
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.request(method, url, **kwargs)
+
+            if resp.status_code == 429:
+                # Rate limited — use server-provided wait time
+                wait = int(resp.headers.get("Retry-After", 2 ** attempt))
+                print(f"Rate limited, waiting {wait}s...")
+                time.sleep(wait)
+                continue
+
+            if resp.status_code >= 500:
+                # Server error — retry with backoff
+                wait = 2 ** attempt
+                print(f"Server error {resp.status_code}, retry in {wait}s...")
+                time.sleep(wait)
+                continue
+
+            # Success or client error (no retry)
+            resp.raise_for_status()
+            return resp.json()
+
+        except requests.exceptions.ConnectionError:
+            wait = 2 ** attempt
+            print(f"Connection error, retry in {wait}s...")
+            time.sleep(wait)
+
+    raise Exception(f"Max retries ({max_retries}) exceeded for {url}")
+```
+
+```javascript JavaScript — Exponential Backoff
+async function apiCallWithRetry(method, url, options = {}, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const resp = await fetch(url, { method, ...options });
+
+      if (resp.status === 429) {
+        const wait = parseInt(resp.headers.get("Retry-After") || 2 ** attempt);
+        console.log(`Rate limited, waiting ${wait}s...`);
+        await new Promise(r => setTimeout(r, wait * 1000));
+        continue;
+      }
+
+      if (resp.status >= 500) {
+        const wait = 2 ** attempt;
+        console.log(`Server error ${resp.status}, retry in ${wait}s...`);
+        await new Promise(r => setTimeout(r, wait * 1000));
+        continue;
+      }
+
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${await resp.text()}`);
+      return await resp.json();
+
+    } catch (err) {
+      if (err.message.includes("fetch failed") && attempt < maxRetries) {
+        const wait = 2 ** attempt;
+        console.log(`Connection error, retry in ${wait}s...`);
+        await new Promise(r => setTimeout(r, wait * 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error(`Max retries (${maxRetries}) exceeded for ${url}`);
+}
+```
+
+</CodeGroup>
+
+---
+
+## WebSocket Error Handling
+
+WebSocket connections use custom close codes:
+
+| Close Code | Meaning | Action |
+|-----------|---------|--------|
+| `1000` | Normal close | Reconnect if desired |
+| `1001` | Server going away | Reconnect after 1s |
+| `4001` | Authentication failed | Get new token, reconnect |
+| `4002` | Subscription limit exceeded | Reduce subscriptions |
+
+```python
+import asyncio
+import aiohttp
+
+async def resilient_ws(url, token, market_ids):
+    """WebSocket connection with automatic reconnection."""
+    backoff = 1
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.ws_connect(f"{url}?token={token}") as ws:
+                    backoff = 1  # Reset on successful connect
+
+                    await ws.send_json({
+                        "type": "subscribe",
+                        "channel": "prices",
+                        "market_ids": market_ids,
+                    })
+
+                    async for msg in ws:
+                        if msg.type == aiohttp.WSMsgType.TEXT:
+                            handle_message(msg.data)
+                        elif msg.type == aiohttp.WSMsgType.CLOSED:
+                            break
+                        elif msg.type == aiohttp.WSMsgType.ERROR:
+                            break
+
+        except Exception as e:
+            print(f"WS error: {e}")
+
+        wait = min(backoff, 30)
+        print(f"Reconnecting in {wait}s...")
+        await asyncio.sleep(wait)
+        backoff *= 2
+```
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Always check status codes" icon="circle-check">
+    Never assume a 2xx response. Parse the status code and handle each category appropriately.
+  </Card>
+  <Card title="Use Retry-After header" icon="clock">
+    On 429 responses, the `Retry-After` header tells you exactly how long to wait. Don't guess.
+  </Card>
+  <Card title="Don't retry 4xx errors" icon="xmark">
+    Client errors (400-422) indicate a problem with your request. Fix the payload instead of retrying.
+  </Card>
+  <Card title="Log error details" icon="file-lines">
+    Always log the full error response body for debugging — the `details` field often contains actionable info.
+  </Card>
+</CardGroup>
