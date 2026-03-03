@@ -1,0 +1,105 @@
+# PolySimulator API
+
+> Virtual trading environment for Polymarket prediction markets.
+
+PolySimulator provides a complete HFT API for algorithmic trading bots to practice trading with real market data using simulated money, then switch to live trading on Polymarket by changing only API credentials.
+
+## API Base URL
+- Production: https://api.polysimulator.com/v1
+- Staging: https://staging-api.polysimulator.com/v1
+- Local: http://localhost:8000/v1
+
+## Authentication
+All endpoints (except bootstrap) require an API key via `X-API-Key` header.
+Key format: `ps_live_` prefix + 64 hex characters (total 72 chars).
+
+### First-time setup (Bootstrap)
+New users have no key yet. To create your first key without a chicken-and-egg problem:
+1. Sign in at polysimulator.com to get a Supabase access_token.
+2. Call `POST /v1/keys/bootstrap` with `Authorization: Bearer <access_token>`.
+3. Store the returned `raw_key` — it is shown only once.
+4. All subsequent requests use `X-API-Key: <raw_key>`.
+
+Manage additional keys at POST /v1/keys, GET /v1/keys, DELETE /v1/keys/{key_id}.
+
+## Rate Limits
+- Free: 60 req/min, 5 WebSocket connections
+- Pro: 300 req/min, 20 WebSocket connections
+- Enterprise: 1000 req/min, 100 WebSocket connections
+Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+
+## Key Concepts
+- All numeric values (price, quantity, balance) are JSON strings to avoid IEEE 754 precision loss
+- Use Decimal types in your language for arithmetic
+- Use `client_order_id` in order requests to prevent duplicate fills on retries (idempotency)
+- Markets use condition_id as the primary identifier
+
+## Endpoints
+
+### Market Data
+- GET /v1/markets — List active markets (params: hot_only, limit, offset, search)
+- GET /v1/markets/{condition_id} — Get single market with live price
+- GET /v1/markets/{condition_id}/book — L2 order book (bids/asks arrays)
+- GET /v1/markets/{condition_id}/candles — OHLCV price candles (intervals: 1m, 5m, 15m, 1h, 4h, 1d)
+- POST /v1/prices/batch — Batch price lookup (body: {"token_ids": [...]})
+
+### Trading
+- POST /v1/clob/order — Place order (body: token_id, side, size, price, order_type, max_slippage_bps, client_order_id)
+- GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
+- DELETE /v1/orders/{order_id} — Cancel open order
+- POST /v1/orders/batch — Place multiple orders (body: {"orders": [...]})
+
+### Account
+- GET /v1/account/balance — Account balance, PnL, unrealized PnL
+- GET /v1/account/positions — Open/closed positions (params: status, market_id, limit, offset)
+- GET /v1/account/portfolio — Aggregate portfolio snapshot
+- GET /v1/account/history — Filled order history (params: market_id, side, limit, offset, cursor)
+- GET /v1/account/equity — Hourly equity snapshots (params: start, end, interval)
+
+### Key Management
+- POST /v1/keys/bootstrap — Create first API key via Bearer JWT (no X-API-Key needed)
+- POST /v1/keys — Create additional API key (body: name, tier, permissions; requires X-API-Key)
+- GET /v1/keys — List all keys (masked)
+- DELETE /v1/keys/{key_id} — Revoke key
+- GET /v1/keys/tiers — List available rate limit tiers
+- POST /v1/keys/ws-token — Get short-lived WebSocket auth token
+
+### Health & Monitoring
+- GET /v1/health — Liveness probe
+- GET /v1/health/ready — Readiness probe (checks DB + Redis)
+- GET /v1/status — System status with market sync info
+- GET /metrics — Prometheus metrics
+
+### WebSocket
+- WS /v1/ws/prices — Real-time price stream (subscribe/unsubscribe by token_ids)
+- WS /v1/ws/executions — Trade fill notifications
+- POST /v1/keys/ws-token — Mint short-lived WebSocket auth token (60s TTL)
+
+### CLOB Compatibility
+- POST /v1/clob/order — Polymarket CLOB-compatible order endpoint (same schema as native order endpoint)
+
+## Order Types
+- market: Execute at current price immediately
+- limit: Execute only at specified price or better
+- Time-in-force: GTC (good-til-cancelled), GTD (good-til-date), IOC (immediate-or-cancel)
+
+## Error Format
+{"error": "ERROR_CODE", "message": "Human description", "details": {...}}
+
+## Common Errors
+- 400 INSUFFICIENT_BALANCE — Not enough funds
+- 400 MARKET_CLOSED — Market is resolved
+- 400 SLIPPAGE_EXCEEDED — Price moved beyond max_slippage_bps
+- 401 INVALID_API_KEY — Key invalid or revoked
+- 404 MARKET_NOT_FOUND — Unknown market
+- 404 ORDER_NOT_FOUND — Unknown order
+- 429 RATE_LIMITED — Too many requests (check Retry-After header)
+
+## Trading Mode
+- Virtual (default): All trades are simulated with $1,000 starting balance
+- Live: Same API, same code — set TRADING_MODE=live with Polymarket credentials
+
+## Links
+- Documentation: https://docs.polysimulator.com
+- GitHub: https://github.com/Bavariance/polysimulator
+- Website: https://polysimulator.com

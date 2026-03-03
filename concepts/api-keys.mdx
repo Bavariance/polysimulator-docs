@@ -1,0 +1,122 @@
+---
+title: "API Keys"
+sidebarTitle: "API Keys"
+description: "Create, list, and revoke API keys for programmatic access."
+---
+
+# API Keys
+
+API keys are the primary authentication mechanism for the PolySimulator API. Each key is tied to a user account, has configurable permissions, and can be revoked instantly.
+
+---
+
+## Create a Key
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.polysimulator.com/v1/keys \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "my-trading-bot",
+    "permissions": ["read", "trade"],
+    "tier": "free"
+  }'
+```
+
+```python Python
+import requests, os
+
+resp = requests.post(
+    f"{os.environ['POLYSIM_BASE_URL']}/v1/keys",
+    headers={"X-API-Key": os.environ["POLYSIM_API_KEY"]},
+    json={
+        "name": "my-trading-bot",
+        "permissions": ["read", "trade"],
+        "tier": "free",
+    },
+)
+key_data = resp.json()
+print(f"Save this key: {key_data['key']}")
+```
+</CodeGroup>
+
+**Response (201 Created):**
+
+```json
+{
+  "id": 1,
+  "key": "ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j",
+  "key_prefix": "ps_live_kJ9mNx2p",
+  "name": "my-trading-bot",
+  "permissions": ["read", "trade"],
+  "rate_limit_tier": "free",
+  "created_at": "2026-02-06T12:00:00Z",
+  "expires_at": null
+}
+```
+
+<Warning>
+  The `key` field is shown **exactly once**. Store it securely — it cannot be
+  retrieved again. Only the SHA-256 hash is stored in the database.
+</Warning>
+
+---
+
+## List Keys
+
+Returns all keys for your account. Only prefixes are shown — never the full key.
+
+```bash
+curl -H "X-API-Key: $API_KEY" https://api.polysimulator.com/v1/keys
+```
+
+```json
+[
+  {
+    "id": 1,
+    "key_prefix": "ps_live_kJ9mNx2p",
+    "name": "my-trading-bot",
+    "permissions": ["read", "trade"],
+    "rate_limit_tier": "free",
+    "is_active": true,
+    "created_at": "2026-02-06T12:00:00Z",
+    "expires_at": null
+  }
+]
+```
+
+---
+
+## Revoke a Key
+
+Permanently deactivates a key. **This action cannot be undone.**
+
+```bash
+curl -X DELETE -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/keys/1
+```
+
+```json
+{
+  "message": "Key revoked successfully"
+}
+```
+
+---
+
+## Key Limits
+
+| Constraint | Value |
+|-----------|-------|
+| Max keys per user | 5 |
+| Key format | `ps_live_<64 hex chars>` |
+| Storage | SHA-256 hash only |
+| Expiration | Optional `expires_at` field |
+
+---
+
+## Next Steps
+
+- [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
+- [Authentication](/authentication) — Security model deep dive

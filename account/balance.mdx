@@ -1,0 +1,59 @@
+---
+title: "Balance"
+sidebarTitle: "Balance"
+description: "Check your virtual account balance, P&L, and starting capital."
+---
+
+# Balance
+
+```
+GET /v1/account/balance
+```
+
+Returns your current account balance, P&L metrics, and starting capital.
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/account/balance
+```
+
+---
+
+## Response
+
+```json
+{
+  "user_id": 1,
+  "balance": "993.50",
+  "currency": "USD",
+  "starting_balance": "1000.00",
+  "pnl": "-6.50",
+  "pnl_percent": "-0.65",
+  "unrealized_pnl": "0.50"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `balance` | Current cash balance (available for trading) |
+| `currency` | Always `USD` |
+| `starting_balance` | Initial capital ($1,000 for virtual accounts) |
+| `pnl` | Realized profit/loss since account creation |
+| `pnl_percent` | P&L as percentage of starting balance |
+| `unrealized_pnl` | Unrealized P&L from open positions |
+
+<Tip>
+  Your **total portfolio value** = `balance` + market value of open positions.
+  Use the [Portfolio](/account/portfolio) endpoint for a complete snapshot.
+</Tip>
+
+---
+
+## Next Steps
+
+- [Positions](/account/positions) — View open and closed positions
+- [Portfolio](/account/portfolio) — Complete portfolio overview

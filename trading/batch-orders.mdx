@@ -1,0 +1,128 @@
+---
+title: "Batch Orders"
+sidebarTitle: "Batch Orders"
+description: "Place multiple orders in a single request to reduce latency and rate limit usage."
+---
+
+# Batch Orders
+
+```
+POST /v1/orders/batch
+```
+
+Place up to N orders in a single request. Each order is processed independently — partial failures are reported per-order.
+
+---
+
+## Batch Size Limits
+
+| Tier | Max Batch Size |
+|------|:--------------:|
+| `free` | 5 |
+| `pro` | 20 |
+| `enterprise` | 50 |
+
+---
+
+## Request
+
+```bash
+curl -X POST https://api.polysimulator.com/v1/orders/batch \
+  -H "X-API-Key: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "orders": [
+      {
+        "market_id": "0xabc...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "5",
+        "order_type": "market"
+      },
+      {
+        "market_id": "0xdef...",
+        "side": "BUY",
+        "outcome": "No",
+        "quantity": "3",
+        "order_type": "market"
+      },
+      {
+        "market_id": "0xghi...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "10",
+        "order_type": "limit",
+        "price": "0.45",
+        "time_in_force": "GTC"
+      }
+    ]
+  }'
+```
+
+Each order in the array follows the same schema as `POST /v1/orders`.
+
+---
+
+## Response
+
+```json
+{
+  "results": [
+    {
+      "order_id": 42,
+      "status": "FILLED",
+      "price": "0.65",
+      "quantity": "5",
+      "notional": "3.25"
+    },
+    {
+      "order_id": 43,
+      "status": "FILLED",
+      "price": "0.40",
+      "quantity": "3",
+      "notional": "1.20"
+    },
+    {
+      "error": "INSUFFICIENT_BALANCE",
+      "message": "Insufficient balance for order"
+    }
+  ],
+  "succeeded": 2,
+  "failed": 1
+}
+```
+
+<Info>
+  **Partial failures don't roll back successful orders.** Each order is
+  independent — some may succeed while others fail. Always check the
+  `succeeded` and `failed` counts.
+</Info>
+
+---
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Portfolio Rebalancing" icon="scale-balanced">
+    Buy underweight positions and sell overweight positions in a single request.
+  </Card>
+
+  <Card title="Grid Trading" icon="grip">
+    Place a ladder of limit orders at multiple price levels simultaneously.
+  </Card>
+
+  <Card title="Market Scanning" icon="magnifying-glass-chart">
+    Buy small positions across multiple undervalued markets at once.
+  </Card>
+
+  <Card title="Rate Limit Optimization" icon="gauge-high">
+    1 batch request counts as 1 API call vs N individual calls.
+  </Card>
+</CardGroup>
+
+---
+
+## Next Steps
+
+- [Slippage Protection](/trading/slippage-protection) — Control fill quality
+- [Placing Orders](/trading/placing-orders) — Single order reference

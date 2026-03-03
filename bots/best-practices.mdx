@@ -1,0 +1,235 @@
+---
+title: "Best Practices"
+sidebarTitle: "Best Practices"
+description: "Production-grade patterns for building reliable trading bots."
+---
+
+# Best Practices
+
+Battle-tested patterns to make your bots production-ready.
+
+---
+
+## 1. Always Use String Numerics
+
+<Warning>
+  Never send numeric values as JSON numbers. The API returns and expects all monetary values as **strings** to prevent IEEE 754 floating-point precision loss.
+</Warning>
+
+```python
+# ✅ Correct
+payload = {"quantity": "10", "price": "0.42"}
+
+# ❌ Wrong — may lose precision
+payload = {"quantity": 10, "price": 0.42}
+```
+
+Use `Decimal` for all arithmetic:
+
+```python
+from decimal import Decimal
+
+price = Decimal(response["price"])
+quantity = Decimal(response["quantity"])
+cost = price * quantity  # Exact arithmetic
+```
+
+---
+
+## 2. Use Idempotency Keys
+
+Every `POST /v1/orders` request should include an `Idempotency-Key` header to prevent duplicate orders on network retries:
+
+```python
+import hashlib, time
+
+def make_idempotency_key(market_id, side, outcome, quantity):
+    """Generate a deterministic key for this exact order."""
+    raw = f"{market_id}:{side}:{outcome}:{quantity}:{int(time.time())}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+```
+
+<Tip>
+  If you retry a request with the same idempotency key, the server returns the original response without creating a duplicate order.
+</Tip>
+
+---
+
+## 3. Prefer Batch Endpoints
+
+When operating on multiple markets, use batch endpoints to reduce HTTP overhead and stay within rate limits:
+
+| Instead of... | Use... |
+|--------------|--------|
+| N × `GET /v1/markets/{id}` | `POST /v1/markets/batch-prices` |
+| N × `POST /v1/orders` | `POST /v1/orders/batch` |
+| N × `GET /v1/markets/{id}/book` | Cache + periodic refresh |
+
+```python
+# ✅ Fetch 20 prices in one call
+resp = requests.post(
+    f"{BASE_URL}/v1/markets/batch-prices",
+    headers=HEADERS,
+    json={"market_ids": market_ids},
+)
+prices = resp.json()["prices"]
+```
+
+---
+
+## 4. Use WebSocket Over REST Polling
+
+For price monitoring, WebSocket streaming is vastly more efficient:
+
+| | REST Polling (5s) | WebSocket |
+|---|---|---|
+| Latency | 0–5,000 ms | \<100 ms |
+| API calls/hr | 720/market | 1 connection |
+| Rate limit risk | High | None |
+
+Reserve REST API for:
+- Order placement
+- Account queries
+- Historical data
+
+---
+
+## 5. Use Cursor Pagination for Large Datasets
+
+For endpoints that return lists (orders, positions, trade history), prefer cursor-based pagination over offset:
+
+```python
+# ✅ Cursor pagination — consistent results
+cursor = None
+all_orders = []
+while True:
+    params = {"limit": 100}
+    if cursor:
+        params["cursor"] = cursor
+    resp = requests.get(f"{BASE_URL}/v1/orders", headers=HEADERS, params=params)
+    data = resp.json()
+    all_orders.extend(data["orders"])
+    cursor = data.get("next_cursor")
+    if not cursor:
+        break
+```
+
+<Warning>
+  Offset pagination (`offset=100`) can skip or duplicate items when new records are inserted between pages. Use cursor pagination for trading data.
+</Warning>
+
+---
+
+## 6. Cache Market Metadata
+
+Market metadata (question text, outcomes, slugs) changes rarely. Cache it locally and refresh periodically:
+
+```python
+import time
+
+class MarketCache:
+    def __init__(self, ttl=300):
+        self.markets = {}
+        self.last_refresh = 0
+        self.ttl = ttl
+
+    def get(self, market_id):
+        if time.time() - self.last_refresh > self.ttl:
+            self.refresh()
+        return self.markets.get(market_id)
+
+    def refresh(self):
+        resp = requests.get(f"{BASE_URL}/v1/markets", headers=HEADERS, params={"limit": 200})
+        for m in resp.json():
+            self.markets[m["condition_id"]] = m
+        self.last_refresh = time.time()
+```
+
+---
+
+## 7. Implement Exponential Backoff
+
+Never hammer the API on errors. Use exponential backoff with jitter:
+
+```python
+import random, time
+
+def backoff_wait(attempt, base=1, cap=30):
+    """Exponential backoff with jitter."""
+    wait = min(base * (2 ** attempt), cap)
+    jitter = random.uniform(0, wait * 0.1)
+    return wait + jitter
+```
+
+---
+
+## 8. Monitor Your Bot
+
+Use the health and metrics endpoints to monitor the API and your bot:
+
+```python
+def check_api_health():
+    """Verify API is healthy before trading."""
+    resp = requests.get(f"{BASE_URL}/v1/health/ready")
+    data = resp.json()
+    if data["status"] != "healthy":
+        print(f"API unhealthy: {data}")
+        return False
+    return True
+```
+
+Track your bot's performance via the equity curve:
+
+```python
+def log_performance():
+    """Fetch and log P&L metrics."""
+    balance = requests.get(f"{BASE_URL}/v1/account/balance", headers=HEADERS).json()
+    print(f"Balance: {balance['balance']} | PnL: {balance['pnl']} | Unrealized: {balance['unrealized_pnl']}")
+```
+
+---
+
+## 9. Handle Market Resolution
+
+Markets can resolve at any time. Your bot should handle positions being settled:
+
+- Winning positions: payout credited automatically
+- Losing positions: position marked `CLOSED` with `$0` value
+- Use `GET /v1/account/positions?status=CLOSED` to review settled positions
+
+---
+
+## 10. Test in Virtual Mode First
+
+<Info>
+  PolySimulator's virtual mode uses the same API surface as live trading.
+  Develop and test your complete bot logic with zero financial risk,
+  then switch to live by updating only your API credentials.
+</Info>
+
+```bash
+# Virtual mode — paper trading
+export POLYSIM_BASE_URL="https://api.polysimulator.com"
+export POLYSIM_API_KEY="ps_live_virtual_key..."
+
+# Live mode — same code, different credentials
+export POLYSIM_BASE_URL="https://clob.polymarket.com"
+export POLYSIM_API_KEY="your_polymarket_key..."
+```
+
+---
+
+## Checklist
+
+Use this checklist before deploying your bot:
+
+- [ ] All numeric values sent as strings
+- [ ] Idempotency keys on all order requests
+- [ ] Exponential backoff on 429/5xx errors
+- [ ] `Retry-After` header respected
+- [ ] WebSocket reconnection with token refresh
+- [ ] Cursor pagination for list endpoints
+- [ ] Market metadata cached locally
+- [ ] Health check before trading loop starts
+- [ ] Logging for all order placements and errors
+- [ ] Tested in virtual mode with full strategy

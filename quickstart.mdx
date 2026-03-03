@@ -1,0 +1,143 @@
+---
+title: "Quick Start"
+sidebarTitle: "Quick Start"
+description: "Get your API key and place your first trade in under 2 minutes."
+---
+
+# Quick Start
+
+<Steps>
+  <Step title="Get an API Key">
+    Sign up at [polysimulator.com](https://polysimulator.com/signin), then
+    create an API key from your profile page or via the API.
+
+    ```bash
+    # Using a Supabase JWT to create your first key
+    curl -X POST https://api.polysimulator.com/v1/keys \
+      -H "Authorization: Bearer YOUR_SUPABASE_JWT" \
+      -H "Content-Type: application/json" \
+      -d '{"name": "my-first-bot", "tier": "free"}'
+    ```
+
+    **Save the `raw_key` value immediately** — it's shown only once.
+  </Step>
+
+  <Step title="Set Your Environment">
+    ```bash
+    export POLYSIM_API_KEY="ps_live_abc123..."
+    export POLYSIM_BASE_URL="https://api.polysimulator.com"
+    ```
+  </Step>
+
+  <Step title="Check Connectivity">
+    ```bash
+    curl -H "X-API-Key: $POLYSIM_API_KEY" \
+         $POLYSIM_BASE_URL/v1/health
+    ```
+
+    Expected response:
+    ```json
+    {"status": "healthy", "timestamp": "2026-03-02T12:00:00Z"}
+    ```
+  </Step>
+
+  <Step title="Fetch Hot Markets">
+    ```bash
+    curl -H "X-API-Key: $POLYSIM_API_KEY" \
+         "$POLYSIM_BASE_URL/v1/markets?hot_only=true&limit=5"
+    ```
+
+    This returns actively traded markets with live prices from Polymarket.
+  </Step>
+
+  <Step title="Place Your First Trade">
+    <CodeGroup>
+      ```bash cURL
+      curl -X POST $POLYSIM_BASE_URL/v1/orders \
+        -H "X-API-Key: $POLYSIM_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "market_id": "0xabc123...",
+          "side": "BUY",
+          "outcome": "Yes",
+          "quantity": "10",
+          "order_type": "market"
+        }'
+      ```
+
+      ```python Python
+      import requests, os
+
+      resp = requests.post(
+          f"{os.environ['POLYSIM_BASE_URL']}/v1/orders",
+          headers={
+              "X-API-Key": os.environ["POLYSIM_API_KEY"],
+              "Content-Type": "application/json",
+          },
+          json={
+              "market_id": "0xabc123...",
+              "side": "BUY",
+              "outcome": "Yes",
+              "quantity": "10",
+              "order_type": "market",
+          },
+      )
+      print(resp.json())
+      ```
+
+      ```javascript JavaScript
+      const resp = await fetch(`${process.env.POLYSIM_BASE_URL}/v1/orders`, {
+        method: "POST",
+        headers: {
+          "X-API-Key": process.env.POLYSIM_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          market_id: "0xabc123...",
+          side: "BUY",
+          outcome: "Yes",
+          quantity: "10",
+          order_type: "market",
+        }),
+      });
+      console.log(await resp.json());
+      ```
+    </CodeGroup>
+
+    Response:
+    ```json
+    {
+      "order_id": 42,
+      "status": "FILLED",
+      "side": "BUY",
+      "outcome": "Yes",
+      "price": "0.65",
+      "quantity": "10",
+      "notional": "6.50",
+      "slippage_bps": 15,
+      "account_balance": "993.50"
+    }
+    ```
+  </Step>
+
+  <Step title="Check Your Portfolio">
+    ```bash
+    curl -H "X-API-Key: $POLYSIM_API_KEY" \
+         $POLYSIM_BASE_URL/v1/account/portfolio
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  **All numeric values are strings** (`"10"`, not `10`). This prevents
+  floating-point precision loss — critical for financial applications.
+  See [String Numerics](/concepts/string-numerics) for details.
+</Tip>
+
+---
+
+## What's Next?
+
+- [Authentication deep dive](/authentication) — Key management, security, permissions
+- [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
+- [Build a trading bot](/bots/example-trading-bot) — Complete Python example

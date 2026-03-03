@@ -1,0 +1,91 @@
+---
+title: "Equity Curve"
+sidebarTitle: "Equity Curve"
+description: "Track your portfolio value over time with hourly snapshots."
+---
+
+# Equity Curve
+
+```
+GET /v1/account/equity
+```
+
+Returns hourly portfolio value snapshots for equity curve charting and performance analysis.
+
+---
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `hours` | int | 24 | Hours of history (1–720) |
+
+---
+
+## Request
+
+```bash
+# Last 7 days of hourly data
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/equity?hours=168"
+```
+
+---
+
+## Response
+
+```json
+[
+  {
+    "timestamp": "2026-02-06T11:00:00Z",
+    "portfolio_value": "1000.50",
+    "balance": "993.50",
+    "position_value": "7.00"
+  },
+  {
+    "timestamp": "2026-02-06T10:00:00Z",
+    "portfolio_value": "999.80",
+    "balance": "993.50",
+    "position_value": "6.30"
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `portfolio_value` | `balance + position_value` at this timestamp |
+| `balance` | Cash balance at this timestamp |
+| `position_value` | Total market value of positions at this timestamp |
+
+---
+
+## Charting Example
+
+```python
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+equity = requests.get(
+    f"{BASE}/v1/account/equity",
+    headers=headers,
+    params={"hours": 168},  # 7 days
+).json()
+
+times = [datetime.fromisoformat(e["timestamp"]) for e in equity]
+values = [float(e["portfolio_value"]) for e in equity]
+
+plt.figure(figsize=(12, 6))
+plt.plot(times, values)
+plt.axhline(y=1000, color="gray", linestyle="--", label="Starting balance")
+plt.title("Portfolio Equity Curve")
+plt.ylabel("Portfolio Value ($)")
+plt.legend()
+plt.show()
+```
+
+---
+
+## Next Steps
+
+- [Balance](/account/balance) — Current balance snapshot
+- [Portfolio](/account/portfolio) — Complete portfolio overview

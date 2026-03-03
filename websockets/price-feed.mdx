@@ -1,0 +1,172 @@
+---
+title: "Price Feed"
+sidebarTitle: "Price Feed"
+description: "Real-time price updates via WebSocket for subscribed markets."
+---
+
+# Price Feed
+
+```
+WS /v1/ws/prices?token=<jwt>
+```
+
+Streams real-time price updates for subscribed markets. All numeric values are strings.
+
+---
+
+## Subscribe
+
+After connecting, send a subscribe message:
+
+```json
+{"action": "subscribe", "markets": ["0xabc123...", "0xdef456..."]}
+```
+
+Server confirms:
+
+```json
+{"type": "subscribed", "markets": ["0xabc123...", "0xdef456..."]}
+```
+
+---
+
+## Price Updates
+
+The server pushes price changes automatically:
+
+```json
+{
+  "type": "price",
+  "condition_id": "0xabc123...",
+  "data": {
+    "buy": "0.67",
+    "sell": "0.33",
+    "best_bid": "0.66",
+    "best_ask": "0.68",
+    "volume": "125000.50",
+    "outcomes": [
+      {"label": "Yes", "price": "0.67", "token_id": "71321..."},
+      {"label": "No", "price": "0.33", "token_id": "71322..."}
+    ],
+    "updated_at": "2026-02-06T12:00:45Z"
+  },
+  "timestamp": "2026-02-06T12:00:46Z"
+}
+```
+
+---
+
+## Unsubscribe
+
+```json
+{"action": "unsubscribe", "markets": ["0xabc123..."]}
+```
+
+---
+
+## Complete Example
+
+<CodeGroup>
+```python Python (asyncio)
+import asyncio
+import json
+import requests
+import websockets
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+
+# Mint WS token
+ws_token = requests.post(
+    f"{BASE}/keys/ws-token",
+    headers={"X-API-Key": API_KEY},
+).json()["token"]
+
+async def stream_prices():
+    async with websockets.connect(
+        f"wss://api.polysimulator.com/v1/ws/prices?token={ws_token}"
+    ) as ws:
+        # Subscribe to markets
+        await ws.send(json.dumps({
+            "action": "subscribe",
+            "markets": ["0xabc123...", "0xdef456..."],
+        }))
+
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg["type"] == "price":
+                cid = msg["condition_id"][:16]
+                buy = msg["data"]["buy"]
+                print(f"{cid}... → Yes: {buy}")
+
+asyncio.run(stream_prices())
+```
+
+```python Python (websocket-client)
+import json
+import requests
+import websocket
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+WS_URL = "wss://api.polysimulator.com/v1"
+
+token = requests.post(
+    f"{BASE}/keys/ws-token",
+    headers={"X-API-Key": API_KEY},
+).json()["token"]
+
+def on_message(ws, message):
+    data = json.loads(message)
+    if data["type"] == "price":
+        print(f"{data['condition_id'][:16]}... → {data['data']['buy']}")
+    elif data["type"] == "connected":
+        ws.send(json.dumps({
+            "action": "subscribe",
+            "markets": ["0xabc123...", "0xdef456..."],
+        }))
+
+ws = websocket.WebSocketApp(
+    f"{WS_URL}/ws/prices?token={token}",
+    on_message=on_message,
+)
+ws.run_forever()
+```
+
+```javascript JavaScript
+const API_KEY = "ps_live_...";
+const BASE = "https://api.polysimulator.com/v1";
+
+// Mint WS token
+const tokenResp = await fetch(`${BASE}/keys/ws-token`, {
+  method: "POST",
+  headers: { "X-API-Key": API_KEY },
+});
+const { token } = await tokenResp.json();
+
+const ws = new WebSocket(
+  `wss://api.polysimulator.com/v1/ws/prices?token=${token}`
+);
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    action: "subscribe",
+    markets: ["0xabc123...", "0xdef456..."],
+  }));
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === "price") {
+    console.log(`${msg.condition_id}: Yes=${msg.data.buy}`);
+  }
+};
+```
+</CodeGroup>
+
+---
+
+## Next Steps
+
+- [Execution Feed](/websockets/execution-feed) — Get order fill notifications
+- [WebSocket Bot](/bots/websocket-bot) — Build a real-time trading bot

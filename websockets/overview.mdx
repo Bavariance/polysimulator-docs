@@ -1,0 +1,122 @@
+---
+title: "WebSocket Overview"
+sidebarTitle: "Overview"
+description: "Real-time data streaming via WebSocket feeds — authentication, protocol, and best practices."
+---
+
+# WebSocket Feeds
+
+The PolySimulator API provides two WebSocket feeds for real-time data:
+
+| Feed | Endpoint | Description |
+|------|----------|-------------|
+| **Price Feed** | `WS /v1/ws/prices` | Real-time price updates for subscribed markets |
+| **Execution Feed** | `WS /v1/ws/executions` | Limit order fill notifications |
+
+---
+
+## Authentication
+
+WebSocket connections require a **short-lived JWT token** (60 seconds), separate from your API key.
+
+<Steps>
+  <Step title="Mint a WebSocket Token">
+    ```bash
+    TOKEN=$(curl -s -X POST \
+      -H "X-API-Key: $API_KEY" \
+      https://api.polysimulator.com/v1/keys/ws-token \
+      | jq -r '.token')
+    ```
+
+    Response:
+    ```json
+    {"token": "eyJhbGciOiJIUzI1NiIs...", "expires_in": 60}
+    ```
+  </Step>
+
+  <Step title="Connect Immediately">
+    ```bash
+    wscat -c "wss://api.polysimulator.com/v1/ws/prices?token=$TOKEN"
+    ```
+
+    <Warning>
+      The token expires in **60 seconds**. Connect immediately after minting.
+    </Warning>
+  </Step>
+</Steps>
+
+---
+
+## Protocol
+
+All messages are JSON. The protocol supports these client actions:
+
+| Action | Description |
+|--------|-------------|
+| `subscribe` | Subscribe to price updates for markets |
+| `unsubscribe` | Stop receiving updates for markets |
+| `ping` | Heartbeat check |
+
+### Ping/Pong
+
+```json
+// Client sends:
+{"action": "ping"}
+
+// Server responds:
+{"type": "pong", "ts": 1705312200000}
+```
+
+---
+
+## Connection Limits
+
+| Tier | Max WS Connections | Max Subscriptions/Connection |
+|------|:------------------:|:----------------------------:|
+| `free` | 2 | 50 markets |
+| `pro` | 10 | 50 markets |
+| `enterprise` | 50 | 50 markets |
+
+---
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Connect Immediately" icon="bolt">
+    WS tokens expire in 60 seconds. Mint and connect in the same code block.
+  </Card>
+
+  <Card title="Implement Reconnection" icon="rotate">
+    Use exponential backoff for reconnection. Mint a fresh token on each
+    reconnect attempt.
+  </Card>
+
+  <Card title="Prefer WS Over Polling" icon="chart-line">
+    WebSocket subscriptions don't count against REST rate limits.
+    Use them instead of polling `GET /v1/markets`.
+  </Card>
+
+  <Card title="Use Execution Feed" icon="bell">
+    Subscribe to the execution feed for limit order fill confirmations
+    instead of polling `GET /v1/orders`.
+  </Card>
+</CardGroup>
+
+---
+
+## Error Handling
+
+| WS Close Code | Meaning |
+|:--------------:|---------|
+| `4001` | Invalid or expired JWT token |
+| `4002` | Maximum WebSocket connections exceeded |
+
+When you receive close code `4001`, mint a fresh token and reconnect.
+When you receive close code `4002`, close idle connections before reconnecting.
+
+---
+
+## Next Steps
+
+- [Price Feed](/websockets/price-feed) — Subscribe to real-time prices
+- [Execution Feed](/websockets/execution-feed) — Get fill notifications

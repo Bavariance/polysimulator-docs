@@ -1,0 +1,114 @@
+---
+title: "Execution Feed"
+sidebarTitle: "Execution Feed"
+description: "Real-time limit order fill notifications via WebSocket."
+---
+
+# Execution Feed
+
+```
+WS /v1/ws/executions?token=<jwt>
+```
+
+Receives automatic fill notifications when your limit orders are matched. No subscription required — all your executions are streamed automatically.
+
+---
+
+## Connection
+
+```bash
+# Mint a WS token
+TOKEN=$(curl -s -X POST -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/keys/ws-token | jq -r '.token')
+
+# Connect
+wscat -c "wss://api.polysimulator.com/v1/ws/executions?token=$TOKEN"
+```
+
+---
+
+## Messages
+
+### Order Filled
+
+```json
+{
+  "type": "fill",
+  "order_id": 42,
+  "market_id": "0x1a2b3c...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "price": "0.65",
+  "quantity": "10.0",
+  "filled_at": "2026-02-06T12:00:45Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Always `fill` |
+| `order_id` | ID of the filled order |
+| `market_id` | Market condition_id |
+| `side` | `BUY` or `SELL` |
+| `outcome` | Outcome label |
+| `price` | Fill price |
+| `quantity` | Filled quantity |
+| `filled_at` | ISO-8601 timestamp of the fill |
+
+---
+
+## Example: Limit Order + Fill Listener
+
+```python
+import asyncio
+import json
+import requests
+import websockets
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+headers = {"X-API-Key": API_KEY}
+
+# 1. Place a limit order
+order = requests.post(f"{BASE}/orders", headers=headers, json={
+    "market_id": "0x1a2b3c...",
+    "side": "BUY",
+    "outcome": "Yes",
+    "quantity": "10",
+    "order_type": "limit",
+    "price": "0.60",
+    "time_in_force": "GTC",
+    "client_order_id": "limit-001",
+}).json()
+
+print(f"Limit order placed: {order['status']}")
+
+# 2. Listen for fills
+ws_token = requests.post(
+    f"{BASE}/keys/ws-token", headers=headers
+).json()["token"]
+
+async def listen_fills():
+    async with websockets.connect(
+        f"wss://api.polysimulator.com/v1/ws/executions?token={ws_token}"
+    ) as ws:
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg.get("type") == "execution":
+                d = msg["data"]
+                print(f"Filled: {d['side']} {d['quantity']}x {d['outcome']} @ {d['price']}")
+
+asyncio.run(listen_fills())
+```
+
+<Tip>
+  Use `client_order_id` to correlate fill events with your original orders.
+  This is especially useful when you have multiple limit orders pending.
+</Tip>
+
+---
+
+## Next Steps
+
+- [WebSocket Overview](/websockets/overview) — Authentication and protocol
+- [Price Feed](/websockets/price-feed) — Real-time price streaming

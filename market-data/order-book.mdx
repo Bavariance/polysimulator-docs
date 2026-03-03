@@ -1,0 +1,101 @@
+---
+title: "Order Book"
+sidebarTitle: "Order Book"
+description: "Access L2 order book depth from Polymarket's CLOB for any market."
+---
+
+# Order Book
+
+```
+GET /v1/markets/{condition_id}/book
+```
+
+Returns the CLOB L2 order book snapshot for a market's primary token.
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets/0x1a2b3c/book?outcome=Yes&depth=5"
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `outcome` | string | — | Filter by outcome label (e.g. `Yes`, `No`) |
+| `depth` | int | 10 | Number of price levels per side (max 50) |
+
+---
+
+## Response
+
+```json
+{
+  "token_id": "71321...",
+  "bids": [
+    {"price": "0.64", "size": "500.0"},
+    {"price": "0.63", "size": "1200.0"},
+    {"price": "0.62", "size": "3000.0"}
+  ],
+  "asks": [
+    {"price": "0.66", "size": "400.0"},
+    {"price": "0.67", "size": "800.0"},
+    {"price": "0.68", "size": "2500.0"}
+  ],
+  "mid": "0.65",
+  "spread": "0.02",
+  "timestamp": "2026-02-06T12:00:45Z"
+}
+```
+
+---
+
+## Understanding the Book
+
+| Field | Description |
+|-------|-------------|
+| `bids` | Buy orders sorted by price (highest first) |
+| `asks` | Sell orders sorted by price (lowest first) |
+| `mid` | Average of best bid and best ask |
+| `spread` | Difference between best ask and best bid |
+| `price` | Price level |
+| `size` | Total shares available at that price |
+
+### Liquidity Assessment
+
+```python
+from decimal import Decimal
+
+book = api.get_order_book("0x1a2b3c...")
+
+# Calculate total bid liquidity
+bid_liquidity = sum(
+    Decimal(level["size"]) for level in book["bids"]
+)
+
+# Calculate total ask liquidity
+ask_liquidity = sum(
+    Decimal(level["size"]) for level in book["asks"]
+)
+
+spread = Decimal(book["spread"])
+
+print(f"Spread: {spread}")
+print(f"Bid depth: {bid_liquidity} shares")
+print(f"Ask depth: {ask_liquidity} shares")
+```
+
+<Tip>
+  **Check the book before large orders.** If your order size exceeds the
+  top-of-book liquidity, you'll walk through multiple price levels and
+  experience slippage. Use [slippage protection](/trading/slippage-protection)
+  to guard against this.
+</Tip>
+
+---
+
+## Next Steps
+
+- [Markets](/market-data/markets) — Browse available markets
+- [Placing Orders](/trading/placing-orders) — Trade with real book depth

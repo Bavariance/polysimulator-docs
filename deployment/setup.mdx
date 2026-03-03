@@ -1,0 +1,146 @@
+---
+title: "Setup & Installation"
+sidebarTitle: "Setup"
+description: "Prerequisites and local setup for running the PolySimulator API."
+---
+
+# Setup & Installation
+
+Get the PolySimulator API running locally in under 5 minutes.
+
+---
+
+## Prerequisites
+
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| Python | 3.11+ | Backend runtime |
+| PostgreSQL | 14+ | Database (or Supabase) |
+| Redis | 7+ | Price caching |
+| Node.js | 18+ | Frontend (optional) |
+| Docker | 24+ | Containerized deployment |
+
+---
+
+## Quick Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Bavariance/polysimulator.git
+    cd polysimulator
+    ```
+  </Step>
+
+  <Step title="Configure environment">
+    Create `backend/.env` with your credentials:
+
+    ```bash
+    # Database
+    DATABASE_URL=postgresql+psycopg2://postgres:password@localhost:5432/polysimulator
+
+    # Supabase Auth
+    SUPABASE_PROJECT_URL=https://your-project.supabase.co
+    SUPABASE_JWT_SECRET=your-jwt-secret
+
+    # Redis
+    REDIS_URL=redis://localhost:6379/0
+
+    # Trading mode
+    TRADING_MODE=virtual
+
+    # Price caching (optional — these are defaults)
+    PRICE_CACHE_TTL_SECONDS=45
+    PRICE_POLL_INTERVAL_SECONDS=5
+    MAX_TRACKED_HOT_MARKETS=150
+    ```
+  </Step>
+
+  <Step title="Start infrastructure">
+    ```bash
+    docker compose up redis -d
+    ```
+
+    If using a local PostgreSQL instead of Supabase:
+    ```bash
+    docker compose up redis db -d
+    ```
+  </Step>
+
+  <Step title="Install Python dependencies">
+    ```bash
+    cd backend
+    python -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+  </Step>
+
+  <Step title="Run database migrations">
+    ```bash
+    alembic upgrade head
+    ```
+  </Step>
+
+  <Step title="Start the API server">
+    ```bash
+    uvicorn app.main:app --reload --port 8000
+    ```
+
+    The API is now running at `http://localhost:8000`.
+    Visit `http://localhost:8000/docs` for the interactive Swagger UI.
+  </Step>
+</Steps>
+
+---
+
+## Environment Variables Reference
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SUPABASE_PROJECT_URL` | Supabase project URL |
+| `SUPABASE_JWT_SECRET` | JWT secret for token verification |
+| `REDIS_URL` | Redis connection string |
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TRADING_MODE` | `virtual` | `virtual` or `live` |
+| `PRICE_CACHE_TTL_SECONDS` | `45` | Redis price cache TTL |
+| `PRICE_POLL_INTERVAL_SECONDS` | `5` | Background price poll interval |
+| `MAX_TRACKED_HOT_MARKETS` | `150` | Max markets to track prices for |
+| `REDIS_FALLBACK_URLS` | — | Comma-separated fallback Redis URLs |
+
+### Live Mode Only
+
+| Variable | Description |
+|----------|-------------|
+| `POLYMARKET_API_KEY` | Polymarket CLOB API key |
+| `POLYMARKET_API_SECRET` | Polymarket CLOB API secret |
+| `POLYMARKET_API_PASSPHRASE` | Polymarket CLOB API passphrase |
+
+---
+
+## Verify Installation
+
+```bash
+# Health check
+curl http://localhost:8000/v1/health
+# → {"status": "ok", "version": "1.0.0"}
+
+# Readiness check (DB + Redis)
+curl http://localhost:8000/v1/health/ready
+# → {"status": "healthy", "database": "ok", "redis": "ok"}
+```
+
+---
+
+## Next Steps
+
+- [Docker Deployment](/deployment/docker) — Production deployment with Docker
+- [Monitoring](/deployment/monitoring) — Health checks and metrics
+- [Quick Start](/quickstart) — Create your first API key and place an order

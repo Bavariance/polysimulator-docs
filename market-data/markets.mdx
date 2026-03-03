@@ -1,0 +1,118 @@
+---
+title: "Markets"
+sidebarTitle: "Markets"
+description: "Browse and search prediction markets with real-time prices from Polymarket."
+---
+
+# Markets
+
+Discover and browse Polymarket prediction markets with live pricing data.
+
+---
+
+## List Markets
+
+```
+GET /v1/markets
+```
+
+Returns markets with attached live prices from Polymarket's CLOB.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Max results (1–500) |
+| `offset` | int | 0 | Pagination offset |
+| `hot_only` | bool | false | Only high-volume markets |
+| `search` | string | — | Search term for market question |
+| `active_only` | bool | true | Only active, non-closed markets |
+
+### Example
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?hot_only=true&limit=10"
+```
+
+### Response
+
+```json
+[
+  {
+    "condition_id": "0x1a2b3c...",
+    "slug": "will-bitcoin-reach-100k-by-2026",
+    "question": "Will Bitcoin reach $100K by end of 2026?",
+    "outcomes": ["Yes", "No"],
+    "active": true,
+    "closed": false,
+    "is_hot": true,
+    "image_url": "https://polymarket-upload.s3.us-east-2.amazonaws.com/...",
+    "event_group_id": "crypto-2026",
+    "event_title": "Crypto Milestones 2026",
+    "end_date": "2026-12-31T23:59:59Z",
+    "live_price": {
+      "buy": "0.65",
+      "sell": "0.35",
+      "best_bid": "0.64",
+      "best_ask": "0.66",
+      "spread": "0.02",
+      "volume": "125000.50",
+      "last_trade": "0.65",
+      "outcomes": [
+        {"label": "Yes", "price": "0.65", "token_id": "71321..."},
+        {"label": "No", "price": "0.35", "token_id": "71322..."}
+      ],
+      "updated_at": "2026-02-06T12:00:45Z"
+    }
+  }
+]
+```
+
+<Info>
+  All numeric values (`buy`, `sell`, `price`, `volume`) are **strings** for
+  floating-point precision safety. See [String Numerics](/concepts/string-numerics).
+</Info>
+
+---
+
+## Get Market Detail
+
+```
+GET /v1/markets/{condition_id}
+```
+
+Returns full market detail with an optional order book snapshot.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_book` | bool | false | Include CLOB order book snapshot |
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets/0x1a2b3c?include_book=true"
+```
+
+The response is the same as a list item, plus an optional `order_book` field when `include_book=true`.
+
+---
+
+## Hot Markets
+
+Markets with trading volume exceeding $5,000 are flagged as `is_hot: true`. Use `hot_only=true` to filter for actively traded markets — recommended for bots to ensure sufficient liquidity.
+
+```bash
+# Only hot markets
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?hot_only=true"
+```
+
+---
+
+## Next Steps
+
+- [Order Book](/market-data/order-book) — L2 depth for a specific market
+- [Price Candles](/market-data/price-candles) — Historical OHLCV data
+- [Batch Prices](/market-data/batch-prices) — Multi-market price lookup

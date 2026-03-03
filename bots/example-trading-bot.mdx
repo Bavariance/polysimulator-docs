@@ -1,0 +1,227 @@
+---
+title: "Example Trading Bot"
+sidebarTitle: "Example Bot"
+description: "Complete Python trading bot implementing a mean-reversion strategy."
+---
+
+# Example Trading Bot
+
+A complete, working Python bot implementing a simple **mean-reversion strategy**:
+
+1. Fetch hot markets
+2. Find markets where Yes price < 0.40 (undervalued)
+3. Buy small positions
+4. Monitor and sell when price rises above 0.60
+
+---
+
+## Full Source Code
+
+```python
+#!/usr/bin/env python3
+"""
+PolySimulator Example Trading Bot
+
+Simple mean-reversion strategy:
+1. Fetch hot markets
+2. Find markets where Yes price is < 0.40 (undervalued)
+3. Buy small positions
+4. Monitor and sell when price rises above 0.60
+
+Usage:
+    export POLYSIM_API_KEY="ps_live_..."
+    export POLYSIM_BASE_URL="https://api.polysimulator.com"
+    python trading_bot.py
+"""
+
+import json
+import os
+import time
+import requests
+
+API_KEY = os.environ["POLYSIM_API_KEY"]
+BASE_URL = os.environ.get("POLYSIM_BASE_URL", "http://localhost:8000")
+HEADERS = {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json",
+}
+
+
+def get_balance():
+    """Get current account balance."""
+    resp = requests.get(f"{BASE_URL}/v1/account/balance", headers=HEADERS)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_hot_markets(limit=20):
+    """Fetch actively traded markets."""
+    resp = requests.get(
+        f"{BASE_URL}/v1/markets",
+        headers=HEADERS,
+        params={"hot_only": True, "limit": limit},
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def place_order(market_id, side, outcome, quantity, order_type="market", price=None):
+    """Place a market or limit order."""
+    payload = {
+        "market_id": market_id,
+        "side": side,
+        "outcome": outcome,
+        "quantity": str(quantity),  # Always use strings for numeric values
+        "order_type": order_type,
+    }
+    if price is not None:
+        payload["price"] = str(price)
+
+    resp = requests.post(
+        f"{BASE_URL}/v1/orders",
+        headers={
+            **HEADERS,
+            "Idempotency-Key": f"bot-{market_id}-{side}-{int(time.time())}",
+        },
+        json=payload,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_positions():
+    """Get all open positions."""
+    resp = requests.get(
+        f"{BASE_URL}/v1/account/positions",
+        headers=HEADERS,
+        params={"status": "OPEN"},
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def run_strategy():
+    """Main trading loop."""
+    print("=== PolySimulator Bot Starting ===")
+    balance = get_balance()
+    print(f"Balance: ${balance['balance']} | PnL: {balance['pnl']}")
+
+    while True:
+        try:
+            # 1. Check balance
+            balance = get_balance()
+            cash = float(balance["balance"])
+            print(f"\n--- Cycle at {time.strftime('%H:%M:%S')} | Cash: ${cash:.2f} ---")
+
+            if cash < 1.0:
+                print("Low balance — waiting for sells or settlements")
+                time.sleep(30)
+                continue
+
+            # 2. Scan for undervalued markets
+            markets = get_hot_markets(limit=30)
+            opportunities = []
+            for m in markets:
+                if not m.get("live_price"):
+                    continue
+                yes_price = float(m["live_price"]["buy"])
+                if 0.10 < yes_price < 0.40:
+                    opportunities.append((m, yes_price))
+
+            if opportunities:
+                print(f"Found {len(opportunities)} undervalued markets")
+                # Buy the cheapest one
+                opportunities.sort(key=lambda x: x[1])
+                market, price = opportunities[0]
+                qty = min(5, int(cash / price))
+                if qty > 0:
+                    print(f"  BUY {qty}x Yes @ {price:.2f} — {market['question'][:60]}")
+                    result = place_order(
+                        market["condition_id"], "BUY", "Yes", qty
+                    )
+                    print(f"  → Order {result['order_id']}: {result['status']} @ {result['price']}")
+
+            # 3. Check existing positions for exit signals
+            positions = get_positions()
+            for pos in positions:
+                current = float(pos["current_price"]) if pos.get("current_price") else None
+                if current and current > 0.60:
+                    qty = int(float(pos["quantity"]))
+                    if qty > 0:
+                        print(f"  SELL {qty}x {pos['outcome']} @ {current:.2f}")
+                        result = place_order(
+                            pos["market_id"], "SELL", pos["outcome"], qty
+                        )
+                        print(f"  → Order {result['order_id']}: {result['status']} @ {result['price']}")
+
+            time.sleep(10)  # Wait before next cycle
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                retry = int(e.response.headers.get("Retry-After", 5))
+                print(f"Rate limited — waiting {retry}s")
+                time.sleep(retry)
+            else:
+                print(f"HTTP Error: {e}")
+                time.sleep(5)
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(10)
+
+
+if __name__ == "__main__":
+    run_strategy()
+```
+
+---
+
+## Running the Bot
+
+```bash
+# Set environment variables
+export POLYSIM_API_KEY="ps_live_..."
+export POLYSIM_BASE_URL="https://api.polysimulator.com"
+
+# Install dependencies
+pip install requests
+
+# Run
+python trading_bot.py
+```
+
+---
+
+## Key Patterns
+
+<AccordionGroup>
+  <Accordion title="String numerics for order quantities">
+    Always pass `quantity` and `price` as strings to prevent floating-point issues:
+    ```python
+    payload["quantity"] = str(quantity)  # "10", not 10
+    ```
+  </Accordion>
+
+  <Accordion title="Idempotency keys prevent duplicate orders">
+    Each order includes a unique idempotency key combining market ID, side, and timestamp:
+    ```python
+    "Idempotency-Key": f"bot-{market_id}-{side}-{int(time.time())}"
+    ```
+  </Accordion>
+
+  <Accordion title="Rate limit handling with Retry-After">
+    On HTTP 429, read the `Retry-After` header and wait exactly that long:
+    ```python
+    if e.response.status_code == 429:
+        retry = int(e.response.headers.get("Retry-After", 5))
+        time.sleep(retry)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+- [WebSocket Bot](/bots/websocket-bot) — Real-time streaming bot
+- [Error Handling](/bots/error-handling) — Robust error handling patterns
+- [Best Practices](/bots/best-practices) — Production-grade bot patterns
