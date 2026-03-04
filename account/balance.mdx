@@ -27,13 +27,11 @@ curl -H "X-API-Key: $API_KEY" \
 
 ```json
 {
-  "user_id": 1,
   "balance": "993.50",
   "currency": "USD",
   "starting_balance": "1000.00",
-  "pnl": "-6.50",
-  "pnl_percent": "-0.65",
-  "unrealized_pnl": "0.50"
+  "unrealized_pnl": "3.00",
+  "total_value": "1003.00"
 }
 ```
 
@@ -42,9 +40,8 @@ curl -H "X-API-Key: $API_KEY" \
 | `balance` | Current cash balance (available for trading) |
 | `currency` | Always `USD` |
 | `starting_balance` | Initial capital ($1,000 for virtual accounts) |
-| `pnl` | Realized profit/loss since account creation |
-| `pnl_percent` | P&L as percentage of starting balance |
-| `unrealized_pnl` | Unrealized P&L from open positions |
+| `unrealized_pnl` | Unrealized P&L (total_value − starting_balance) |
+| `total_value` | Cash balance + market value of open positions |
 
 <Tip>
   Your **total portfolio value** = `balance` + market value of open positions.

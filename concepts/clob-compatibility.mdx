@@ -121,6 +121,13 @@ Mirrors the Polymarket CLOB response shape:
   fields — either way works.
 </Info>
 
+<Warning>
+  **String vs Float numerics**: PolySimulator's CLOB endpoint accepts `price` and `size`
+  as floats for convenience. However, **Polymarket's real CLOB API uses strings** for these
+  fields (e.g., `"0.65"` not `0.65`). If you plan to migrate to live trading, pass strings
+  from the start to avoid code changes later.
+</Warning>
+
 ---
 
 ## When to Use CLOB-Compat vs Native API
