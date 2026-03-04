@@ -99,9 +99,8 @@ async def run_ws_bot(market_ids: list[str]):
         ) as ws:
             # 3. Subscribe to markets
             await ws.send_json({
-                "type": "subscribe",
-                "channel": "prices",
-                "market_ids": market_ids,
+                "action": "subscribe",
+                "markets": market_ids,
             })
             print(f"Subscribed to {len(market_ids)} markets")
 
@@ -110,9 +109,9 @@ async def run_ws_bot(market_ids: list[str]):
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     data = json.loads(msg.data)
 
-                    if data.get("type") == "price_update":
+                    if data.get("type") == "price":
                         market_id = data["market_id"]
-                        yes_price = float(data["prices"]["yes"])
+                        yes_price = float(data["buy"])
 
                         # Strategy: buy when Yes < 0.35, sell when > 0.65
                         if yes_price < 0.35:
@@ -202,17 +201,16 @@ async function runBot(marketIds) {
 
   ws.on("open", () => {
     ws.send(JSON.stringify({
-      type: "subscribe",
-      channel: "prices",
-      market_ids: marketIds,
+      action: "subscribe",
+      markets: marketIds,
     }));
     console.log(`Subscribed to ${marketIds.length} markets`);
   });
 
   ws.on("message", async (raw) => {
     const data = JSON.parse(raw);
-    if (data.type === "price_update") {
-      const yesPrice = parseFloat(data.prices.yes);
+    if (data.type === "price") {
+      const yesPrice = parseFloat(data.buy);
       if (yesPrice < 0.35) {
         console.log(`BUY signal: ${data.market_id} @ ${yesPrice}`);
         const result = await placeOrder(data.market_id, "BUY", "Yes", 5);
@@ -255,10 +253,10 @@ runBot(["0x1234abcd...", "0x5678efgh..."]);
 ## Connection Management
 
 <Warning>
-  WebSocket tokens expire after **5 minutes**. Your bot must handle reconnection:
+  WebSocket tokens expire after **60 seconds**. Your bot must handle reconnection:
   1. Detect close/error events
   2. Request a new token via `POST /v1/keys/ws-token`
-  3. Re-subscribe to all channels
+  3. Re-subscribe to all markets
 </Warning>
 
 ---

@@ -41,10 +41,10 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - GET /v1/markets/{condition_id} — Get single market with live price
 - GET /v1/markets/{condition_id}/book — L2 order book (bids/asks arrays)
 - GET /v1/markets/{condition_id}/candles — OHLCV price candles (intervals: 1m, 5m, 15m, 1h, 4h, 1d)
-- POST /v1/prices/batch — Batch price lookup (body: {"token_ids": [...]})
+- POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns flat: condition_id, buy, sell, outcomes[], source)
 
 ### Trading
-- POST /v1/clob/order — Place CLOB-compatible order (body: token_id, side, quantity, price, order_type, client_order_id)
+- POST /v1/clob/order — Place CLOB-compatible order (body: token_id, side, size, price, order_type, client_order_id — price and size are strings)
 - GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
 - DELETE /v1/orders/{order_id} — Cancel open order
 - POST /v1/orders/batch — Place multiple orders (body: {"orders": [...]})
@@ -71,12 +71,20 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - GET /metrics — Prometheus metrics
 
 ### WebSocket
-- WS /v1/ws/prices — Real-time price stream (subscribe/unsubscribe by market condition_ids)
-- WS /v1/ws/executions — Trade fill notifications
+- WS /v1/ws/prices?token=<jwt> — Real-time price stream
+  - Auth: pass JWT from POST /v1/keys/ws-token as query param
+  - Subscribe: {"action": "subscribe", "markets": ["cond-123", ...]}
+  - Unsubscribe: {"action": "unsubscribe", "markets": ["cond-123"]}
+  - Ping: {"action": "ping"} → {"type": "pong"}
+  - Price message: {"type": "price", "market_id": "cond-123", "buy": "0.65", "sell": "0.35", "best_bid": "0.64", "best_ask": "0.66", "volume": "1000.00", "source": "clob", "updated_at": "..."}
+- WS /v1/ws/executions?token=<jwt> — Trade fill notifications
 - POST /v1/keys/ws-token — Mint short-lived WebSocket auth token (60s TTL)
 
 ### CLOB Compatibility
-- POST /v1/clob/order — Polymarket CLOB-compatible order endpoint (same schema as native order endpoint)
+- POST /v1/clob/order — Polymarket CLOB-compatible order endpoint
+  - Same schema as Polymarket's POST /order — change only the URL and auth header to go live
+  - All numeric fields (price, size) must be strings: "0.65", not 0.65
+  - Response mirrors Polymarket: {success, orderID, status, price, size, side, takingAmount, makingAmount}
 
 ## Order Types
 - market: Execute at current price immediately

@@ -23,31 +23,42 @@ The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**
 
 <CodeGroup>
 ```python Virtual Mode (PolySimulator)
+import requests
+
 BASE = "https://api.polysimulator.com/v1"
 headers = {"X-API-Key": "ps_live_kJ9mNx2p..."}
 
 order = requests.post(f"{BASE}/clob/order", headers=headers, json={
     "token_id": "71321045679252...",
     "side": "BUY",
-    "price": 0.65,
-    "size": 10.0,
+    "price": "0.65",
+    "size": "10",
     "order_type": "GTC",
 }).json()
 ```
 
 ```python Live Mode (Polymarket)
+import requests
+
 BASE = "https://clob.polymarket.com"
 headers = {"Authorization": "Bearer <polymarket_jwt>"}
 
+# Same request body — no code changes needed
 order = requests.post(f"{BASE}/order", headers=headers, json={
     "token_id": "71321045679252...",
     "side": "BUY",
-    "price": 0.65,
-    "size": 10.0,
+    "price": "0.65",
+    "size": "10",
     "order_type": "GTC",
 }).json()
 ```
 </CodeGroup>
+
+<Info>
+  **Authentication difference**: PolySimulator uses `X-API-Key` header.
+  Polymarket's live CLOB API uses `Authorization: Bearer <jwt>` header.
+  This is the only header change when migrating to live trading.
+</Info>
 
 ---
 
@@ -57,8 +68,8 @@ order = requests.post(f"{BASE}/order", headers=headers, json={
 {
   "token_id": "71321045679252212594626385532706912750332728571942532289631379312455583992563",
   "side": "BUY",
-  "price": 0.65,
-  "size": 10.0,
+  "price": "0.65",
+  "size": "10",
   "order_type": "GTC",
   "fee_rate_bps": 0,
   "nonce": "optional-nonce",
@@ -66,12 +77,18 @@ order = requests.post(f"{BASE}/order", headers=headers, json={
 }
 ```
 
+<Warning>
+  **All numeric fields (`price`, `size`) must be strings.** Both PolySimulator
+  and Polymarket's real CLOB API expect string-encoded decimals, e.g. `"0.65"`
+  not `0.65`. Using floats will be rejected.
+</Warning>
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `token_id` | string | Yes | CLOB outcome token ID |
 | `side` | string | Yes | `BUY` or `SELL` |
-| `price` | float | Yes | Price 0.01–0.99 |
-| `size` | float | Yes | Number of shares (> 0) |
+| `price` | string | Yes | Limit price as decimal string ("0.01"–"0.99") |
+| `size` | string | Yes | Number of shares as decimal string (> 0) |
 | `order_type` | string | No | `GTC` (default), `FOK`, `IOC`, `GTD` |
 | `fee_rate_bps` | int | No | Accepted but ignored in virtual mode |
 | `nonce` | string | No | Accepted but ignored in virtual mode |
@@ -107,8 +124,8 @@ Mirrors the Polymarket CLOB response shape:
 |-----------------|-------------------------------|-------|
 | `tokenId` / `token_id` | `token_id` | Resolved to condition_id via Redis |
 | `side` (0=BUY, 1=SELL) | `side` ("BUY"/"SELL") | String enum |
-| `price` (string) | `price` (float) | Virtual mode accepts float |
-| `size` (string) | `size` (float) | Virtual mode accepts float |
+| `price` (string) | `price` (string) | Decimal string: `"0.65"` |
+| `size` (string) | `size` (string) | Decimal string: `"10"` |
 | `feeRateBps` | `fee_rate_bps` | Accepted; no fees in virtual mode |
 | `orderType` | `order_type` | GTC/FOK/IOC/GTD |
 | `signature` | — | Not required (virtual mode) |
@@ -122,10 +139,8 @@ Mirrors the Polymarket CLOB response shape:
 </Info>
 
 <Warning>
-  **String vs Float numerics**: PolySimulator's CLOB endpoint accepts `price` and `size`
-  as floats for convenience. However, **Polymarket's real CLOB API uses strings** for these
-  fields (e.g., `"0.65"` not `0.65`). If you plan to migrate to live trading, pass strings
-  from the start to avoid code changes later.
+  **String vs Float numerics**: Both PolySimulator and Polymarket require `price` and `size`
+  as **strings** (e.g., `"0.65"` not `0.65`). Always pass strings to ensure compatibility.
 </Warning>
 
 ---

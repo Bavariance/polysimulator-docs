@@ -35,25 +35,32 @@ curl -X POST https://api.polysimulator.com/v1/prices/batch \
 [
   {
     "condition_id": "0x1a2b3c...",
-    "price": {
-      "buy": "0.65",
-      "sell": "0.35",
-      "outcomes": [
-        {"label": "Yes", "price": "0.65", "token_id": "71321..."},
-        {"label": "No", "price": "0.35", "token_id": "71322..."}
-      ]
-    }
+    "buy": "0.65",
+    "sell": "0.35",
+    "outcomes": [
+      {"label": "Yes", "price": "0.65", "token_id": "71321..."},
+      {"label": "No", "price": "0.35", "token_id": "71322..."}
+    ],
+    "source": "redis_cache"
   },
   {
-    "condition_id": "0x4d5e6f...",
-    "error": "Price not available"
+    "condition_id": "0x4d5e6f..."
   }
 ]
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `condition_id` | string | The requested market ID |
+| `buy` | string \| null | Yes outcome price (0–1). Absent when price unavailable. |
+| `sell` | string \| null | No outcome price (0–1). Absent when price unavailable. |
+| `outcomes` | array | Per-outcome `{label, price, token_id}` breakdown |
+| `source` | string \| null | Price source: `redis_cache`, `gamma_api`, `clob_book` |
+
 <Info>
-  Markets with unavailable prices return an `error` field instead of `price`.
-  This can happen when a market is newly listed and hasn't been cached yet.
+  Markets with unavailable prices return only the `condition_id` field —
+  all price fields will be absent. This can happen when a market is newly
+  listed and hasn't been cached yet.
 </Info>
 
 ---
@@ -65,7 +72,13 @@ curl -X POST https://api.polysimulator.com/v1/prices/batch \
 - **Batch strategies**: Evaluate multiple markets before submitting batch orders
 
 ```python
-# Fetch prices for all positions
+import requests
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com"
+headers = {"X-API-Key": API_KEY}
+
+# Fetch prices for all open positions
 positions = requests.get(
     f"{BASE}/v1/account/positions",
     headers=headers,
@@ -81,8 +94,10 @@ prices = requests.post(
 ).json()
 
 for p in prices:
-    if "price" in p:
-        print(f"{p['condition_id'][:16]}: Yes={p['price']['buy']}")
+    if p.get("buy") is not None:
+        print(f"{p['condition_id'][:16]}: Yes={p['buy']}, No={p['sell']}")
+    else:
+        print(f"{p['condition_id'][:16]}: price unavailable")
 ```
 
 ---
