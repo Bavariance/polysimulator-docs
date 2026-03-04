@@ -25,7 +25,32 @@ description: "Get your API key and place your first trade in under 2 minutes."
       All other PolySimulator API endpoints authenticate with the `X-API-Key` header.
     </Info>
 
-    **Save the `raw_key` value immediately** — it's shown only once.
+    **Response (201 Created):**
+
+    ```json
+    {
+      "id": 1,
+      "raw_key": "ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j...",
+      "key_prefix": "ps_live_kJ9mNx2p",
+      "name": "my-first-bot",
+      "rate_limit_tier": "free",
+      "permissions": ["read", "trade"],
+      "created_at": "2026-03-04T12:00:00Z"
+    }
+    ```
+
+    <Warning>
+      **Save `raw_key` immediately** — it is shown only once and cannot be
+      retrieved again. Only the SHA-256 hash is stored server-side.
+    </Warning>
+
+    **Error handling:**
+
+    | Status | Meaning |
+    |--------|--------|
+    | `201` | Key created — save `raw_key` |
+    | `400` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` instead |
+    | `401` | Invalid or expired Supabase JWT |
   </Step>
 
   <Step title="Set Your Environment">
