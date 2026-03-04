@@ -32,26 +32,36 @@ Server confirms:
 
 ## Price Updates
 
-The server pushes price changes automatically:
+The server pushes price changes automatically. All fields are at the **top level** (not nested under a `data` key):
 
 ```json
 {
   "type": "price",
-  "condition_id": "0xabc123...",
-  "data": {
-    "buy": "0.67",
-    "sell": "0.33",
-    "best_bid": "0.66",
-    "best_ask": "0.68",
-    "volume": "125000.50",
-    "outcomes": [
-      {"label": "Yes", "price": "0.67", "token_id": "71321..."},
-      {"label": "No", "price": "0.33", "token_id": "71322..."}
-    ],
-    "updated_at": "2026-02-06T12:00:45Z"
-  },
-  "timestamp": "2026-02-06T12:00:46Z"
+  "market_id": "0xabc123...",
+  "buy": "0.67",
+  "sell": "0.33",
+  "best_bid": "0.66",
+  "best_ask": "0.68",
+  "volume": "125000.50",
+  "outcomes": [
+    {"label": "Yes", "price": "0.67", "token_id": "71321..."},
+    {"label": "No", "price": "0.33", "token_id": "71322..."}
+  ],
+  "updated_at": "2026-02-06T12:00:45Z"
 }
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"price"` for price updates |
+| `market_id` | string | Polymarket condition_id |
+| `buy` | string | Yes outcome price (0–1) |
+| `sell` | string | No outcome price (0–1) |
+| `best_bid` | string | Best bid price on the order book |
+| `best_ask` | string | Best ask price on the order book |
+| `volume` | string | 24h trading volume in USD |
+| `outcomes` | array | Per-outcome `{label, price, token_id}` breakdown |
+| `updated_at` | string | ISO 8601 timestamp of the price source |
 ```
 
 ---
@@ -95,9 +105,9 @@ async def stream_prices():
         async for raw in ws:
             msg = json.loads(raw)
             if msg["type"] == "price":
-                cid = msg["condition_id"][:16]
-                buy = msg["data"]["buy"]
-                print(f"{cid}... → Yes: {buy}")
+                mid = msg["market_id"][:16]
+                buy = msg["buy"]
+                print(f"{mid}... → Yes: {buy}")
 
 asyncio.run(stream_prices())
 ```
@@ -119,7 +129,7 @@ token = requests.post(
 def on_message(ws, message):
     data = json.loads(message)
     if data["type"] == "price":
-        print(f"{data['condition_id'][:16]}... → {data['data']['buy']}")
+        print(f"{data['market_id'][:16]}... → Yes: {data['buy']}")
     elif data["type"] == "connected":
         ws.send(json.dumps({
             "action": "subscribe",
@@ -158,7 +168,7 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   if (msg.type === "price") {
-    console.log(`${msg.condition_id}: Yes=${msg.data.buy}`);
+    console.log(`${msg.market_id}: Yes=${msg.buy}`);
   }
 };
 ```

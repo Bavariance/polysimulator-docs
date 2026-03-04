@@ -12,12 +12,18 @@ description: "Get your API key and place your first trade in under 2 minutes."
     create an API key from your profile page or via the API.
 
     ```bash
-    # Bootstrap your first API key using a Supabase JWT
+    # One-time bootstrap: create your first API key using your Supabase JWT.
+    # After this step, ALL subsequent requests use X-API-Key instead.
     curl -X POST https://api.polysimulator.com/v1/keys/bootstrap \
       -H "Authorization: Bearer YOUR_SUPABASE_JWT" \
       -H "Content-Type: application/json" \
       -d '{"name": "my-first-bot"}'
     ```
+
+    <Info>
+      The bootstrap endpoint is the **only** endpoint that uses `Authorization: Bearer`.
+      All other PolySimulator API endpoints authenticate with the `X-API-Key` header.
+    </Info>
 
     **Save the `raw_key` value immediately** — it's shown only once.
   </Step>

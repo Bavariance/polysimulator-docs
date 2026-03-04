@@ -6,7 +6,13 @@ description: "How API key authentication works, security model, and best practic
 
 # Authentication
 
-All API v1 endpoints require an API key passed via the `X-API-Key` HTTP header.
+All PolySimulator API endpoints authenticate with the `X-API-Key` HTTP header.
+
+<Info>
+  **One auth method**: Every endpoint uses `X-API-Key`. The only exception is
+  the one-time [bootstrap endpoint](/quickstart) (`POST /v1/keys/bootstrap`),
+  which accepts a Supabase JWT via `Authorization: Bearer` to create your first key.
+</Info>
 
 ```bash
 curl -H "X-API-Key: ps_live_abc123..." \
