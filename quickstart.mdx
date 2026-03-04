@@ -12,11 +12,11 @@ description: "Get your API key and place your first trade in under 2 minutes."
     create an API key from your profile page or via the API.
 
     ```bash
-    # Using a Supabase JWT to create your first key
-    curl -X POST https://api.polysimulator.com/v1/keys \
+    # Bootstrap your first API key using a Supabase JWT
+    curl -X POST https://api.polysimulator.com/v1/keys/bootstrap \
       -H "Authorization: Bearer YOUR_SUPABASE_JWT" \
       -H "Content-Type: application/json" \
-      -d '{"name": "my-first-bot", "tier": "free"}'
+      -d '{"name": "my-first-bot"}'
     ```
 
     **Save the `raw_key` value immediately** — it's shown only once.

@@ -22,7 +22,7 @@
       },
       {
         "label": "GitHub",
-        "href": "https://github.com/Bavariance/polysimulator"
+        "href": "https://github.com/Bavariance/polysimulator-docs"
       }
     ],
     "primary": {
@@ -71,6 +71,7 @@
             "icon": "chart-bar",
             "pages": [
               "market-data/markets",
+              "market-data/updown-markets",
               "market-data/order-book",
               "market-data/price-candles",
               "market-data/batch-prices"
@@ -127,8 +128,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/Bavariance/polysimulator",
-      "x": "https://x.com/polysimulator"
+      "github": "https://github.com/Bavariance/polysimulator-docs",
+      "x": "https://x.com/PolySimulatorHQ"
     },
     "links": [
       {
@@ -153,7 +154,7 @@
           },
           {
             "label": "GitHub",
-            "href": "https://github.com/Bavariance/polysimulator"
+            "href": "https://github.com/Bavariance/polysimulator-docs"
           }
         ]
       }

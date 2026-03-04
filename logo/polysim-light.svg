@@ -1,9 +1,19 @@
-<svg width="160" height="40" viewBox="0 0 400 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <g transform="translate(20, 10)">
-    <path d="M24 28 L40 20 L56 28 L56 60 L40 68 L24 60 Z" fill="#10B981" opacity="0.3"/>
-    <path d="M24 28 L40 20 L40 52 L24 60 Z" fill="#10B981" opacity="0.6"/>
-    <path d="M40 20 L56 28 L56 60 L40 52 Z" fill="#10B981"/>
-    <path d="M40 20 L40 52" stroke="rgba(0,0,0,0.2)" stroke-width="1.2"/>
-  </g>
-  <text x="105" y="61" fill="#0F172A" style="font-size: 32px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; letter-spacing: -0.01em; font-weight: 500;">PolySimulator</text>
+<svg width="160" height="40" viewBox="0 0 160 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Isometric cube icon (pointy-top hexagon) -->
+  <!-- Back face (lowest opacity) -->
+  <path d="M4,13 L16,5 L28,13 L28,27 L16,35 L4,27 Z" fill="#10B981" opacity="0.25"/>
+  <!-- Left face -->
+  <path d="M4,13 L16,5 L16,24 L4,27 Z" fill="#10B981" opacity="0.65"/>
+  <!-- Right face (full) -->
+  <path d="M16,5 L28,13 L28,27 L16,24 Z" fill="#10B981"/>
+  <!-- Centre ridge -->
+  <line x1="16" y1="5" x2="16" y2="24" stroke="rgba(0,0,0,0.12)" stroke-width="0.8"/>
+  <!-- Wordmark -->
+  <text
+    x="36" y="26"
+    fill="#0F172A"
+    font-size="17"
+    font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif"
+    font-weight="500"
+    letter-spacing="-0.02em">PolySimulator</text>
 </svg>

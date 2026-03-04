@@ -104,7 +104,7 @@ def run_strategy():
     """Main trading loop."""
     print("=== PolySimulator Bot Starting ===")
     balance = get_balance()
-    print(f"Balance: ${balance['balance']} | PnL: {balance['pnl']}")
+    print(f"Balance: ${balance['balance']} | Unrealized PnL: {balance['unrealized_pnl']}")
 
     while True:
         try:
