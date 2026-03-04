@@ -23,9 +23,9 @@ New users have no key yet. To create your first key without a chicken-and-egg pr
 Manage additional keys at POST /v1/keys, GET /v1/keys, DELETE /v1/keys/{key_id}.
 
 ## Rate Limits
-- Free: 60 req/min, 5 WebSocket connections
-- Pro: 300 req/min, 20 WebSocket connections
-- Enterprise: 1000 req/min, 100 WebSocket connections
+- Free: 5 req/sec, 300 req/min, 2 WebSocket connections, batch size 5
+- Pro: 20 req/sec, 1,200 req/min, 10 WebSocket connections, batch size 20
+- Enterprise: 50 req/sec, 3,000 req/min, 50 WebSocket connections, batch size 50
 Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 
 ## Key Concepts

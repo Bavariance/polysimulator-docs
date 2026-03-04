@@ -36,8 +36,9 @@ resp = requests.post(
         "tier": "free",
     },
 )
+resp.raise_for_status()
 key_data = resp.json()
-print(f"Save this key: {key_data['key']}")
+print(f"Save this key: {key_data['raw_key']}")
 ```
 </CodeGroup>
 
@@ -46,20 +47,29 @@ print(f"Save this key: {key_data['key']}")
 ```json
 {
   "id": 1,
-  "key": "ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j",
+  "raw_key": "ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j...",
   "key_prefix": "ps_live_kJ9mNx2p",
   "name": "my-trading-bot",
-  "permissions": ["read", "trade"],
   "rate_limit_tier": "free",
-  "created_at": "2026-02-06T12:00:00Z",
-  "expires_at": null
+  "permissions": ["read", "trade"],
+  "created_at": "2026-02-06T12:00:00Z"
 }
 ```
 
 <Warning>
-  The `key` field is shown **exactly once**. Store it securely — it cannot be
-  retrieved again. Only the SHA-256 hash is stored in the database.
+  The `raw_key` field is shown **exactly once**. Store it securely — it cannot
+  be retrieved again. Only the SHA-256 hash is stored in the database.
 </Warning>
+
+| Field | Description |
+|-------|------------|
+| `id` | Numeric key ID (used for revocation) |
+| `raw_key` | Full API key — save this immediately |
+| `key_prefix` | First 16 chars (used for identification in listings) |
+| `name` | Your label for this key |
+| `rate_limit_tier` | `free`, `pro`, or `enterprise` |
+| `permissions` | Array of granted permissions |
+| `created_at` | ISO 8601 timestamp |
 
 ---
 

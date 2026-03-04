@@ -61,38 +61,91 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     ```
   </Step>
 
-  <Step title="Use CLOB-compatible endpoint (optional)">
-    For bots already targeting the Polymarket CLOB API, use the CLOB compatibility endpoint which mirrors Polymarket's schema:
+  <Step title="Use CLOB-compatible endpoint (recommended for migration)">
+    The CLOB-compatible endpoint mirrors Polymarket's real CLOB API schema.
+    Your bot code stays identical — only the base URL and auth header change:
 
-    ```bash
-    # PolySimulator CLOB-compat endpoint
-    POST /v1/clob-compat/order
+    <CodeGroup>
+    ```python Virtual (PolySimulator)
+    import requests
 
-    # Same request body works on both:
-    {
-      "token_id": "71321045...",
-      "side": "BUY",
-      "price": "0.50",
-      "size": "10"
-    }
+    BASE_URL = "https://api.polysimulator.com/v1"
+    headers = {"X-API-Key": "ps_live_kJ9mNx2p..."}
+
+    order = requests.post(f"{BASE_URL}/clob/order", headers=headers, json={
+        "token_id": "71321045679252...",
+        "side": "BUY",
+        "price": "0.65",
+        "size": "10",
+        "order_type": "GTC",
+    })
+    order.raise_for_status()
+    print(order.json())
     ```
 
-    This means you can **swap only the base URL** to switch between virtual and live:
+    ```python Live (Polymarket)
+    import requests
 
-    ```python
-    # Virtual
-    BASE_URL = "https://api.polysimulator.com"
-
-    # Live — same code, different URL
+    # Only these two lines change:
     BASE_URL = "https://clob.polymarket.com"
+    headers = {"Authorization": "Bearer <polymarket_jwt>"}
+
+    order = requests.post(f"{BASE_URL}/order", headers=headers, json={
+        "token_id": "71321045679252...",
+        "side": "BUY",
+        "price": "0.65",
+        "size": "10",
+        "order_type": "GTC",
+    })
+    order.raise_for_status()
+    print(order.json())
     ```
+    </CodeGroup>
+
+    <Info>
+      **Auth difference**: PolySimulator uses `X-API-Key` header.
+      Polymarket uses `Authorization: Bearer <jwt>`. This is the only
+      header change needed.
+    </Info>
   </Step>
 
   <Step title="Verify with small orders">
     Start with minimal order sizes to verify live execution:
+
     ```python
-    # Start with quantity=1 to verify connectivity
-    place_order(market_id, "BUY", "Yes", quantity=1)
+    import requests
+
+    headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+    # 1. Place a small test order
+    resp = requests.post(
+        f"{BASE_URL}/v1/orders",
+        headers=headers,
+        json={
+            "market_id": "0xabc123...",
+            "side": "BUY",
+            "outcome": "Yes",
+            "quantity": "1",
+            "order_type": "market",
+        },
+    )
+    resp.raise_for_status()
+    result = resp.json()
+    print(f"Order {result['order_id']}: {result['status']} @ {result['price']}")
+
+    # 2. Verify the position was created
+    positions = requests.get(
+        f"{BASE_URL}/v1/account/positions",
+        headers=headers,
+        params={"status": "OPEN"},
+    ).json()
+    print(f"Open positions: {len(positions)}")
+
+    # 3. Check balance impact
+    balance = requests.get(
+        f"{BASE_URL}/v1/account/balance", headers=headers
+    ).json()
+    print(f"Balance: ${balance['balance']} | Total: ${balance['total_value']}")
     ```
   </Step>
 </Steps>
@@ -101,15 +154,23 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
 
 ## CLOB Compatibility Layer
 
-The CLOB-compat endpoint translates between PolySimulator's virtual ledger and Polymarket's CLOB schema:
+The `POST /v1/clob/order` endpoint accepts the same request body as Polymarket's `POST /order`:
 
-| PolySimulator Field | CLOB Field | Notes |
-|--------------------|-----------| ------|
-| `market_id` | `token_id` | Same underlying identifier |
-| `side` | `side` | `BUY` / `SELL` |
-| `quantity` | `size` | String numeric |
-| `price` | `price` | 0–1 range |
-| `order_type` | `type` | `market` / `limit` / `GTC` / `GTD` |
+| Field | Type | Description |
+|-------|------|-------------|
+| `token_id` | string | CLOB outcome token ID |
+| `side` | string | `BUY` or `SELL` (uppercase) |
+| `price` | string | Limit price as decimal string ("0.01"–"0.99") |
+| `size` | string | Number of shares as decimal string |
+| `order_type` | string | `GTC` (default), `FOK`, `IOC`, `GTD` |
+
+<Warning>
+  All numeric fields (`price`, `size`) must be **strings** (e.g., `"0.65"` not `0.65`).
+  `side` must be **uppercase** (`"BUY"` not `"buy"`).
+  `order_type` must be a CLOB type (`"GTC"`, `"FOK"`, `"IOC"`, `"GTD"`) — not `"market"`.
+</Warning>
+
+See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details and response format.
 
 ---
 
