@@ -68,7 +68,6 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - GET /v1/health — Liveness probe
 - GET /v1/health/ready — Readiness probe (checks DB + Redis)
 - GET /v1/status — System status with market sync info
-- GET /metrics — Prometheus metrics
 
 ### WebSocket
 - WS /v1/ws/prices?token=<jwt> — Real-time price stream
@@ -86,10 +85,14 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
   - All numeric fields (price, size) must be strings: "0.65", not 0.65
   - Response mirrors Polymarket: {success, orderID, status, price, size, side, takingAmount, makingAmount}
 
-## Order Types
-- market: Execute at current price immediately
-- limit: Execute only at specified price or better
-- Time-in-force: GTC (good-til-cancelled), GTD (good-til-date), IOC (immediate-or-cancel)
+## Order Types & Time-in-Force
+- POST /v1/orders uses two fields:
+  - order_type: "market" (fill at current price) or "limit" (execute at specified price or better)
+  - time_in_force: "GTC" (good-til-cancel, default) or "IOC" (immediate-or-cancel)
+- POST /v1/clob/order uses order_type for time-in-force policy (matching Polymarket's CLOB schema):
+  - "GTC" (good-til-cancelled, default), "FOK" (fill-or-kill), "IOC" (immediate-or-cancel), "GTD" (good-til-date)
+  - All CLOB orders are effectively limit orders (price is required)
+- Side values are always uppercase: "BUY" or "SELL"
 
 ## Error Format
 {"error": "ERROR_CODE", "message": "Human description", "details": {...}}

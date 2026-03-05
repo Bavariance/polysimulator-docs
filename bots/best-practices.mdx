@@ -61,17 +61,19 @@ When operating on multiple markets, use batch endpoints to reduce HTTP overhead 
 
 | Instead of... | Use... |
 |--------------|--------|
-| N × `GET /v1/markets/{id}` | `POST /v1/markets/batch-prices` |
+| N × `GET /v1/markets/{id}` | `POST /v1/prices/batch` |
 | N × `POST /v1/orders` | `POST /v1/orders/batch` |
 | N × `GET /v1/markets/{id}/book` | Cache + periodic refresh |
 
 ```python
 # ✅ Fetch 20 prices in one call
 resp = requests.post(
-    f"{BASE_URL}/v1/markets/batch-prices",
+    f"{BASE_URL}/v1/prices/batch",
     headers=HEADERS,
     json={"market_ids": market_ids},
+    timeout=10,
 )
+resp.raise_for_status()
 prices = resp.json()["prices"]
 ```
 
