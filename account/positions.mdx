@@ -18,10 +18,7 @@ Returns your current positions with live market values and unrealized P&L.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `status` | string | `OPEN` | Filter: `OPEN` or `CLOSED` |
-| `market_id` | string | — | Filter by condition_id |
-| `limit` | int | 50 | Max results (1–500) |
-| `offset` | int | 0 | Pagination offset |
+| `status` | string | — | Filter: `OPEN` or `CLOSED` |
 
 ---
 
@@ -73,7 +70,7 @@ headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
 
 # Fetch open positions
 resp = requests.get(
-    f"{BASE_URL}/account/positions",
+    f"{BASE_URL}/v1/account/positions",
     headers=headers,
     params={"status": "OPEN", "limit": 50},
 )

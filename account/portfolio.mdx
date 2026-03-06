@@ -28,12 +28,11 @@ curl -H "X-API-Key: $API_KEY" \
 ```json
 {
   "balance": {
-    "user_id": 1,
     "balance": "993.50",
     "currency": "USD",
-    "starting_balance": "1000.00",
-    "pnl": "-6.50",
-    "pnl_percent": "-0.65"
+    "unrealized_pnl": "-6.50",
+    "total_value": "1000.50",
+    "starting_balance": "1000.00"
   },
   "positions": [
     {
@@ -48,21 +47,17 @@ curl -H "X-API-Key: $API_KEY" \
       "status": "OPEN"
     }
   ],
-  "total_position_value": "7.00",
-  "total_portfolio_value": "1000.50",
-  "total_unrealized_pnl": "0.50",
   "total_trades": 5,
-  "win_rate": "60.00"
+  "win_rate": "60.0%"
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `total_position_value` | Sum of all open position market values |
-| `total_portfolio_value` | Cash balance + total position value |
-| `total_unrealized_pnl` | Sum of all unrealized P&L |
+| `balance` | Nested balance object (see [Balance](/account/balance)) |
+| `positions` | Array of open positions (see [Positions](/account/positions)) |
 | `total_trades` | Total filled orders |
-| `win_rate` | Percentage of profitable closed positions |
+| `win_rate` | Percentage of profitable closed positions (string with % suffix, or null) |
 
 ---
 
@@ -75,16 +70,18 @@ portfolio = requests.get(
 ).json()
 
 cash = Decimal(portfolio["balance"]["balance"])
-total = Decimal(portfolio["total_portfolio_value"])
+total = Decimal(portfolio["balance"]["total_value"])
 positions = portfolio["positions"]
 
 print(f"Cash: ${cash} | Total: ${total} | Positions: {len(positions)}")
-print(f"Win rate: {portfolio['win_rate']}%")
+if portfolio["win_rate"]:
+    print(f"Win rate: {portfolio['win_rate']}")
 
 # Check if over-allocated
-cash_pct = cash / total * 100
-if cash_pct < 20:
-    print("Warning: Low cash — consider reducing positions")
+if total > 0:
+    cash_pct = cash / total * 100
+    if cash_pct < 20:
+        print("Warning: Low cash — consider reducing positions")
 ```
 
 ---

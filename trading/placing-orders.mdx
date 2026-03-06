@@ -57,7 +57,12 @@ order = resp.json()
 
 Queued and filled by the background matching engine (~1s polling cycle).
 
-```json
+### GTC (Good-Til-Cancel)
+
+Persists until filled, cancelled by the user, or the market closes.
+
+<CodeGroup>
+```json GTC Limit Order
 {
   "market_id": "0xabc123...",
   "side": "BUY",
@@ -68,6 +73,70 @@ Queued and filled by the background matching engine (~1s polling cycle).
   "time_in_force": "GTC"
 }
 ```
+
+```python Python (GTC)
+resp = requests.post(
+    f"{BASE_URL}/v1/orders",
+    headers={"X-API-Key": API_KEY},
+    json={
+        "market_id": "0xabc123...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "10",
+        "order_type": "limit",
+        "price": "0.55",
+        "time_in_force": "GTC",
+        "client_order_id": "gtc-limit-001",
+    },
+)
+order = resp.json()
+```
+</CodeGroup>
+
+### IOC (Immediate-or-Cancel)
+
+Attempts to fill on the next matching cycle (~1s). Any unfilled quantity is automatically cancelled — the order never persists in the book.
+
+<CodeGroup>
+```json IOC Limit Order
+{
+  "market_id": "0xabc123...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55",
+  "time_in_force": "IOC"
+}
+```
+
+```python Python (IOC)
+resp = requests.post(
+    f"{BASE_URL}/v1/orders",
+    headers={"X-API-Key": API_KEY},
+    json={
+        "market_id": "0xabc123...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "10",
+        "order_type": "limit",
+        "price": "0.55",
+        "time_in_force": "IOC",
+        "client_order_id": "ioc-snipe-001",
+    },
+)
+order = resp.json()
+if order["status"] == "CANCELLED":
+    print("IOC order was not matched — no fill")
+else:
+    print(f"Filled at {order['price']}")
+```
+</CodeGroup>
+
+<Tip>
+  **When to use IOC**: Sniping a specific price level without the risk of stale orders sitting in the book.
+  If the current market price is worse than your limit, the order cancels immediately.
+</Tip>
 
 **Fill conditions:**
 - **BUY limit**: Fills when market ask ≤ your limit price. Funds reserved upfront.
