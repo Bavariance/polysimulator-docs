@@ -137,16 +137,69 @@ Keys support granular permissions:
 
 ## Error Responses
 
-| Status Code | Meaning |
-|-------------|---------|
-| `401 Unauthorized` | Invalid, expired, or deactivated API key |
-| `403 Forbidden` | Key lacks required permission for the endpoint |
+| Status Code | Meaning | Common Causes |
+|-------------|---------|---------------|
+| `401 Unauthorized` | Invalid, expired, or deactivated API key | Typo in key, key was revoked, key expired |
+| `403 Forbidden` | Key lacks required permission for the endpoint | Using a `read`-only key to place trades |
+| `429 Too Many Requests` | Rate limit exceeded | Too many requests per second/minute for your tier |
 
 ```json
-{
-  "detail": "Invalid or expired API key"
-}
+// 401 — Invalid key
+{"error": "HTTP_401", "message": "Invalid or expired API key", "request_id": "a1b2c3d4-..."}
+
+// 403 — Missing permission
+{"error": "HTTP_403", "message": "API key missing required permission: trade", "request_id": "a1b2c3d4-..."}
+
+// 429 — Rate limited
+{"error": "HTTP_429", "message": "Rate limit exceeded. Retry after 1s.", "request_id": "a1b2c3d4-..."}
 ```
+
+<Info>
+  On `429` responses, check the `Retry-After` header for exact wait time in seconds.
+</Info>
+
+---
+
+## Bootstrap Flow (First-Time Setup)
+
+If you have no API key yet, use the one-time bootstrap endpoint:
+
+```python
+import requests
+
+# Step 1: Sign in at polysimulator.com to get your Supabase JWT
+supabase_jwt = "your_supabase_access_token"
+
+# Step 2: Bootstrap your first API key
+resp = requests.post(
+    "https://api.polysimulator.com/v1/keys/bootstrap",
+    headers={
+        "Authorization": f"Bearer {supabase_jwt}",
+        "Content-Type": "application/json",
+    },
+    json={"name": "my-first-bot"},
+)
+
+if resp.status_code == 201:
+    raw_key = resp.json()["raw_key"]
+    print(f"Save this key NOW (shown only once): {raw_key}")
+elif resp.status_code == 400:
+    print("You already have keys — use POST /v1/keys with X-API-Key instead")
+elif resp.status_code == 401:
+    print("Invalid or expired Supabase JWT — sign in again at polysimulator.com")
+
+# Step 3: All subsequent requests use X-API-Key
+headers = {"X-API-Key": raw_key}
+health = requests.get("https://api.polysimulator.com/v1/health", headers=headers)
+print(health.json())  # {"status": "healthy", ...}
+```
+
+<Warning>
+  The bootstrap endpoint is the **only** endpoint that *requires* `Authorization: Bearer`
+  when you don't have an API key yet. Key management endpoints (`GET /v1/keys`,
+  `DELETE /v1/keys/{id}`) also accept Bearer JWT as an alternative to `X-API-Key`.
+  After bootstrapping, most requests use the `X-API-Key` header.
+</Warning>
 
 ---
 

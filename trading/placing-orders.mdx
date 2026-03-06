@@ -155,6 +155,49 @@ If the same key is submitted twice, the second request returns the result of the
 
 ---
 
+## Error Handling
+
+| Status | Error Code | Meaning |
+|--------|------------|---------|
+| `400` | `INSUFFICIENT_BALANCE` | Not enough funds for this trade |
+| `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
+| `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
+| `401` | `INVALID_API_KEY` | API key is invalid, expired, or revoked |
+| `403` | `PERMISSION_DENIED` | Key lacks `trade` permission |
+| `404` | `MARKET_NOT_FOUND` | Unknown `market_id` |
+| `409` | `SLIPPAGE_EXCEEDED` | Price moved beyond `max_slippage_bps` limit |
+| `409` | `IDEMPOTENCY_CONFLICT` | Same idempotency key with different order parameters |
+| `429` | `RATE_LIMITED` | Too many requests — check `Retry-After` header |
+
+```python
+resp = requests.post(
+    f"{BASE_URL}/v1/orders",
+    headers={"X-API-Key": API_KEY, "Idempotency-Key": idempotency_key},
+    json=order_payload,
+)
+
+if resp.status_code == 200:
+    order = resp.json()
+    print(f"Order {order['order_id']}: {order['status']} @ {order['price']}")
+elif resp.status_code == 409:
+    err = resp.json()
+    if "slippage" in err.get("message", "").lower() or "price moved" in err.get("message", "").lower():
+        print(f"Slippage too high — increase max_slippage_bps or wait")
+    else:
+        print(f"Conflict: {err.get('message', err)}")
+elif resp.status_code == 400:
+    err = resp.json()
+    if err.get("error") == "INSUFFICIENT_BALANCE":
+        print(f"Not enough funds — current balance too low")
+    else:
+        print(f"Order rejected: {err.get('message', err)}")
+elif resp.status_code == 429:
+    retry_after = int(resp.headers.get("Retry-After", 1))
+    time.sleep(retry_after)
+```
+
+---
+
 ## Next Steps
 
 - [Order Management](/trading/order-management) — List and cancel orders

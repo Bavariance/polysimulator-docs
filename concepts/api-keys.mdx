@@ -126,6 +126,39 @@ curl -X DELETE -H "X-API-Key: $API_KEY" \
 
 ---
 
+## Error Handling
+
+| Status | Endpoint | Meaning |
+|--------|----------|---------|
+| `201` | `POST /v1/keys` | Key created — save `raw_key` immediately |
+| `400` | `POST /v1/keys` | Max 5 keys reached, or unknown tier |
+| `400` | `POST /v1/keys/bootstrap` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` |
+| `401` | Any | Invalid, expired, or deactivated API key |
+| `401` | `POST /v1/keys/bootstrap` | Invalid or expired Supabase JWT |
+| `403` | `POST /v1/keys` | API access restricted (allowlist) |
+
+```python
+# Robust key creation with error handling
+resp = requests.post(
+    f"{BASE_URL}/v1/keys",
+    headers={"X-API-Key": API_KEY},
+    json={"name": "my-bot", "permissions": ["read", "trade"]},
+)
+
+if resp.status_code == 201:
+    key_data = resp.json()
+    print(f"Save this key NOW: {key_data['raw_key']}")
+elif resp.status_code == 400:
+    err = resp.json()
+    print(f"Cannot create key: {err.get('message', err.get('error'))}")
+elif resp.status_code == 401:
+    print("API key is invalid or expired — re-authenticate")
+else:
+    print(f"Unexpected error: {resp.status_code}")
+```
+
+---
+
 ## Next Steps
 
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget

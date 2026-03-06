@@ -50,6 +50,28 @@ curl -H "X-API-Key: $API_KEY" \
 
 ---
 
+## Python Example
+
+```python
+import requests, os
+from decimal import Decimal
+
+BASE_URL = os.environ["POLYSIM_BASE_URL"]
+headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+resp = requests.get(f"{BASE_URL}/account/balance", headers=headers)
+
+if resp.status_code == 200:
+    data = resp.json()
+    balance = Decimal(data["balance"])
+    pnl = Decimal(data["total_value"]) - Decimal(data["starting_balance"])
+    print(f"Balance: ${balance} | P&L: ${pnl}")
+elif resp.status_code == 401:
+    print("Invalid API key — check POLYSIM_API_KEY")
+```
+
+---
+
 ## Next Steps
 
 - [Positions](/account/positions) — View open and closed positions

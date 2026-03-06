@@ -62,6 +62,37 @@ curl -H "X-API-Key: $API_KEY" \
 
 ---
 
+## Python Example
+
+```python
+import requests, os
+from decimal import Decimal
+
+BASE_URL = os.environ["POLYSIM_BASE_URL"]
+headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+# Fetch open positions
+resp = requests.get(
+    f"{BASE_URL}/account/positions",
+    headers=headers,
+    params={"status": "OPEN", "limit": 50},
+)
+resp.raise_for_status()
+positions = resp.json()
+
+total_unrealized = Decimal("0")
+for pos in positions:
+    unrealized = Decimal(pos["unrealized_pnl"])
+    total_unrealized += unrealized
+    print(f"{pos['market_id'][:16]} {pos['outcome']}: "
+          f"qty={pos['quantity']} entry={pos['avg_entry_price']} "
+          f"now={pos['current_price']} pnl={unrealized}")
+
+print(f"\nTotal unrealized P&L: ${total_unrealized}")
+```
+
+---
+
 ## Position Lifecycle
 
 ```mermaid

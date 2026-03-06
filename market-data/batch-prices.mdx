@@ -27,6 +27,18 @@ curl -X POST https://api.polysimulator.com/v1/prices/batch \
 |-------|------|----------|-------------|
 | `market_ids` | string[] | Yes | Array of condition_ids (max 50) |
 
+### Batch Size Limits
+
+The maximum number of markets per request depends on your API key's rate limit tier:
+
+| Tier | Max `market_ids` per request |
+|------|:---------------------------:|
+| `free` | 5 |
+| `pro` | 20 |
+| `enterprise` | 50 |
+
+Exceeding your tier's limit returns a `400` error.
+
 ---
 
 ## Response
@@ -99,6 +111,41 @@ for p in prices:
     else:
         print(f"{p['condition_id'][:16]}: price unavailable")
 ```
+
+---
+
+## Error Handling
+
+| Status | Meaning |
+|--------|---------|
+| `400` | `market_ids` missing, empty, or exceeds tier batch size limit |
+| `401` | Invalid or expired API key |
+| `429` | Rate limit exceeded — check `Retry-After` header |
+
+```python
+resp = requests.post(
+    f"{BASE}/v1/prices/batch",
+    headers=headers,
+    json={"market_ids": market_ids},
+)
+
+if resp.status_code == 200:
+    prices = resp.json()
+    for p in prices:
+        if p.get("buy") is not None:
+            print(f"{p['condition_id'][:16]}: {p['buy']}")
+elif resp.status_code == 400:
+    print(f"Bad request: {resp.json().get('message', resp.json())}")
+elif resp.status_code == 429:
+    retry_after = int(resp.headers.get("Retry-After", 1))
+    time.sleep(retry_after)
+```
+
+<Info>
+  Markets with unavailable prices return only the `condition_id` field —
+  all price fields will be absent. Always check for the presence of `buy`/`sell`
+  before using them.
+</Info>
 
 ---
 
