@@ -34,7 +34,11 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 GET /v1/orders
 ```
 
-Supports both offset and cursor-based pagination.
+Returns orders from two internal data sources merged into a single stream:
+- **Pending limit orders** — unfilled GTC orders stored in the `pending_orders` table.
+- **Filled / cancelled orders** — executed trades from the `orders` table.
+
+Both types share the same `OrderItem` response shape. Supports offset and cursor-based pagination.
 
 ### Query Parameters
 
@@ -44,8 +48,27 @@ Supports both offset and cursor-based pagination.
 | `market_id` | string | — | Filter by condition_id |
 | `side` | string | — | Filter: `BUY`, `SELL` |
 | `limit` | int | 50 | Max results (1–200) |
-| `offset` | int | 0 | Pagination offset |
-| `cursor` | int | — | Cursor-based pagination (preferred for bots) |
+| `offset` | int | 0 | Pagination offset (ignored when `cursor` is set) |
+| `cursor` | string | — | ISO-8601 timestamp for cursor pagination (preferred for bots) |
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `order_id` | int | Unique order identifier |
+| `market_id` | string | Market condition_id |
+| `side` | string | `BUY` or `SELL` |
+| `outcome` | string | Outcome label (e.g. `Yes`, `No`) |
+| `order_type` | string | `market` or `limit` |
+| `limit_price` | string \| null | Limit order price (null for market orders) |
+| `quantity` | string | Order size in shares |
+| `time_in_force` | string | `GTC` or `IOC` |
+| `status` | string | `PENDING`, `FILLED`, `CANCELLED`, or `EXPIRED` |
+| `client_order_id` | string \| null | Your idempotency key |
+| `created_at` | string | ISO-8601 creation timestamp |
+| `filled_at` | string \| null | ISO-8601 fill timestamp (null if unfilled) |
+| `fill_price` | string \| null | Execution price (null if unfilled) |
+| `cancelled_at` | string \| null | ISO-8601 cancellation timestamp |
 
 ### Examples
 
@@ -56,8 +79,33 @@ curl -H "X-API-Key: $API_KEY" \
 ```
 
 ```bash Cursor Pagination
+# Use next_cursor from previous response
 curl -H "X-API-Key: $API_KEY" \
-  "https://api.polysimulator.com/v1/orders?limit=20&cursor=42"
+  "https://api.polysimulator.com/v1/orders?limit=20&cursor=2026-02-06T12:00:00+00:00"
+```
+
+```python Python (paginate all)
+import requests
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+headers = {"X-API-Key": API_KEY}
+
+all_orders = []
+cursor = None
+
+while True:
+    params = {"limit": 50}
+    if cursor:
+        params["cursor"] = cursor
+    resp = requests.get(f"{BASE}/orders", headers=headers, params=params)
+    data = resp.json()
+    all_orders.extend(data["orders"])
+    if not data["has_more"]:
+        break
+    cursor = data["next_cursor"]
+
+print(f"Fetched {len(all_orders)} orders")
 ```
 </CodeGroup>
 
@@ -77,20 +125,22 @@ curl -H "X-API-Key: $API_KEY" \
       "time_in_force": "GTC",
       "status": "PENDING",
       "client_order_id": "limit-001",
-      "created_at": "2026-02-06T12:00:00Z",
+      "created_at": "2026-02-06T12:00:00+00:00",
       "filled_at": null,
       "fill_price": null,
       "cancelled_at": null
     }
   ],
-  "next_cursor": "22",
+  "next_cursor": "2026-02-06T11:55:00+00:00",
   "has_more": true
 }
 ```
 
 <Tip>
-  **Use cursor-based pagination for bots.** It's more efficient and avoids
-  issues with page drift when new orders arrive between requests.
+  **Use cursor-based pagination for bots.** The cursor is an ISO-8601 timestamp
+  (`created_at` of the last item). This avoids page drift when new orders
+  arrive between requests. Pass the `next_cursor` value from the previous
+  response as the `cursor` parameter.
 </Tip>
 
 ---
