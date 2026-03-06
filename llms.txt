@@ -6,7 +6,6 @@ PolySimulator provides a complete HFT API for algorithmic trading bots to practi
 
 ## API Base URL
 - Production: https://api.polysimulator.com/v1
-- Staging: https://staging-api.polysimulator.com/v1
 - Local: http://localhost:8000/v1
 
 ## Authentication
@@ -100,15 +99,15 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 ## Common Errors
 - 400 INSUFFICIENT_BALANCE — Not enough funds
 - 400 MARKET_CLOSED — Market is resolved
-- 400 SLIPPAGE_EXCEEDED — Price moved beyond max_slippage_bps
 - 401 INVALID_API_KEY — Key invalid or revoked
 - 404 MARKET_NOT_FOUND — Unknown market
 - 404 ORDER_NOT_FOUND — Unknown order
+- 409 SLIPPAGE_EXCEEDED — Price moved beyond max_slippage_bps
 - 429 RATE_LIMITED — Too many requests (check Retry-After header)
 
 ## Trading Mode
 - Virtual (default): All trades are simulated with $1,000 starting balance
-- Live: Same API, same code — set TRADING_MODE=live with Polymarket credentials
+- Live: Same API, same code — swap base URL to `https://clob.polymarket.com` and use Polymarket's official auth headers (`POLY_API_KEY`, `POLY_API_SECRET`, `POLY_PASSPHRASE`)
 
 ## Links
 - Documentation: https://docs.polysimulator.com

@@ -47,18 +47,25 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   </Step>
 
   <Step title="Update environment variables">
-    Change only the environment variables — **no code changes required**:
+    Change only the base URL and credentials in your bot's environment — **no code changes required**:
 
     ```bash
-    # Before (virtual mode)
-    TRADING_MODE=virtual
+    # Virtual mode (PolySimulator) — your current config
+    POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
+    POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
 
-    # After (live mode)
-    TRADING_MODE=live
-    POLYMARKET_API_KEY=your_api_key
-    POLYMARKET_API_SECRET=your_api_secret
-    POLYMARKET_API_PASSPHRASE=your_api_passphrase
+    # Live mode (Polymarket) — swap these values
+    POLYSIM_BASE_URL="https://clob.polymarket.com"
+    POLYMARKET_API_KEY="your_polymarket_api_key"
+    POLYMARKET_API_SECRET="your_polymarket_api_secret"
+    POLYMARKET_API_PASSPHRASE="your_polymarket_api_passphrase"
     ```
+
+    <Info>
+      There is no `TRADING_MODE` flag to flip. Migration is achieved by
+      pointing your bot at a different base URL and swapping the auth header.
+      Your order placement code stays identical.
+    </Info>
   </Step>
 
   <Step title="Use CLOB-compatible endpoint (recommended for migration)">
@@ -67,10 +74,10 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
 
     <CodeGroup>
     ```python Virtual (PolySimulator)
-    import requests
+    import requests, os
 
-    BASE_URL = "https://api.polysimulator.com/v1"
-    headers = {"X-API-Key": "ps_live_kJ9mNx2p..."}
+    BASE_URL = os.environ["POLYSIM_BASE_URL"]  # https://api.polysimulator.com/v1
+    headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
 
     order = requests.post(f"{BASE_URL}/clob/order", headers=headers, json={
         "token_id": "71321045679252...",
@@ -84,11 +91,11 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     ```
 
     ```python Live (Polymarket)
-    import requests
+    import requests, os
 
     # Only these two lines change:
     BASE_URL = "https://clob.polymarket.com"
-    headers = {"Authorization": "Bearer <polymarket_jwt>"}
+    headers = {"Authorization": f"Bearer {os.environ['POLYMARKET_JWT']}"}
 
     order = requests.post(f"{BASE_URL}/order", headers=headers, json={
         "token_id": "71321045679252...",
@@ -113,13 +120,15 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     Start with minimal order sizes to verify live execution:
 
     ```python
-    import requests
+    import requests, os
 
+    BASE_URL = os.environ["POLYSIM_BASE_URL"]
+    API_KEY = os.environ["POLYSIM_API_KEY"]
     headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 
     # 1. Place a small test order
     resp = requests.post(
-        f"{BASE_URL}/v1/orders",
+        f"{BASE_URL}/orders",
         headers=headers,
         json={
             "market_id": "0xabc123...",
@@ -135,7 +144,7 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
 
     # 2. Verify the position was created
     positions = requests.get(
-        f"{BASE_URL}/v1/account/positions",
+        f"{BASE_URL}/account/positions",
         headers=headers,
         params={"status": "OPEN"},
     ).json()
@@ -143,7 +152,7 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
 
     # 3. Check balance impact
     balance = requests.get(
-        f"{BASE_URL}/v1/account/balance", headers=headers
+        f"{BASE_URL}/account/balance", headers=headers
     ).json()
     print(f"Balance: ${balance['balance']} | Total: ${balance['total_value']}")
     ```
@@ -176,15 +185,15 @@ See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details a
 
 ## Rollback
 
-To return to virtual mode:
+To return to virtual mode, change your bot's environment variables back:
 
 ```bash
-TRADING_MODE=virtual
+POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
+POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
 # Remove or comment out Polymarket credentials
-# POLYMARKET_API_KEY=...
 ```
 
-Restart the API server and your bot resumes paper trading with the simulated balance.
+Restart your bot and it resumes paper trading with the simulated balance.
 
 ---
 

@@ -10,6 +10,24 @@ Query your order history and cancel pending limit orders.
 
 ---
 
+## Order Endpoints Summary
+
+PolySimulator offers two order placement endpoints. Use the one that fits your workflow:
+
+| Endpoint | Best For | `time_in_force` Field | Supported Values |
+|----------|----------|-----------------------|------------------|
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default), `IOC` |
+| `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC`, `FOK`, `IOC`, `GTD` |
+
+<Info>
+  **Key difference**: The native `/v1/orders` endpoint uses `order_type` for market/limit
+  and `time_in_force` for GTC/IOC. The CLOB-compatible endpoint uses `order_type`
+  for the time-in-force policy (matching Polymarket's schema).
+  See [CLOB Compatibility](/concepts/clob-compatibility) for the CLOB endpoint schema.
+</Info>
+
+---
+
 ## List Orders
 
 ```
