@@ -18,16 +18,20 @@ Returns hourly portfolio value snapshots for equity curve charting and performan
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `hours` | int | 24 | Hours of history (1–720) |
+| `days` | int | 7 | Days of history (1–90) |
 
 ---
 
 ## Request
 
 ```bash
-# Last 7 days of hourly data
+# Last 7 days of hourly data (default)
 curl -H "X-API-Key: $API_KEY" \
-  "https://api.polysimulator.com/v1/account/equity?hours=168"
+  "https://api.polysimulator.com/v1/account/equity"
+
+# Last 30 days
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/equity?days=30"
 ```
 
 ---
@@ -38,24 +42,27 @@ curl -H "X-API-Key: $API_KEY" \
 [
   {
     "timestamp": "2026-02-06T11:00:00Z",
-    "portfolio_value": "1000.50",
-    "balance": "993.50",
-    "position_value": "7.00"
+    "cash_balance": "993.50",
+    "position_value": "7.00",
+    "total_value": "1000.50",
+    "pnl": "0.50"
   },
   {
     "timestamp": "2026-02-06T10:00:00Z",
-    "portfolio_value": "999.80",
-    "balance": "993.50",
-    "position_value": "6.30"
+    "cash_balance": "993.50",
+    "position_value": "6.30",
+    "total_value": "999.80",
+    "pnl": "-0.20"
   }
 ]
 ```
 
 | Field | Description |
 |-------|-------------|
-| `portfolio_value` | `balance + position_value` at this timestamp |
-| `balance` | Cash balance at this timestamp |
+| `cash_balance` | Cash balance at this timestamp |
 | `position_value` | Total market value of positions at this timestamp |
+| `total_value` | `cash_balance + position_value` at this timestamp |
+| `pnl` | Profit & loss relative to starting balance |
 
 ---
 
@@ -68,11 +75,11 @@ from datetime import datetime
 equity = requests.get(
     f"{BASE}/v1/account/equity",
     headers=headers,
-    params={"hours": 168},  # 7 days
+    params={"days": 30},  # 30 days
 ).json()
 
 times = [datetime.fromisoformat(e["timestamp"]) for e in equity]
-values = [float(e["portfolio_value"]) for e in equity]
+values = [float(e["total_value"]) for e in equity]
 
 plt.figure(figsize=(12, 6))
 plt.plot(times, values)

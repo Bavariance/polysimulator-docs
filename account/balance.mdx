@@ -59,7 +59,7 @@ from decimal import Decimal
 BASE_URL = os.environ["POLYSIM_BASE_URL"]
 headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
 
-resp = requests.get(f"{BASE_URL}/account/balance", headers=headers)
+resp = requests.get(f"{BASE_URL}/v1/account/balance", headers=headers)
 
 if resp.status_code == 200:
     data = resp.json()
