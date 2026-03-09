@@ -98,6 +98,39 @@ Each order in the array follows the same schema as `POST /v1/orders`.
   `succeeded` and `failed` counts.
 </Info>
 
+### Error Response Format
+
+Per-order failures are returned inline in `results` with `status="REJECTED"`
+or `status="ERROR"`. The shape currently matches `OrderResponse` and includes
+an `error` string.
+
+Each failed entry in `results` has this shape:
+
+```json
+{
+  "order_id": 0,
+  "status": "REJECTED",
+  "order_type": "market",
+  "side": "BUY",
+  "outcome": "Yes",
+  "price": "0",
+  "quantity": "1",
+  "notional": "0",
+  "fee": "0",
+  "client_order_id": "bot-123",
+  "error": "{'error': 'INSUFFICIENT_BALANCE', 'message': 'Insufficient balance for BUY order'}"
+}
+```
+
+`error` is a stringified payload from the underlying exception detail. Parse or
+log it as text unless your client applies custom normalization.
+
+<Warning>
+  A batch request itself returns **HTTP 200** even when individual orders fail.
+  Always iterate `results` to check per-order status. Only use HTTP status codes
+  for request-level failures (auth, rate limit, malformed JSON).
+</Warning>
+
 ---
 
 ## Use Cases
