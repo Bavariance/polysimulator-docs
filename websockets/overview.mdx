@@ -79,6 +79,77 @@ All messages are JSON. The protocol supports these client actions:
 
 ---
 
+## Reconnection & Token Rotation
+
+WebSocket tokens expire after **60 seconds** and are single-use. Your bot must implement automatic reconnection with fresh token minting.
+
+### Recommended Pattern
+
+```python
+import asyncio
+import json
+import websockets
+import httpx
+
+API_KEY = "your-api-key"
+BASE_URL = "https://api.polysimulator.com"
+
+async def mint_ws_token() -> str:
+    """Mint a fresh 60-second WS token."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{BASE_URL}/v1/keys/ws-token",
+            headers={"X-API-Key": API_KEY},
+        )
+        return resp.json()["token"]
+
+async def connect_with_reconnect(subscriptions: list[str]):
+    backoff = 1
+    max_backoff = 30
+
+    while True:
+        try:
+            token = await mint_ws_token()
+            async with websockets.connect(
+                f"wss://api.polysimulator.com/v1/ws/prices?token={token}"
+            ) as ws:
+                backoff = 1  # Reset on successful connect
+
+                # Re-subscribe after reconnect
+                await ws.send(json.dumps({
+                    "action": "subscribe",
+                    "markets": subscriptions,
+                }))
+
+                async for message in ws:
+                    data = json.loads(message)
+                    if data.get("type") == "pong":
+                        continue
+                    # Process price update
+                    handle_price(data)
+
+        except websockets.ConnectionClosedError as e:
+            if e.code == 4001:
+                # Token expired — mint fresh and reconnect immediately
+                continue
+            if e.code == 4002:
+                # Connection limit — wait before retry
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
+        except Exception:
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+```
+
+### Key Rules
+
+1. **Never reuse tokens** — mint a fresh token before each `connect()` call
+2. **Re-subscribe after reconnect** — the server does not remember your subscriptions
+3. **Exponential backoff** — start at 1s, cap at 30s, reset on successful connect
+4. **Handle close code `4001` immediately** — no backoff needed, just mint and reconnect
+
+---
+
 ## Best Practices
 
 <CardGroup cols={2}>
