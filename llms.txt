@@ -2,7 +2,7 @@
 
 > Virtual trading environment for Polymarket prediction markets.
 
-PolySimulator provides a complete HFT API for algorithmic trading bots to practice trading with real market data using simulated money, then switch to live trading on Polymarket by changing only API credentials.
+PolySimulator provides a complete algorithmic trading API for trading bots to practice trading with real market data using simulated money, then switch to live trading on Polymarket by changing only API credentials.
 
 ## API Base URL
 - Production: https://api.polysimulator.com/v1
@@ -31,8 +31,9 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset,
 - All numeric values (price, quantity, balance) are **JSON strings** — parse with
   `Decimal(str(value))` in Python, never use `float()` for monetary arithmetic
 - Use `client_order_id` in order requests to prevent duplicate fills on retries (idempotency)
-- The market identifier field is `condition_id` in API responses (matching Polymarket).
-  Order request bodies accept this value as `market_id`.
+- Market data endpoints (GET /v1/markets, POST /v1/prices/batch) return `condition_id`.
+  Trading and account endpoints use `market_id` in requests and responses.
+  Both refer to the same Polymarket condition_id value.
 
 ## Endpoints
 
@@ -42,7 +43,7 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset,
 - GET /v1/markets/{market_id}/book — L2 order book (bids/asks arrays)
 - GET /v1/markets/{market_id}/candles — OHLCV price candles (intervals: 1h, 6h, 1d, 1w, max)
 - GET /v1/markets/updown — List active up/down time-bound markets (asset, interval, limit)
-- POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns flat: condition_id, buy, sell, outcomes[], source)
+- POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns: condition_id, buy, sell, outcomes[], source)
 
 ### PolySimulator Extensions (not available on Polymarket CLOB)
 These endpoints provide convenience features unique to PolySimulator.
