@@ -66,20 +66,16 @@
         "summary": "Subscribe to price updates for specific markets",
         "payload": {
           "type": "object",
-          "required": ["type", "channel", "market_ids"],
+          "required": ["action", "markets"],
           "properties": {
-            "type": {
+            "action": {
               "type": "string",
               "const": "subscribe"
             },
-            "channel": {
-              "type": "string",
-              "const": "prices"
-            },
-            "market_ids": {
+            "markets": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "List of condition IDs to subscribe to"
+              "description": "List of condition IDs to subscribe to (max 50)"
             }
           }
         }
@@ -89,17 +85,13 @@
         "summary": "Unsubscribe from specific markets",
         "payload": {
           "type": "object",
-          "required": ["type", "channel", "market_ids"],
+          "required": ["action", "markets"],
           "properties": {
-            "type": {
+            "action": {
               "type": "string",
               "const": "unsubscribe"
             },
-            "channel": {
-              "type": "string",
-              "const": "prices"
-            },
-            "market_ids": {
+            "markets": {
               "type": "array",
               "items": { "type": "string" }
             }
@@ -107,31 +99,41 @@
         }
       },
       "PriceUpdate": {
-        "name": "price_update",
+        "name": "price",
         "summary": "Real-time price change for a subscribed market",
         "payload": {
           "type": "object",
           "properties": {
             "type": {
               "type": "string",
-              "const": "price_update"
+              "const": "price"
             },
             "market_id": {
               "type": "string",
               "description": "Condition ID"
             },
-            "prices": {
-              "type": "object",
-              "properties": {
-                "yes": { "type": "string", "description": "Yes outcome price (0-1)" },
-                "no": { "type": "string", "description": "No outcome price (0-1)" }
-              }
+            "buy": {
+              "type": "string",
+              "description": "Yes outcome price (0-1)"
+            },
+            "sell": {
+              "type": "string",
+              "description": "No outcome price (0-1)"
+            },
+            "best_bid": {
+              "type": "string"
+            },
+            "best_ask": {
+              "type": "string"
             },
             "volume": {
               "type": "string",
               "description": "24h trading volume"
             },
-            "timestamp": {
+            "source": {
+              "type": "string"
+            },
+            "updated_at": {
               "type": "string",
               "format": "date-time"
             }
@@ -144,7 +146,7 @@
         "payload": {
           "type": "object",
           "properties": {
-            "type": {
+            "action": {
               "type": "string",
               "const": "ping"
             }

@@ -25,22 +25,31 @@ Manage additional keys at POST /v1/keys, GET /v1/keys, DELETE /v1/keys/{key_id}.
 - Free: 5 req/sec, 300 req/min, 2 WebSocket connections, batch size 5
 - Pro: 20 req/sec, 1,200 req/min, 10 WebSocket connections, batch size 20
 - Enterprise: 50 req/sec, 3,000 req/min, 50 WebSocket connections, batch size 50
-Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier
 
 ## Key Concepts
-- All numeric values (price, quantity, balance) are JSON strings to avoid IEEE 754 precision loss
-- Use Decimal types in your language for arithmetic
+- All numeric values (price, quantity, balance) are **JSON strings** — parse with
+  `Decimal(str(value))` in Python, never use `float()` for monetary arithmetic
 - Use `client_order_id` in order requests to prevent duplicate fills on retries (idempotency)
-- Markets use condition_id as the primary identifier
+- The market identifier field is `condition_id` in API responses (matching Polymarket).
+  Order request bodies accept this value as `market_id`.
 
 ## Endpoints
 
 ### Market Data
 - GET /v1/markets — List active markets (params: hot_only, limit, offset, search)
-- GET /v1/markets/{condition_id} — Get single market with live price
-- GET /v1/markets/{condition_id}/book — L2 order book (bids/asks arrays)
-- GET /v1/markets/{condition_id}/candles — OHLCV price candles (intervals: 1h, 6h, 1d, 1w, max)
+- GET /v1/markets/{market_id} — Get single market with live price
+- GET /v1/markets/{market_id}/book — L2 order book (bids/asks arrays)
+- GET /v1/markets/{market_id}/candles — OHLCV price candles (intervals: 1h, 6h, 1d, 1w, max)
+- GET /v1/markets/updown — List active up/down time-bound markets (asset, interval, limit)
 - POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns flat: condition_id, buy, sell, outcomes[], source)
+
+### PolySimulator Extensions (not available on Polymarket CLOB)
+These endpoints provide convenience features unique to PolySimulator.
+They are NOT part of Polymarket's API and will not work if you switch base URLs.
+- GET /v1/markets/updown/intervals — Updown markets grouped by interval with rotation timing
+    Params: asset (optional, e.g. "BTC"); returns seconds_until_rotation, next_rotation_at per interval.
+    Use this to seamlessly rotate your bot to the next interval's markets before expiry.
 
 ### Trading
 - POST /v1/orders — Place market or limit order (body: market_id, side, outcome, quantity, order_type, price, time_in_force, client_order_id, max_slippage_bps)
@@ -48,7 +57,6 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 - GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
 - DELETE /v1/orders/{order_id} — Cancel pending limit order
 - POST /v1/orders/batch — Place multiple orders (body: {"orders": [...]})
-
 ### Account
 - GET /v1/account/balance — Account balance, PnL, unrealized PnL
 - GET /v1/account/positions — Open/closed positions (params: status)
@@ -108,7 +116,10 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
 
 ## Trading Mode
 - Virtual (default): All trades are simulated with $1,000 starting balance
-- Live: Same API, same code — swap base URL to `https://clob.polymarket.com` and use Polymarket's official auth headers (`POLY_API_KEY`, `POLY_API_SECRET`, `POLY_PASSPHRASE`)
+- Live: Same core API, same request schemas — swap base URL to `https://clob.polymarket.com`
+  and use Polymarket's py_clob_client SDK for authentication.
+  Note: PolySimulator Extension endpoints (e.g. /v1/markets/updown/intervals) are not
+  available on Polymarket. Guard extension calls with an environment check.
 
 ## Links
 - Documentation: https://docs.polysimulator.com
