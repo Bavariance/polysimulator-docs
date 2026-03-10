@@ -122,6 +122,124 @@ They are NOT part of Polymarket's API and will not work if you switch base URLs.
   Note: PolySimulator Extension endpoints (e.g. /v1/markets/updown/intervals) are not
   available on Polymarket. Guard extension calls with an environment check.
 
+## Migration: Virtual → Live Polymarket Trading
+
+### Step 1 — Install the SDK
+```
+pip install py-clob-client
+```
+
+### Step 2 — Derive API Credentials (one-time L1 → L2 auth)
+```python
+from py_clob_client.client import ClobClient
+import os
+
+host = "https://clob.polymarket.com"
+chain_id = 137  # Polygon mainnet
+private_key = os.getenv("PRIVATE_KEY")  # Polygon wallet private key
+
+# L1 auth: derive L2 HMAC credentials from your private key
+temp_client = ClobClient(host, key=private_key, chain_id=chain_id)
+api_creds = temp_client.create_or_derive_api_creds()
+# Returns: { "apiKey": "...", "secret": "...", "passphrase": "..." }
+```
+
+### Step 3 — Initialize the Trading Client
+```python
+from py_clob_client.client import ClobClient
+from py_clob_client.clob_types import ApiCreds
+import os
+
+api_creds = ApiCreds(
+    api_key=os.getenv("POLY_API_KEY"),
+    api_secret=os.getenv("POLY_API_SECRET"),
+    api_passphrase=os.getenv("POLY_PASSPHRASE"),
+)
+
+client = ClobClient(
+    host="https://clob.polymarket.com",
+    key=os.getenv("PRIVATE_KEY"),
+    chain_id=137,
+    creds=api_creds,
+    signature_type=0,  # 0=EOA wallet, 1=MagicLink, 2=browser proxy
+    funder=os.getenv("FUNDER_ADDRESS"),  # wallet paying gas + holding USDC.e
+)
+```
+
+### Step 4 — Place an Order
+```python
+from py_clob_client.clob_types import OrderArgs, OrderType
+from py_clob_client.order_builder.constants import BUY, SELL
+
+response = client.create_and_post_order(
+    OrderArgs(
+        token_id="YOUR_TOKEN_ID",  # from clobTokenIds[0]=Yes, [1]=No
+        price=0.50,
+        size=10,
+        side=BUY,
+    ),
+    options={"tick_size": "0.01", "neg_risk": False},
+    order_type=OrderType.GTC,  # GTC, GTD, FOK, or IOC
+)
+print("Order ID:", response["orderID"])
+print("Status:", response["status"])
+```
+
+### Error Handling for Authentication Failures
+Common CLOB errors when trading live:
+- INVALID_ORDER_NOT_ENOUGH_BALANCE — Funder wallet lacks USDC.e or POL (gas)
+- INVALID_ORDER_MIN_TICK_SIZE — Price doesn't match market tick size
+- INVALID_ORDER_MIN_SIZE — Order size below minimum
+- INVALID_ORDER_EXPIRATION — Expiration timestamp in the past
+- FOK_ORDER_NOT_FILLED_ERROR — FOK order couldn't be fully filled
+- MARKET_NOT_READY — Market not yet accepting orders
+
+```python
+from py_clob_client.clob_types import OrderArgs
+from py_clob_client.order_builder.constants import BUY
+
+order_args = OrderArgs(
+    token_id="YOUR_TOKEN_ID",
+    price=0.50,
+    size=10,
+    side=BUY,
+)
+opts = {"tick_size": "0.01", "neg_risk": False}
+
+try:
+    response = client.create_and_post_order(order_args, options=opts)
+    if not response.get("success", True):
+        print(f"Order rejected: {response.get('errorMsg')}")
+except Exception as e:
+    print(f"CLOB request failed: {e}")
+```
+
+### What Changes Between Platforms
+| Aspect         | PolySimulator              | Polymarket                          |
+|----------------|----------------------------|-------------------------------------|
+| Base URL       | api.polysimulator.com/v1   | clob.polymarket.com                 |
+| Auth           | X-API-Key header           | py_clob_client SDK (HMAC L2 auth)   |
+| Money          | Virtual $1,000             | Real USDC.e on Polygon              |
+| Market IDs     | `market_id` = `condition_id` | Order routing uses `token_id` per outcome (`clobTokenIds`) |
+| Prices         | Same real-time CLOB prices | Same                                |
+| Extensions     | /v1/markets/updown etc.    | Not available — guard with env check|
+
+### Guard PolySimulator Extension Endpoints
+```python
+import os
+import requests
+
+TRADING_MODE = os.getenv("TRADING_MODE", "simulator")
+BASE = os.getenv("POLYSIM_API_URL", "https://api.polysimulator.com/v1")
+HEADERS = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+def get_updown_intervals(market_id):
+    if TRADING_MODE != "simulator":
+        return None  # endpoint only exists on PolySimulator
+    resp = requests.get(f"{BASE}/markets/updown/intervals/{market_id}", headers=HEADERS)
+    return resp.json()
+```
+
 ## Links
 - Documentation: https://docs.polysimulator.com
 - GitHub: https://github.com/Bavariance/polysimulator
