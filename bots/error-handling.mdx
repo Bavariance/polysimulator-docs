@@ -189,9 +189,8 @@ async def resilient_ws(url, token, market_ids):
                     backoff = 1  # Reset on successful connect
 
                     await ws.send_json({
-                        "type": "subscribe",
-                        "channel": "prices",
-                        "market_ids": market_ids,
+                        "action": "subscribe",
+                        "markets": market_ids,
                     })
 
                     async for msg in ws:

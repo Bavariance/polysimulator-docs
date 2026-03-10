@@ -123,6 +123,8 @@ for p in prices:
 | `429` | Rate limit exceeded — check `Retry-After` header |
 
 ```python
+import time
+
 resp = requests.post(
     f"{BASE}/v1/prices/batch",
     headers=headers,

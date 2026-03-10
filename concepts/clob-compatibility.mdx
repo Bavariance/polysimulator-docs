@@ -38,26 +38,27 @@ order = requests.post(f"{BASE}/clob/order", headers=headers, json={
 ```
 
 ```python Live Mode (Polymarket)
-import requests
+from py_clob_client.client import ClobClient
 
-BASE = "https://clob.polymarket.com"
-headers = {"Authorization": "Bearer <polymarket_jwt>"}
+client = ClobClient("https://clob.polymarket.com", key=PRIVATE_KEY, chain_id=137)
+client.set_api_creds(client.create_or_derive_api_key())
 
-# Same request body — no code changes needed
-order = requests.post(f"{BASE}/order", headers=headers, json={
-    "token_id": "71321045679252...",
-    "side": "BUY",
-    "price": "0.65",
-    "size": "10",
-    "order_type": "GTC",
-}).json()
+# Same order payload — only auth + client changes
+order = client.create_and_post_order(OrderArgs(
+    token_id="71321045679252...",
+    side="BUY",
+    price=0.65,
+    size=10,
+    order_type="GTC",
+))
 ```
 </CodeGroup>
 
 <Info>
-  **Authentication difference**: PolySimulator uses `X-API-Key` header.
-  Polymarket's live CLOB API uses `Authorization: Bearer <jwt>` header.
-  This is the only header change when migrating to live trading.
+  **Authentication difference**: PolySimulator uses the `X-API-Key` header.
+  Polymarket's live CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
+  derived from your wallet's private key via `py_clob_client`. See the
+  [Live Migration Guide](/deployment/live-migration) for full credential setup.
 </Info>
 
 ---

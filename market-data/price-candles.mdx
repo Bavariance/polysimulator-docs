@@ -76,7 +76,11 @@ curl -H "X-API-Key: $API_KEY" \
 ## Backtesting Example
 
 ```python
+import requests
 from decimal import Decimal
+
+BASE = "https://api.polysimulator.com"
+headers = {"X-API-Key": "YOUR_API_KEY"}
 
 # Fetch 7 days of hourly candles
 candles = requests.get(
