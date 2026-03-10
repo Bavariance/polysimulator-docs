@@ -16,10 +16,38 @@ Key format: `ps_live_` prefix + 64 hex characters (total 72 chars).
 New users have no key yet. To create your first key without a chicken-and-egg problem:
 1. Sign in at polysimulator.com to get a Supabase access_token.
 2. Call `POST /v1/keys/bootstrap` with `Authorization: Bearer <access_token>`.
+   Body: `{"name": "my-bot"}` — `name` is optional (defaults to null if omitted). Send `{}` for defaults.
 3. Store the returned `raw_key` — it is shown only once.
 4. All subsequent requests use `X-API-Key: <raw_key>`.
 
-Manage additional keys at POST /v1/keys, GET /v1/keys, DELETE /v1/keys/{key_id}.
+Bootstrap response (201 Created):
+```json
+{
+  "id": 1,
+  "raw_key": "ps_live_abc123...",
+  "key_prefix": "ps_live_abc1",
+  "rate_limit_tier": "free",
+  "permissions": ["read", "trade"],
+  "created_at": "2025-01-01T00:00:00Z",
+  "name": "my-bot"
+}
+```
+
+Bootstrap Python example:
+```python
+import requests
+
+supabase_jwt = "your_supabase_access_token"  # from polysimulator.com sign-in
+resp = requests.post(
+    "https://api.polysimulator.com/v1/keys/bootstrap",
+    headers={"Authorization": f"Bearer {supabase_jwt}", "Content-Type": "application/json"},
+    json={"name": "my-bot"},  # optional
+)
+resp.raise_for_status()
+raw_key = resp.json()["raw_key"]  # save this — shown only once
+```
+
+Manage additional keys via POST /v1/keys (body: name, tier, permissions), GET /v1/keys, DELETE /v1/keys/{key_id}.
 
 ## Rate Limits
 - Free: 5 req/sec, 300 req/min, 2 WebSocket connections, batch size 5
@@ -39,18 +67,17 @@ Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset,
 
 ### Market Data
 - GET /v1/markets — List active markets (params: hot_only, limit, offset, search)
-- GET /v1/markets/{market_id} — Get single market with live price
-- GET /v1/markets/{market_id}/book — L2 order book (bids/asks arrays)
-- GET /v1/markets/{market_id}/candles — OHLCV price candles (intervals: 1h, 6h, 1d, 1w, max)
-- GET /v1/markets/updown — List active up/down time-bound markets (asset, interval, limit)
+- GET /v1/markets/{condition_id} — Get single market with live price
+- GET /v1/markets/{condition_id}/book — L2 order book (bids/asks arrays)
+- GET /v1/markets/{condition_id}/candles — OHLCV price candles (intervals: 1h, 6h, 1d, 1w, max)
 - POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns: condition_id, buy, sell, outcomes[], source)
 
 ### PolySimulator Extensions (not available on Polymarket CLOB)
 These endpoints provide convenience features unique to PolySimulator.
 They are NOT part of Polymarket's API and will not work if you switch base URLs.
-- GET /v1/markets/updown/intervals — Updown markets grouped by interval with rotation timing
-    Params: asset (optional, e.g. "BTC"); returns seconds_until_rotation, next_rotation_at per interval.
-    Use this to seamlessly rotate your bot to the next interval's markets before expiry.
+Guard extension calls with an environment check (see migration section below).
+- GET /v1/markets/updown — List active up/down time-bound markets (params: asset, interval, limit)
+- GET /v1/markets/updown/intervals — Updown markets grouped by interval (params: asset)
 
 ### Trading
 - POST /v1/orders — Place market or limit order (body: market_id, side, outcome, quantity, order_type, price, time_in_force, client_order_id, max_slippage_bps)
@@ -104,7 +131,8 @@ They are NOT part of Polymarket's API and will not work if you switch base URLs.
 - Side values are always uppercase: "BUY" or "SELL"
 
 ## Error Format
-{"error": "ERROR_CODE", "message": "Human description", "details": {...}}
+{"error": "ERROR_CODE", "message": "Human description", "request_id": "uuid", "details": {...}}
+The `details` field is optional and may be omitted. The `request_id` field is always present.
 
 ## Common Errors
 - 400 INSUFFICIENT_BALANCE — Not enough funds
@@ -112,15 +140,72 @@ They are NOT part of Polymarket's API and will not work if you switch base URLs.
 - 401 INVALID_API_KEY — Key invalid or revoked
 - 404 MARKET_NOT_FOUND — Unknown market
 - 404 ORDER_NOT_FOUND — Unknown order
-- 409 SLIPPAGE_EXCEEDED — Price moved beyond max_slippage_bps
+- 409 HTTP_409 (slippage exceeded) — Price moved beyond max_slippage_bps
 - 429 RATE_LIMITED — Too many requests (check Retry-After header)
 
 ## Trading Mode
-- Virtual (default): All trades are simulated with $1,000 starting balance
-- Live: Same core API, same request schemas — swap base URL to `https://clob.polymarket.com`
-  and use Polymarket's py_clob_client SDK for authentication.
-  Note: PolySimulator Extension endpoints (e.g. /v1/markets/updown/intervals) are not
-  available on Polymarket. Guard extension calls with an environment check.
+- Virtual (default): All trades are simulated with $1,000 starting balance.
+- Live: Order format is identical — POST /v1/clob/order uses the same request body as
+  Polymarket's POST /order. What changes: base URL, authentication method (HMAC L2 via
+  py_clob_client SDK), and real USDC.e funds.
+  PolySimulator Extension endpoints (e.g. /v1/markets/updown) are not available on
+  Polymarket — guard extension calls with an environment check (see migration section).
+
+## Error Handling & Retry Patterns
+All /v1 errors return: `{"error": "ERROR_CODE", "message": "...", "request_id": "...", "details": {...}}` (the `details` field is optional).
+
+### Retryable Errors
+- 429 RATE_LIMITED — Back off using `Retry-After` header (seconds).
+- 500/502/503 — Transient server error; retry with exponential backoff.
+- Network timeout — Retry with idempotent `client_order_id` to prevent duplicate fills.
+
+### Non-Retryable Errors
+- 400 INSUFFICIENT_BALANCE / MARKET_CLOSED / INVALID_QUANTITY — Fix request and resubmit.
+- 401 INVALID_API_KEY — Re-bootstrap or rotate key.
+- 404 MARKET_NOT_FOUND — Verify market_id via GET /v1/markets.
+- 409 HTTP_409 (slippage exceeded) — Re-fetch price, adjust or widen `max_slippage_bps`.
+
+### Retry Example
+```python
+import os
+import time
+import requests
+
+BASE = "https://api.polysimulator.com/v1"
+API_KEY = os.environ["POLYSIM_API_KEY"]
+HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+def place_order_with_retry(order_body, max_retries=3):
+    for attempt in range(max_retries):
+        resp = requests.post(f"{BASE}/orders", headers=HEADERS, json=order_body)
+        if resp.status_code == 429:
+            wait = int(resp.headers.get("Retry-After", 2 ** attempt))
+            time.sleep(wait)
+            continue
+        if resp.status_code >= 500:
+            time.sleep(2 ** attempt)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+    raise RuntimeError("Max retries exceeded")
+```
+
+### Timeout & Slippage Configuration
+```python
+# Set request timeout to avoid hanging connections
+resp = requests.post(f"{BASE}/orders", headers=HEADERS, json=order, timeout=10)
+
+# Use max_slippage_bps to control acceptable price movement (100 bps = 1%)
+order = {
+    "market_id": "condition-id",
+    "side": "BUY",
+    "outcome": "Yes",
+    "quantity": "10",
+    "order_type": "market",
+    "max_slippage_bps": 200,  # reject if price moves >2%
+    "client_order_id": "unique-id-for-idempotency",
+}
+```
 
 ## Migration: Virtual → Live Polymarket Trading
 
