@@ -16,7 +16,7 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 
 | Endpoint | Best For | `time_in_force` Field | Supported Values |
 |----------|----------|-----------------------|------------------|
-| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default), `IOC` |
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default), `FOK`, `IOC` |
 | `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC`, `FOK`, `IOC`, `GTD` |
 
 <Info>
@@ -62,7 +62,7 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 | `order_type` | string | `market` or `limit` |
 | `limit_price` | string \| null | Limit order price (null for market orders) |
 | `quantity` | string | Order size in shares |
-| `time_in_force` | string | `GTC` or `IOC` |
+| `time_in_force` | string | `GTC`, `FOK`, or `IOC` |
 | `status` | string | `PENDING`, `FILLED`, `CANCELLED`, or `EXPIRED` |
 | `client_order_id` | string \| null | Your idempotency key |
 | `created_at` | string | ISO-8601 creation timestamp |

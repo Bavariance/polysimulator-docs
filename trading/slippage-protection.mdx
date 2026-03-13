@@ -1,36 +1,29 @@
 ---
 title: "Slippage Protection"
 sidebarTitle: "Slippage Protection"
-description: "Understand and configure slippage protection for market orders."
+description: "Understand slippage protection for market orders — identical to Polymarket's worst-price limit model."
 ---
 
 # Slippage Protection
 
-Market orders execute via **CLOB book walking** — walking through the real Polymarket order book to find liquidity. Slippage protection ensures you don't get a worse price than expected.
+PolySimulator uses the same slippage protection model as Polymarket:
+the `price` field on every market order acts as a **worst-price limit**.
+
+There is no separate slippage parameter — the price _is_ your slippage protection.
 
 ---
 
 ## How It Works
 
-1. The trading engine fetches the real-time order book from Polymarket's CLOB
-2. Your order is "walked" through bid/ask levels to compute a depth-weighted fill price
-3. The actual fill price is compared to the expected mid-price
-4. If slippage exceeds your `max_slippage_bps` threshold, the order is **rejected**
+On Polymarket, all orders are limit orders. A "market order" is simply a
+limit order at a marketable price with FOK (Fill-or-Kill) time-in-force.
+PolySimulator mirrors this exactly.
 
-```
-Expected mid: $0.65
-Actual fill:  $0.67 (walked through thin liquidity)
-Slippage:     200 bps (2%)
+The `price` field is **required** on market orders and sets the worst price
+you'll accept:
 
-If max_slippage_bps = 100 → ORDER REJECTED
-If max_slippage_bps = 500 → ORDER FILLED at $0.67
-```
-
----
-
-## Setting Slippage Tolerance
-
-Add `max_slippage_bps` to your order request:
+- **BUY**: fills at the best ask, but **never above** your `price`
+- **SELL**: fills at the best bid, but **never below** your `price`
 
 ```json
 {
@@ -39,16 +32,101 @@ Add `max_slippage_bps` to your order request:
   "outcome": "Yes",
   "quantity": "10",
   "order_type": "market",
-  "max_slippage_bps": 100
+  "price": "0.68"
 }
 ```
 
-| Value | Meaning |
-|-------|---------|
-| `100` | 1% max slippage |
-| `500` | 5% max slippage (default) |
-| `1000` | 10% max slippage |
-| Not set | Uses server default (500 bps / 5%) |
+### BUY Example
+
+```
+Best ask:    $0.65
+Your limit:  $0.68
+→ FILLED at $0.65 (price improvement — you pay less than your limit)
+
+Best ask:    $0.72
+Your limit:  $0.68
+→ REJECTED — fill price $0.72 exceeds your worst-price limit $0.68
+```
+
+### SELL Example
+
+```
+Best bid:    $0.60
+Your limit:  $0.55
+→ FILLED at $0.60 (price improvement — you receive more than your limit)
+
+Best bid:    $0.50
+Your limit:  $0.55
+→ REJECTED — fill price $0.50 is below your worst-price limit $0.55
+```
+
+<Info>
+  **Polymarket migration**: This is identical to how Polymarket's `price`
+  field works. Your existing slippage logic transfers directly to
+  PolySimulator — and vice versa when you migrate to live trading.
+</Info>
+
+---
+
+## Price Is Required
+
+Market orders **must** include a `price` field. Submitting a market order
+without `price` returns a `400 PRICE_REQUIRED` error:
+
+```json
+{
+  "error": "PRICE_REQUIRED",
+  "message": "Market orders require a 'price' field as a worst-price limit..."
+}
+```
+
+This matches Polymarket's design: there are no "blind" market orders.
+You always control the worst price you'll accept.
+
+---
+
+## Time in Force
+
+Market orders default to **FOK** (Fill-or-Kill), matching Polymarket.
+You can also use **FAK** (Fill-and-Kill), Polymarket's term for IOC.
+
+| Value | Behavior | Polymarket Equivalent |
+|-------|----------|----------------------|
+| `FOK` | All-or-nothing — fill entirely or cancel (default for market orders) | FOK |
+| `FAK` | Fill available quantity, cancel remainder | FAK |
+| `IOC` | Same as FAK (PolySimulator alias) | FAK |
+| `GTC` | Overridden to FOK for market orders | — |
+
+```json
+{
+  "market_id": "0xabc...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "market",
+  "price": "0.68",
+  "time_in_force": "FAK"
+}
+```
+
+<Tip>
+  If you omit `time_in_force` on a market order, it defaults to FOK.
+  If you explicitly set `GTC`, it is overridden to FOK — market orders
+  never persist in the book.
+</Tip>
+
+---
+
+## Execution Model
+
+Market orders fill at the **best available price** — BUY at the best ask,
+SELL at the best bid — matching Polymarket's execution model.
+
+The fill price resolution waterfall:
+
+1. **Best bid/ask** from the CLOB order book (most realistic)
+2. **Cached CLOB midpoint** from Redis (sub-ms, HFT fast-path)
+3. **Gamma API price** (fallback for cache misses)
 
 ---
 
@@ -60,19 +138,26 @@ Every market order response includes transparency metadata:
 {
   "order_id": 42,
   "status": "FILLED",
-  "price": "0.67",
+  "price": "0.65",
   "price_source": "clob_book",
-  "slippage_bps": 200
+  "slippage_bps": 461
 }
 ```
+
+The `slippage_bps` field is **informational only** — it shows how far the
+fill price deviated from the cached mid-price, in basis points. It does not
+affect order execution. Your `price` (worst-price limit) is the only
+protection mechanism.
 
 ### Price Sources
 
 | Source | Description | Reliability |
 |--------|-------------|-------------|
 | `clob_book` | Full order book walk from CLOB API | Highest — real depth |
-| `clob_midpoint` | CLOB mid-price (thin book fallback) | High |
+| `clob_midpoint` | CLOB mid-price (fast-path) | High |
 | `gamma_api` | Gamma API price feed | Medium — may be delayed |
+| `gamma_poller:best_ask` | Best ask from background poller | High — refreshed every 30s |
+| `gamma_poller:best_bid` | Best bid from background poller | High — refreshed every 30s |
 | `redis_cache` | Cached price from background poller | Lower — up to 45s stale |
 
 <Tip>
@@ -85,18 +170,32 @@ Every market order response includes transparency metadata:
 
 ## Recommendations by Strategy
 
-| Strategy | Suggested `max_slippage_bps` |
-|----------|:----------------------------:|
-| Scalping / HFT | 50–100 (0.5%–1%) |
-| Swing trading | 200–500 (2%–5%) |
-| Bulk accumulation | 500–1000 (5%–10%) |
-| Illiquid markets | 1000+ or use limit orders |
+| Strategy | Approach |
+|----------|----------|
+| Scalping / HFT | `price` = best ask + $0.01 (tight limit, minimal overpay) |
+| Swing trading | `price` = best ask + $0.03 (moderate buffer) |
+| Bulk accumulation | `price` = best ask + $0.05 (wider buffer for fill certainty) |
+| Illiquid markets | Use **limit orders** (GTC) for price certainty |
 
 <Warning>
   For illiquid markets with wide spreads, consider **limit orders** instead
   of market orders. Limits give you price certainty at the cost of fill
   uncertainty.
 </Warning>
+
+---
+
+## Comparison: PolySimulator vs Polymarket
+
+| Feature | Polymarket | PolySimulator |
+|---------|-----------|---------------|
+| Slippage protection | `price` field (worst-price limit) | `price` field (identical) |
+| Price required on market orders | Yes | Yes |
+| Default time-in-force (market) | FOK | FOK |
+| Execution model | BUY at best ask, SELL at best bid | BUY at best ask, SELL at best bid |
+| Price improvement | Yes — fill at best available | Yes — fill at best available |
+| Order types | FOK, FAK, GTC, GTD | FOK, FAK, IOC, GTC |
+| Fees | Taker fees on some markets | Zero (paper trading) |
 
 ---
 
