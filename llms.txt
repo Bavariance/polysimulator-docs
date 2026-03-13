@@ -80,7 +80,7 @@ Guard extension calls with an environment check (see migration section below).
 - GET /v1/markets/updown/intervals — Updown markets grouped by interval (params: asset)
 
 ### Trading
-- POST /v1/orders — Place market or limit order (body: market_id, side, outcome, quantity, order_type, price, time_in_force, client_order_id, max_slippage_bps)
+- POST /v1/orders — Place market or limit order (body: market_id, side, outcome, quantity, order_type, price, time_in_force, client_order_id)
 - POST /v1/clob/order — Place CLOB-compatible order (body: token_id, side, size, price, order_type, client_order_id — price and size are strings)
 - GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
 - DELETE /v1/orders/{order_id} — Cancel pending limit order
@@ -140,7 +140,7 @@ The `details` field is optional and may be omitted. The `request_id` field is al
 - 401 INVALID_API_KEY — Key invalid or revoked
 - 404 MARKET_NOT_FOUND — Unknown market
 - 404 ORDER_NOT_FOUND — Unknown order
-- 409 HTTP_409 (slippage exceeded) — Price moved beyond max_slippage_bps
+- 409 HTTP_409 (price limit exceeded) — Fill price exceeds worst-price limit (price field)
 - 429 RATE_LIMITED — Too many requests (check Retry-After header)
 
 ## Trading Mode
@@ -163,7 +163,7 @@ All /v1 errors return: `{"error": "ERROR_CODE", "message": "...", "request_id": 
 - 400 INSUFFICIENT_BALANCE / MARKET_CLOSED / INVALID_QUANTITY — Fix request and resubmit.
 - 401 INVALID_API_KEY — Re-bootstrap or rotate key.
 - 404 MARKET_NOT_FOUND — Verify market_id via GET /v1/markets.
-- 409 HTTP_409 (slippage exceeded) — Re-fetch price, adjust or widen `max_slippage_bps`.
+- 409 HTTP_409 (price limit exceeded) — Re-fetch price, adjust `price` (worst-price limit).
 
 ### Retry Example
 ```python
@@ -190,19 +190,19 @@ def place_order_with_retry(order_body, max_retries=3):
     raise RuntimeError("Max retries exceeded")
 ```
 
-### Timeout & Slippage Configuration
+### Timeout & Price Protection
 ```python
 # Set request timeout to avoid hanging connections
 resp = requests.post(f"{BASE}/orders", headers=HEADERS, json=order, timeout=10)
 
-# Use max_slippage_bps to control acceptable price movement (100 bps = 1%)
+# Use price as worst-price limit (identical to Polymarket)
 order = {
     "market_id": "condition-id",
     "side": "BUY",
     "outcome": "Yes",
     "quantity": "10",
     "order_type": "market",
-    "max_slippage_bps": 200,  # reject if price moves >2%
+    "price": "0.68",  # won't fill above $0.68
     "client_order_id": "unique-id-for-idempotency",
 }
 ```

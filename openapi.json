@@ -1400,20 +1400,6 @@
             ],
             "title": "Client Order Id",
             "description": "Idempotency key"
-          },
-          "max_slippage_bps": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 10000.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Slippage Bps",
-            "description": "Max slippage for market orders (basis points)"
           }
         },
         "type": "object",
