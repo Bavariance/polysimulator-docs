@@ -64,7 +64,7 @@ All errors return a consistent JSON structure:
 | `MARKET_CLOSED` | 400 | Market is resolved or inactive |
 | `ORDER_NOT_FOUND` | 404 | Unknown `order_id` |
 | `CANNOT_CANCEL` | 400 | Order already filled or cancelled |
-| `HTTP_409` | 409 | Price moved beyond `max_slippage_bps` (slippage exceeded) |
+| `HTTP_409` | 409 | Fill price exceeds worst-price limit (`price` field) |
 
 ### Authentication Errors
 

@@ -30,7 +30,7 @@ by changing a single environment variable.
 |---------|-------------|
 | **Real Data** | Live mid-prices, bids, asks from Polymarket's CLOB order book |
 | **Book Walking** | Market orders fill against real order book depth — no infinite liquidity |
-| **Slippage Protection** | Configurable `max_slippage_bps` on market orders |
+| **Slippage Protection** | `price` field acts as worst-price limit — identical to Polymarket |
 | **Limit Orders** | GTC, IOC time-in-force with sub-second matching engine |
 | **Batch Orders** | Up to 50 orders in a single request (tier-dependent) |
 | **WebSocket Feeds** | Real-time price ticks and execution notifications |
