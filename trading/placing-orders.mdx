@@ -1,7 +1,7 @@
 ---
 title: "Placing Orders"
 sidebarTitle: "Placing Orders"
-description: "Place market and limit orders with slippage protection and fill diagnostics."
+description: "Place market and limit orders with Polymarket-compatible execution and slippage protection."
 ---
 
 # Placing Orders
@@ -12,11 +12,30 @@ POST /v1/orders
 
 Place a market or limit order. Requires `trade` permission.
 
+<Info>
+  **Polymarket-compatible execution model**: On Polymarket, all orders are
+  limit orders — "market orders" are just limit orders with FOK
+  time-in-force at a marketable price. PolySimulator mirrors this exactly:
+  market orders fill at the best available price (BUY at best ask, SELL at
+  best bid), and the `price` field acts as a **required worst-price limit**
+  for slippage protection.
+</Info>
+
 ---
 
 ## Market Orders
 
-Executed immediately via **CLOB book walking** — the fill price reflects real order book depth, not just the midpoint.
+Executed immediately at the best available price — **BUY at the best ask,
+SELL at the best bid** — matching how Polymarket fills market orders.
+
+### Worst-Price Limit (Required)
+
+The `price` field is **required** on market orders and sets the worst price
+you'll accept. This is identical to Polymarket — there are no "blind" market
+orders.
+
+- **BUY**: the order won't fill above your `price` (you won't overpay)
+- **SELL**: the order won't fill below your `price` (you won't undersell)
 
 <CodeGroup>
 ```bash cURL
@@ -30,7 +49,7 @@ curl -X POST https://api.polysimulator.com/v1/orders \
     "outcome": "Yes",
     "quantity": "10",
     "order_type": "market",
-    "max_slippage_bps": 100
+    "price": "0.68"
   }'
 ```
 
@@ -44,12 +63,36 @@ resp = requests.post(
         "outcome": "Yes",
         "quantity": "10",
         "order_type": "market",
-        "max_slippage_bps": 100,
+        "price": "0.68",  # Won't fill above $0.68
     },
 )
 order = resp.json()
 ```
 </CodeGroup>
+
+### FAK (Fill-and-Kill) Market Order
+
+Use `time_in_force: "FAK"` for partial fills — buy what's available up to
+your quantity, cancel the rest. This is Polymarket's FAK order type.
+
+```json
+{
+  "market_id": "0xabc123...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "market",
+  "price": "0.68",
+  "time_in_force": "FAK"
+}
+```
+
+<Tip>
+  **Polymarket migration tip**: `FAK` and `IOC` are equivalent in
+  PolySimulator. If your Polymarket bot uses FAK, it works here unchanged.
+  If you omit `time_in_force`, market orders default to **FOK** (Fill-or-Kill)
+  — the entire order fills or is cancelled.
+</Tip>
 
 ---
 
@@ -90,6 +133,47 @@ resp = requests.post(
     },
 )
 order = resp.json()
+```
+</CodeGroup>
+
+### FOK (Fill-or-Kill)
+
+All-or-nothing immediate fill — matches Polymarket's FOK order type.
+If the full quantity can't fill at the limit price, the entire order is cancelled.
+
+<CodeGroup>
+```json FOK Limit Order
+{
+  "market_id": "0xabc123...",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55",
+  "time_in_force": "FOK"
+}
+```
+
+```python Python (FOK)
+resp = requests.post(
+    f"{BASE_URL}/v1/orders",
+    headers={"X-API-Key": API_KEY},
+    json={
+        "market_id": "0xabc123...",
+        "side": "BUY",
+        "outcome": "Yes",
+        "quantity": "10",
+        "order_type": "limit",
+        "price": "0.55",
+        "time_in_force": "FOK",
+        "client_order_id": "fok-snipe-001",
+    },
+)
+order = resp.json()
+if order["status"] == "CANCELLED":
+    print("FOK order could not fill — cancelled")
+else:
+    print(f"Filled at {order['price']}")
 ```
 </CodeGroup>
 
@@ -153,17 +237,18 @@ else:
 | `outcome` | string | Yes | Outcome label: `Yes`, `No`, or custom |
 | `quantity` | string | Yes | Number of shares as decimal string |
 | `order_type` | string | No | `market` (default) or `limit` |
-| `price` | string | Limit only | Limit price 0.01–0.99 |
-| `time_in_force` | string | No | `GTC` (default) or `IOC` |
+| `price` | string | Yes | For limit orders: the limit price (0.01–0.99). For market orders: worst-price limit — required (Polymarket-style slippage protection) |
+| `time_in_force` | string | No | `GTC` (default for limit), `FOK` (default for market), `FAK`, or `IOC` |
 | `client_order_id` | string | No | Idempotency key |
-| `max_slippage_bps` | int | No | Max slippage in basis points (market orders) |
 
 ### Time in Force
 
-| Value | Description |
-|-------|-------------|
-| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired |
-| `IOC` | Immediate-or-Cancel — fills on first matching cycle or cancels |
+| Value | Description | Polymarket Equivalent |
+|-------|-------------|----------------------|
+| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired. Overridden to FOK for market orders. | GTC |
+| `FOK` | Fill-or-Kill — all-or-nothing immediate fill (default for market orders) | FOK |
+| `FAK` | Fill-and-Kill — fill available quantity, cancel remainder (Polymarket term) | FAK |
+| `IOC` | Immediate-or-Cancel — same behavior as FAK (PolySimulator alias) | FAK |
 
 ---
 
@@ -228,13 +313,14 @@ If the same key is submitted twice, the second request returns the result of the
 
 | Status | Error Code | Meaning |
 |--------|------------|---------|
+| `400` | `PRICE_REQUIRED` | Market orders require a `price` field (worst-price limit) |
 | `400` | `INSUFFICIENT_BALANCE` | Not enough funds for this trade |
 | `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
 | `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
 | `401` | `INVALID_API_KEY` | API key is invalid, expired, or revoked |
 | `403` | `PERMISSION_DENIED` | Key lacks `trade` permission |
 | `404` | `MARKET_NOT_FOUND` | Unknown `market_id` |
-| `409` | `SLIPPAGE_EXCEEDED` | Price moved beyond `max_slippage_bps` limit |
+| `409` | `LIMIT_PRICE_NOT_MET` | Market price exceeds your worst-price limit |
 | `409` | `IDEMPOTENCY_CONFLICT` | Same idempotency key with different order parameters |
 | `429` | `RATE_LIMITED` | Too many requests — check `Retry-After` header |
 
@@ -248,18 +334,20 @@ resp = requests.post(
 if resp.status_code == 200:
     order = resp.json()
     print(f"Order {order['order_id']}: {order['status']} @ {order['price']}")
-elif resp.status_code == 409:
-    err = resp.json()
-    if "slippage" in err.get("message", "").lower() or "price moved" in err.get("message", "").lower():
-        print(f"Slippage too high — increase max_slippage_bps or wait")
-    else:
-        print(f"Conflict: {err.get('message', err)}")
 elif resp.status_code == 400:
     err = resp.json()
-    if err.get("error") == "INSUFFICIENT_BALANCE":
-        print(f"Not enough funds — current balance too low")
+    if err.get("error") == "PRICE_REQUIRED":
+        print("Add a 'price' field — market orders require a worst-price limit")
+    elif err.get("error") == "INSUFFICIENT_BALANCE":
+        print("Not enough funds — current balance too low")
     else:
         print(f"Order rejected: {err.get('message', err)}")
+elif resp.status_code == 409:
+    err = resp.json()
+    if err.get("error") == "LIMIT_PRICE_NOT_MET":
+        print(f"Price moved beyond your limit — retry with a wider price")
+    else:
+        print(f"Conflict: {err.get('message', err)}")
 elif resp.status_code == 429:
     retry_after = int(resp.headers.get("Retry-After", 1))
     time.sleep(retry_after)

@@ -1,10 +1,17 @@
 ---
 title: "CLOB Compatibility"
 sidebarTitle: "CLOB Compatibility"
-description: "How the CLOB-compatible endpoint enables URL-swap migration to live Polymarket trading."
+description: "How the CLOB-compatible endpoint and Polymarket-aligned execution model enable seamless migration to live trading."
 ---
 
 # CLOB Compatibility
+
+PolySimulator mirrors **Polymarket's real execution model**:
+
+- **All orders are limit orders** — market orders are just limit orders with FOK/IOC time-in-force at marketable prices
+- **BUY fills at best ask, SELL fills at best bid** — not the midpoint
+- **The `price` field is the worst-price limit** — slippage protection built into the order, not a separate parameter
+- **FOK (Fill-or-Kill)** and **IOC (Immediate-or-Cancel)** — immediate execution order types
 
 The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, enabling one-URL-swap migration from paper trading to live trading.
 
