@@ -17,7 +17,7 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
 | Money at risk | None (simulated $1,000) | Real funds |
 | Order execution | Local ledger | Polymarket CLOB |
 | Market data | Real prices from Polymarket | Real prices from Polymarket |
-| API surface | Full HFT API v1 | Same endpoints |
+| API surface | Full HFT API v1 | CLOB trading API (different endpoint paths) |
 | Settlement | Automatic on resolution | Polymarket blockchain |
 
 <Warning>
@@ -64,7 +64,8 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   </Step>
 
   <Step title="Update environment variables">
-    Change only the base URL and credentials in your bot's environment — **no code changes required**:
+    Change your credentials and client configuration for live mode. Order payload
+    structure stays highly portable, but endpoint paths/auth handling differ:
 
     ```bash
     # Virtual mode (PolySimulator) — your current config
@@ -72,16 +73,16 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
 
     # Live mode (Polymarket) — swap these values
-    POLYSIM_BASE_URL="https://clob.polymarket.com"
-    POLYMARKET_API_KEY="your_polymarket_api_key"
-    POLYMARKET_API_SECRET="your_polymarket_api_secret"
-    POLYMARKET_API_PASSPHRASE="your_polymarket_api_passphrase"
+    POLYMARKET_BASE_URL="https://clob.polymarket.com"
+    POLY_API_KEY="your_polymarket_api_key"
+    POLY_API_SECRET="your_polymarket_api_secret"
+    POLY_PASSPHRASE="your_polymarket_api_passphrase"
     ```
 
     <Info>
-      There is no `TRADING_MODE` flag to flip. Migration is achieved by
-      pointing your bot at a different base URL and swapping the auth header.
-      Your order placement code stays identical.
+      There is no single `TRADING_MODE` flag. Migration is achieved by switching
+      to Polymarket credentials/client setup and routing order placement through
+      Polymarket's CLOB API flow.
     </Info>
   </Step>
 
@@ -111,10 +112,10 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     from py_clob_client.client import ClobClient
     from py_clob_client.clob_types import ApiCreds
 
-    # Only the client setup changes — order fields stay identical:
+    # Client setup + submission method changes; order field semantics stay close:
     api_creds = ApiCreds(
-        api_key=os.getenv("POLY_API_KEY"),
-        api_secret=os.getenv("POLY_SECRET"),
+      api_key=os.getenv("POLY_API_KEY"),
+      api_secret=os.getenv("POLY_API_SECRET"),
         api_passphrase=os.getenv("POLY_PASSPHRASE"),
     )
     client = ClobClient(
@@ -122,15 +123,19 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
         key=os.getenv("PRIVATE_KEY"), creds=api_creds,
     )
 
-    # Same order payload as PolySimulator:
-    signed_order = client.create_and_sign_order({
-        "token_id": "71321045679252...",
-        "side": "BUY",
-        "price": "0.65",
-        "size": "10",
-        "order_type": "GTC",
-    })
-    result = client.post_order(signed_order)
+    # Same trading intent, submitted via Polymarket SDK order flow:
+    from py_clob_client.clob_types import OrderArgs, OrderType
+    from py_clob_client.order_builder.constants import BUY
+
+    signed_order = client.create_order(
+      OrderArgs(
+        token_id="71321045679252...",
+        side=BUY,
+        price=0.65,
+        size=10,
+      )
+    )
+    result = client.post_order(signed_order, OrderType.GTC)
     print(result)
     ```
     </CodeGroup>
@@ -148,41 +153,33 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     Start with minimal order sizes to verify live execution:
 
     ```python
-    import requests, os
+    import os
+    from py_clob_client.client import ClobClient
+    from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType
+    from py_clob_client.order_builder.constants import BUY
 
-    BASE_URL = os.environ["POLYSIM_BASE_URL"]
-    API_KEY = os.environ["POLYSIM_API_KEY"]
-    headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
-
-    # 1. Place a small test order
-    resp = requests.post(
-        f"{BASE_URL}/orders",
-        headers=headers,
-        json={
-            "market_id": "0xabc123...",
-            "side": "BUY",
-            "outcome": "Yes",
-            "quantity": "1",
-            "order_type": "market",
-        },
+    creds = ApiCreds(
+      api_key=os.getenv("POLY_API_KEY"),
+      api_secret=os.getenv("POLY_API_SECRET"),
+      api_passphrase=os.getenv("POLY_PASSPHRASE"),
     )
-    resp.raise_for_status()
-    result = resp.json()
-    print(f"Order {result['order_id']}: {result['status']} @ {result['price']}")
+    client = ClobClient(
+      "https://clob.polymarket.com",
+      chain_id=137,
+      key=os.getenv("PRIVATE_KEY"),
+      creds=creds,
+    )
 
-    # 2. Verify the position was created
-    positions = requests.get(
-        f"{BASE_URL}/account/positions",
-        headers=headers,
-        params={"status": "OPEN"},
-    ).json()
-    print(f"Open positions: {len(positions)}")
+    # 1. Place a small test limit order
+    signed = client.create_order(
+      OrderArgs(token_id="71321045679252...", side=BUY, price=0.10, size=1)
+    )
+    posted = client.post_order(signed, OrderType.GTC)
+    print("Posted order:", posted)
 
-    # 3. Check balance impact
-    balance = requests.get(
-        f"{BASE_URL}/account/balance", headers=headers
-    ).json()
-    print(f"Balance: ${balance['balance']} | Total: ${balance['total_value']}")
+    # 2. Verify open orders
+    open_orders = client.get_orders()
+    print("Open orders:", len(open_orders))
     ```
   </Step>
 </Steps>
