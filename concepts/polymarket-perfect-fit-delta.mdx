@@ -1,0 +1,427 @@
+---
+title: "Polymarket Perfect-Fit Delta"
+sidebarTitle: "Perfect-Fit Delta"
+description: "Exact endpoint, auth, and schema gaps between PolySimulator API v1 and Polymarket CLOB/Data APIs."
+---
+
+# Polymarket Perfect-Fit Delta
+
+This document defines the exact changes needed for a **drop-in Polymarket API/CLOB interface**.
+
+Scope of comparison:
+- Current PolySimulator API v1 implementation (`/v1/*`), including `POST /v1/clob/order`
+- Public Polymarket CLOB/Data expectations from the official developer docs
+
+Goal:
+- A bot written for Polymarket should run against PolySimulator with no payload rewrites and minimal URL/config changes.
+
+Product requirement:
+- Users must still create keys easily in PolySimulator (`/v1/keys` UX).
+- Trading requests must behave like Polymarket CLOB (headers, routes, payload shape, order lifecycle semantics).
+
+## Implementation Status
+
+_Updated: July 2025 — PR #329_
+
+### Phases Completed (Closed Beta)
+
+| Phase | Status | Details |
+|---|---|---|
+| **B — Starting Balance PnL Fix** | ✅ Done | `get_balance()` and `_get_portfolio_impl()` now use `api_balance` ($10,000) and `API_STARTING_BALANCE` instead of the UI balance ($1,000). |
+| **C — Public CLOB Read Aliases** | ✅ Done | Six unauthenticated endpoints added: `GET /price`, `POST /prices`, `GET /midpoint`, `GET /spread`, `GET /book`, `GET /prices-history`. All accept `token_id` query param. Mounted on `public_router` in `data.py`. |
+| **D — Order Status Alignment** | ✅ Done | `clob_order()` now returns lowercase status values (`"matched"`, `"live"`, `"unmatched"`) matching Polymarket's insert-order convention. |
+| **E — Bulk Cancel Endpoints** | ✅ Done | `DELETE /cancel-all` and `DELETE /cancel-market-orders` added with `{canceled, not_canceled}` response shape matching Polymarket. Supports `market` (condition_id) or `asset_id` (token_id) query params. |
+
+### Phase Deferred
+
+| Phase | Status | Reason |
+|---|---|---|
+| **F — L2 Auth (Polymarket HMAC headers)** | 🔜 Deferred | Not required for closed beta launch. Current `X-API-Key` auth is sufficient for simulator users. L2 auth (`POLY_ADDRESS`, `POLY_SIGNATURE`, `POLY_TIMESTAMP`, `POLY_API_KEY`, `POLY_PASSPHRASE`) will be implemented when real Polymarket bot migration demand materializes. Schema design (`api_l2_credentials`, `api_l2_replay_guard`) is documented below and ready for implementation. |
+
+### Copilot Review Fixes (PR #329)
+
+Also included in this PR:
+- **Auth allowlist**: O(N) wildcard scan → O(1) domain extraction
+- **Settlement**: Removed redundant updown market check
+- **Docker prod subnet**: Changed `172.29.0.0/16` → `172.30.0.0/16` to avoid staging collision
+- **Smoke tests**: Fixed docstring, removed 502 tolerance, expanded safety assertions
+- **live-migration.mdx**: Aligned env var names (`POLY_*` not `POLYMARKET_*`)
+- **CLAUDE.md**: Replaced duplicate staging workflow with pointer to canonical source
+
+## Current vs Target
+
+| Area | Current PolySimulator | Target Perfect-Fit |
+|---|---|---|
+| Read endpoints auth | Mostly require `X-API-Key` | CLOB read endpoints public (no auth) |
+| Read endpoint paths | `/v1/markets/*`, `/v1/prices/batch` | Canonical CLOB paths (`/price`, `/prices`, `/book`, `/books`, `/midpoint`, `/midpoints`, `/spread`, `/prices-history`) |
+| Trading auth | `X-API-Key` | Polymarket L2 headers (`POLY_ADDRESS`, `POLY_SIGNATURE`, `POLY_TIMESTAMP`, `POLY_API_KEY`, `POLY_PASSPHRASE`) |
+| Order payload | Simplified token/price/size model | Accept signed Polymarket order object and order type semantics |
+| Order lifecycle surface | Single compat route + native order APIs | Canonical create/list/cancel/cancel-all/cancel-market-style endpoints |
+| Error contract | API v1 app-specific codes | Polymarket-compatible auth/trading/rate-limit response shapes and status codes |
+
+## Design Decision: Dual-Mode Auth
+
+Use one compatibility layer that accepts either auth model:
+- Native mode: `X-API-Key` (current behavior, easy onboarding)
+- Polymarket mode: full L2 header set (`POLY_*`) with HMAC validation
+
+Why:
+- Keeps onboarding simple for users who just want simulator access.
+- Allows existing Polymarket bots/SDKs to work without auth rewrites.
+- Enables progressive rollout with minimal risk.
+
+## Endpoint Delta
+
+### 1. Read Surface (Public CLOB-style)
+
+Must add canonical routes and make them unauthenticated:
+
+| Method | Target Route | Current Equivalent | Required Delta |
+|---|---|---|---|
+| `GET` | `/price` | `POST /v1/prices/batch` or cached market price | Add token-based single-price read route |
+| `GET` | `/prices` | `POST /v1/prices/batch` | Add query/body multi-token read route |
+| `GET` | `/book` | `GET /v1/markets/{condition_id}/book` | Add token_id-native route |
+| `POST` | `/books` | none | Add batch book snapshot route |
+| `GET` | `/midpoint` | derived from book/prices | Add explicit midpoint endpoint |
+| `GET` / `POST` | `/midpoints` | none | Add multi-token midpoint endpoints |
+| `GET` | `/spread` | none | Add best-bid/best-ask spread route |
+| `GET` | `/prices-history` | `GET /v1/markets/{condition_id}/candles` | Add token-native CLOB history route |
+
+Notes:
+- Keep existing `/v1/*` endpoints for SDK/native users.
+- Implement these as aliases over existing cache and CLOB client internals.
+
+### 2. Trading Surface (CLOB-style)
+
+Must add canonical trading routes with Polymarket request/response semantics:
+
+| Method | Target Route | Current Equivalent | Required Delta |
+|---|---|---|---|
+| `POST` | `/order` | `POST /v1/clob/order` | Accept fully signed order payload; preserve `orderID` response shape |
+| `POST` | `/orders` | `POST /v1/orders/batch` | Accept Polymarket-style batch envelope and per-order types |
+| `DELETE` | `/order` or `/cancel`-style | `DELETE /v1/orders/{order_id}` | Support canonical cancel-by-orderID body/query contract |
+| `DELETE` | `/cancel-all` | none | Add cancel-all open orders endpoint |
+| `DELETE` | `/cancel-market-orders` | none | Add market/token-scoped bulk cancel endpoint |
+| `GET` | open/active orders route | `GET /v1/orders` | Add Polymarket-compatible query/response contract |
+
+Notes:
+- The simulator can remain virtual settlement underneath, but HTTP surface must match Polymarket contracts.
+- Keep existing native trading routes for backward compatibility.
+
+### 3. Auth/Credential Compatibility Endpoints
+
+Add Polymarket-style auth endpoints in parallel:
+
+| Method | Target Route | Purpose |
+|---|---|---|
+| `POST` | `/auth/api-key` | Create L2 API credentials from valid L1 headers |
+| `GET` | `/auth/derive-api-key` | Re-derive existing L2 API credentials |
+
+Important behavior:
+- Returning credentials here is for compatibility and should be optional in UI flows.
+- PolySimulator users can continue using `/v1/keys` without wallet/L1 setup.
+
+## Authentication Delta
+
+### 1. Add L2 Header Auth (Required)
+
+For trading routes, accept and validate:
+- `POLY_ADDRESS`
+- `POLY_SIGNATURE` (HMAC-SHA256 request signature)
+- `POLY_TIMESTAMP`
+- `POLY_API_KEY`
+- `POLY_PASSPHRASE`
+
+Implementation guidance:
+- Add an auth adapter that can validate both current `X-API-Key` and Polymarket-style L2 headers.
+- Bind Polymarket credentials to existing user/API-key entities.
+- Enforce timestamp drift window and replay protection.
+
+### 2. L1 Credential Derivation Flow (Recommended)
+
+Add optional endpoints to derive/store L2 creds from wallet signatures to support client parity workflows.
+
+Minimum requirement for perfect-fit bots:
+- If credentials are already provisioned, L2 headers must work identically on trading routes.
+
+## Detailed Implementation Plan
+
+### Phase 0: Guardrails and Flags
+
+1. Add feature flags:
+- `API_CLOB_COMPAT_ENABLED=1`
+- `API_CLOB_POLY_AUTH_ENABLED=1`
+- `API_CLOB_STRICT_MODE=0`
+
+2. Default rollout mode:
+- Keep current `/v1/*` stable.
+- Expose compatibility routes behind flags in staging first.
+
+3. Ownership:
+- `backend/app/api_v1/auth.py`: auth adapters
+- `backend/app/api_v1/trading.py`: trading aliases and payload parsing
+- `backend/app/api_v1/data.py`: public read aliases
+
+### Phase 1: Easy API Key Onboarding (No Wallet Required)
+
+1. Keep `/v1/keys/bootstrap` and `/v1/keys` as primary onboarding path.
+2. Update docs to position this as the recommended simulator-first flow.
+3. Add helper metadata in key responses:
+- `compat_modes`: `['x-api-key', 'poly-l2-if-provisioned']`
+- `recommended_headers`: default to `X-API-Key`
+4. Add UI/API quick action:
+- "Generate key and test /v1/health + /v1/markets in one click"
+
+Acceptance criteria:
+- New user can generate key and call market/account endpoints in under 60 seconds.
+
+### Phase 2: Data Model for Polymarket-Like L2 Credentials
+
+Add storage for wallet-linked compatibility credentials while preserving existing `api_keys` table.
+
+Recommended schema additions:
+
+```sql
+create table if not exists api_l2_credentials (
+  id bigserial primary key,
+  user_id bigint not null references users(id) on delete cascade,
+  api_key_id bigint null references api_keys(id) on delete set null,
+  wallet_address text not null,
+  signature_type smallint not null default 0,
+  funder_address text not null default '',
+  poly_api_key text not null,
+  poly_passphrase text not null,
+  poly_secret_ciphertext text not null,
+  secret_kid text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz null,
+  unique (user_id, wallet_address, signature_type, funder_address)
+);
+
+create table if not exists api_l2_replay_guard (
+  id bigserial primary key,
+  credential_id bigint not null references api_l2_credentials(id) on delete cascade,
+  signature_hash text not null,
+  poly_timestamp bigint not null,
+  created_at timestamptz not null default now(),
+  unique (credential_id, signature_hash, poly_timestamp)
+);
+
+create index if not exists idx_api_l2_credentials_user_active
+  on api_l2_credentials(user_id, is_active);
+
+create index if not exists idx_api_l2_replay_guard_credential_ts
+  on api_l2_replay_guard(credential_id, poly_timestamp);
+```
+
+Supabase migration execution:
+1. Create Alembic migration in repo for source control.
+2. Apply equivalent SQL in managed environments with `mcp_supabase_apply_migration`.
+3. Verify advisors after migration (`mcp_supabase_get_advisors`, type `security` and `performance`).
+
+Security requirements:
+- Never store L2 secret in plaintext.
+- Encrypt `poly_secret_ciphertext` with KMS-managed envelope key.
+- Store `secret_kid` for key rotation.
+
+### Phase 3: Auth Adapter Implementation
+
+1. Implement `get_api_or_poly_user()` dependency in `backend/app/api_v1/auth.py`.
+2. Decision tree:
+- If `POLY_API_KEY` header exists, run L2 validation path.
+- Else fall back to `X-API-Key` path.
+3. L2 validation path:
+- Resolve credential by `POLY_API_KEY` and `POLY_PASSPHRASE`.
+- Validate timestamp skew (recommended +/- 30s).
+- Recompute HMAC signature for `(timestamp, method, path, body)` canonical string.
+- Reject replay using `api_l2_replay_guard` uniqueness.
+4. Map validated credential to `User` and internal permissions.
+
+Acceptance criteria:
+- Same trading route succeeds with either auth mode.
+- Replay attempts fail with `401`/`400` compatible error body.
+
+### Phase 4: Route Aliases and Contract Parity
+
+1. Add public read aliases in `backend/app/api_v1/data.py`:
+- `/price`, `/prices`, `/book`, `/books`, `/midpoint`, `/midpoints`, `/spread`, `/prices-history`
+2. Add trading aliases in `backend/app/api_v1/trading.py`:
+- `/order`, `/orders`, cancel endpoints, `/cancel-all`, `/cancel-market-orders`, user open orders route.
+3. Keep existing `/v1/*` endpoints unchanged.
+4. Ensure alias routes are mounted with expected auth behavior:
+- read routes public
+- trading routes authenticated
+
+Acceptance criteria:
+- Official client examples hit compatibility routes without payload rewrites.
+
+### Phase 5: Payload and Response Normalization
+
+1. Request parsing:
+- Accept both `token_id` and `tokenId`.
+- Accept both string and numeric side representations where Polymarket clients emit either.
+- Accept signed-order fields even if virtual mode ignores settlement-specific fields.
+2. Response shape:
+- Preserve canonical fields (`orderID`, `status`, `errorMsg`, `canceled`, `not_canceled`).
+- Keep all decimal numerics as strings.
+3. Cancel responses:
+- Return `canceled` list and `not_canceled` map consistently.
+
+### Phase 6: Lifecycle Semantics and Risk Controls
+
+1. Confirm behavior parity for `GTC`, `GTD`, `FOK`, `IOC`/`FAK`.
+2. Add heartbeat endpoint behavior compatible with bot expectations.
+3. Enforce cancel-only mode semantics:
+- New orders rejected.
+- Cancels still accepted.
+
+### Phase 7: Testing and Certification
+
+1. Contract tests:
+- Replay TypeScript `@polymarket/clob-client` happy paths.
+- Replay Python `py-clob-client` happy paths.
+2. Negative tests:
+- invalid `POLY_SIGNATURE`
+- stale `POLY_TIMESTAMP`
+- replayed signature
+- missing required header
+3. Schema tests:
+- camelCase and snake_case request equivalence
+- string-numeric precision invariants
+4. Existing suite:
+- Must keep `/v1/*` tests green.
+
+Definition of done:
+- Compatibility suite passes in staging.
+- Existing API v1 suite remains green.
+
+## Supabase Migration Runbook
+
+Use this in deployment docs/runbooks when applying schema changes:
+
+1. Create migration SQL and apply in dev branch database.
+2. Validate app startup and auth flows.
+3. Apply to staging with `mcp_supabase_apply_migration`.
+4. Run `mcp_supabase_get_advisors`:
+- `security`
+- `performance`
+5. Confirm no high-severity advisor regressions.
+
+Suggested migration name:
+- `add_api_l2_credentials_and_replay_guard`
+
+## Schema Delta
+
+### 1. Order Request
+
+Current `POST /v1/clob/order` accepts a simplified payload (`token_id`, `side`, `price`, `size`, optional fields).
+
+Perfect-fit route must additionally accept Polymarket signed order structures used by `@polymarket/clob-client` and `py-clob-client`, including fields commonly present in signed payloads:
+- `maker`, `signer`, `taker`
+- `tokenId` / `token_id`
+- `makerAmount`, `takerAmount`
+- `side` numeric or enum form
+- `nonce`, `expiration`, `salt`
+- `feeRateBps`
+- `signatureType`, `signature`
+
+Required compatibility behavior:
+- Accept both camelCase and snake_case aliases.
+- Preserve decimal precision as strings in responses.
+- Preserve canonical field names in response (`orderID`, `status`, `errorMsg`, etc.).
+
+### 2. Time-In-Force / Order Type
+
+Must align with Polymarket semantics for:
+- `GTC`
+- `GTD` (requires expiration handling)
+- `FOK`
+- `IOC`/`FAK` behavior where applicable
+
+Current simulator behavior should be audited to ensure reject/partial-fill semantics match expected CLOB behavior.
+
+### 3. Errors
+
+Normalize status codes and payloads for these classes:
+- auth failures (`401` invalid/missing auth headers)
+- throttling (`429`)
+- temporary trading states (`503` disable/cancel-only style responses)
+- validation errors (`400` structured field diagnostics)
+
+Error payload recommendation:
+
+```json
+{
+  "error": "unauthorized",
+  "message": "Invalid L2 authentication headers",
+  "request_id": "req_..."
+}
+```
+
+## Behavior Delta
+
+### 1. Public vs Authenticated Partition
+
+Polymarket expectation:
+- CLOB read endpoints are public.
+- Trading endpoints require authenticated L2 headers.
+
+Action:
+- Remove API-key dependency from CLOB read-compatible routes.
+- Keep existing authenticated `/v1/*` routes unchanged.
+
+### 2. Token-Native Primary Keys
+
+Polymarket routes are token-centric.
+
+Action:
+- Prefer `token_id` as first-class identifier on CLOB-compatible routes.
+- Continue internal condition/outcome mapping behind adapter layers.
+
+## Recommended Rollout
+
+### Phase 1: Non-breaking Alias Layer
+- Add canonical CLOB routes in parallel with `/v1/*` routes.
+- Add dual-auth adapter (`X-API-Key` + L2 headers) on new trading routes.
+- Add payload alias normalization (snake_case + camelCase).
+
+### Phase 2: Strict Compatibility Mode
+- Add env flag (for example `API_CLOB_STRICT_MODE=1`) to enforce strict Polymarket request/response contracts.
+- Run compatibility tests against official TS/Python client request fixtures.
+
+### Phase 3: SDK Validation Harness
+- Add contract tests replaying representative client calls:
+  - create/post single order
+  - batch order submit
+  - cancel by ID
+  - cancel all
+  - market/token scoped cancel
+  - book/price/midpoint/history reads
+
+### Phase 4: Default-on Compatibility
+- Enable compatibility routes by default after two stable staging releases.
+- Keep `X-API-Key` mode indefinitely for simulator UX simplicity.
+
+## Out of Scope Clarification
+
+Perfect-fit in this document refers to:
+- HTTP endpoints
+- authentication contract
+- request/response schema
+- order lifecycle semantics at API surface
+
+It does **not** imply identical on-chain settlement mechanics, since PolySimulator is virtual trading by design.
+
+## Source Anchors (Current Implementation)
+
+- Trading and CLOB-compatible route: `backend/app/api_v1/trading.py`
+- Market-data routes: `backend/app/api_v1/data.py`
+- Auth and API-key logic: `backend/app/api_v1/auth.py`
+- Key management and WS token minting: `backend/app/api_v1/keys.py`
+- Existing compatibility doc: `docs-site/concepts/clob-compatibility.mdx`
+
+Reference sources used for parity decisions:
+- Polymarket docs (authentication, order lifecycle, cancel endpoints, public market data)
+- `@polymarket/clob-client` usage patterns (`createOrDeriveApiKey`, post/cancel flows, heartbeat)
+- `py-clob-client` usage patterns (post/cancel/get orders compatibility)

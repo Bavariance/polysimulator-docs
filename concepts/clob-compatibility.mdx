@@ -100,13 +100,14 @@ order = client.create_and_post_order(OrderArgs(
 
 ## Response Schema
 
-Mirrors the Polymarket CLOB response shape:
+Mirrors the Polymarket CLOB response shape. Status values use **lowercase**
+strings matching Polymarket's insert-order convention:
 
 ```json
 {
   "success": true,
   "orderID": "42",
-  "status": "MATCHED",
+  "status": "matched",
   "transactID": "42",
   "errorMsg": null,
   "price": "0.65",
@@ -116,6 +117,12 @@ Mirrors the Polymarket CLOB response shape:
   "makingAmount": "10.0"
 }
 ```
+
+| Status Value | Meaning |
+|---|---|
+| `matched` | Order fully filled |
+| `live` | Order pending (limit order resting) |
+| `unmatched` | Order cancelled or rejected |
 
 ---
 
@@ -146,6 +153,77 @@ Mirrors the Polymarket CLOB response shape:
 
 ---
 
+## Public CLOB Read Endpoints
+
+These endpoints mirror Polymarket's public CLOB data API and **require no authentication**.
+They accept `token_id` (the CLOB outcome token) as query parameter.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/price?token_id=...` | Single token price with bid/ask |
+| `POST` | `/v1/prices` | Batch prices for multiple token IDs |
+| `GET` | `/v1/midpoint?token_id=...` | Best-bid/best-ask midpoint |
+| `GET` | `/v1/spread?token_id=...` | Spread (best bid, best ask, spread) |
+| `GET` | `/v1/book?token_id=...` | Full order book snapshot |
+| `GET` | `/v1/prices-history?token_id=...` | Historical OHLC candles |
+
+<CodeGroup>
+```python Single Price
+import requests
+price = requests.get(
+    "https://api.polysimulator.com/v1/price",
+    params={"token_id": "71321045679252..."}
+).json()
+# {"token_id": "71321...", "price": "0.65", "bid": "0.64", "ask": "0.66"}
+```
+
+```python Batch Prices
+prices = requests.post(
+    "https://api.polysimulator.com/v1/prices",
+    json={"token_ids": ["71321045...", "83294756..."]}
+).json()
+# [{"token_id": "71321...", "price": "0.65", ...}, ...]
+```
+
+```python Midpoint
+mid = requests.get(
+    "https://api.polysimulator.com/v1/midpoint",
+    params={"token_id": "71321045679252..."}
+).json()
+# {"mid": "0.645"}
+```
+</CodeGroup>
+
+<Info>
+  These endpoints use the same Redis price cache as the authenticated API.
+  Data is refreshed every 30 seconds by the price poller.
+</Info>
+
+---
+
+## Cancel Endpoints
+
+Bulk cancel endpoints match Polymarket's cancel response shape:
+`{canceled: [...], not_canceled: {...}}`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `DELETE` | `/v1/cancel-all` | Cancel all pending limit orders |
+| `DELETE` | `/v1/cancel-market-orders?market=...` | Cancel pending orders for a specific market |
+
+The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
+`asset_id` (token_id) as query parameters.
+
+```json
+// Response shape (both endpoints)
+{
+  "canceled": ["42", "43"],
+  "not_canceled": {"44": "Cannot cancel order with status: FILLED"}
+}
+```
+
+---
+
 ## When to Use CLOB-Compat vs Native API
 
 | Use Case | Recommended Endpoint |
@@ -161,3 +239,4 @@ Mirrors the Polymarket CLOB response shape:
 
 - [Placing Orders](/trading/placing-orders) — Full-featured native order API
 - [Live Migration](/deployment/live-migration) — Step-by-step migration guide
+- [Polymarket Perfect-Fit Delta](/concepts/polymarket-perfect-fit-delta) — Exact endpoint and schema gaps to close for full Polymarket parity

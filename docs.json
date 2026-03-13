@@ -53,7 +53,8 @@
               "concepts/api-keys",
               "concepts/rate-limits",
               "concepts/string-numerics",
-              "concepts/clob-compatibility"
+              "concepts/clob-compatibility",
+              "concepts/polymarket-perfect-fit-delta"
             ]
           },
           {
