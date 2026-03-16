@@ -9,9 +9,10 @@ description: "How API key authentication works, security model, and best practic
 All PolySimulator API endpoints authenticate with the `X-API-Key` HTTP header.
 
 <Info>
-  **One auth method**: Every endpoint uses `X-API-Key`. The only exception is
-  the one-time [bootstrap endpoint](/quickstart) (`POST /v1/keys/bootstrap`),
-  which accepts a Supabase JWT via `Authorization: Bearer` to create your first key.
+  **Primary auth**: The API primarily uses `X-API-Key` for authentication. The one-time
+  [bootstrap endpoint](/quickstart) (`POST /v1/keys/bootstrap`) instead accepts a Supabase
+  JWT via `Authorization: Bearer` to create your first key. Key management endpoints
+  also accept Bearer JWT where explicitly noted.
 </Info>
 
 ```bash
@@ -29,14 +30,14 @@ Keys follow a predictable pattern for easy identification:
 ps_live_<64 random hex chars>
 ```
 
-**Example**: `ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j`
+**Example**: `ps_live_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2`
 
 Each key has a **visible prefix** (first 16 chars) used for identification without exposing the full key:
 
 | | Value |
 |-|-------|
-| Full key | `ps_live_kJ9mNx2pQrStUvWxYz01Ab3CdEfGhI4j` |
-| Prefix | `ps_live_kJ9mNx2p` |
+| Full key | `ps_live_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2` |
+| Prefix | `ps_live_a1b2c3d4` |
 
 ---
 

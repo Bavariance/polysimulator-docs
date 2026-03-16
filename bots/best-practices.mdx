@@ -41,11 +41,11 @@ cost = price * quantity  # Exact arithmetic
 Every `POST /v1/orders` request should include an `Idempotency-Key` header to prevent duplicate orders on network retries:
 
 ```python
-import hashlib, time
+import hashlib
 
 def make_idempotency_key(market_id, side, outcome, quantity):
-    """Generate a deterministic key for this exact order."""
-    raw = f"{market_id}:{side}:{outcome}:{quantity}:{int(time.time())}"
+    """Generate a deterministic key for this exact order intent."""
+    raw = f"{market_id}:{side}:{outcome}:{quantity}"
     return hashlib.sha256(raw.encode()).hexdigest()[:32]
 ```
 
