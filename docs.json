@@ -64,7 +64,8 @@
               "trading/placing-orders",
               "trading/order-management",
               "trading/batch-orders",
-              "trading/slippage-protection"
+              "trading/slippage-protection",
+              "trading/execution-internals"
             ]
           },
           {
