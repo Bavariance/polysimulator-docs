@@ -87,7 +87,8 @@
               "account/positions",
               "account/portfolio",
               "account/trade-history",
-              "account/equity-curve"
+              "account/equity-curve",
+              "account/profile-analysis"
             ]
           },
           {

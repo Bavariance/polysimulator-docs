@@ -1,0 +1,239 @@
+---
+title: "Profile Analysis"
+description: "Transparent formulas and definitions for profile performance, PnL, and risk analytics"
+---
+
+## Overview
+
+The Profile Analysis endpoint aggregates user profile + portfolio data into a single payload for bots, dashboards, and LLM workflows.
+
+This page documents the **exact calculation logic** used by the API so users can verify every metric.
+
+<Note>
+This endpoint is designed for MCP (Model Context Protocol) tools and AI agents.
+Values are rounded for display in the API response, but formulas below describe the source calculations.
+</Note>
+
+## Endpoint
+
+<ParamField path="GET" type="/v1/account/profile-analysis">
+  Full profile analysis with all metrics
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="recent_trades" type="integer" default="20">
+  Number of recent trades to include (1-100)
+</ParamField>
+
+<ParamField query="equity_days" type="integer" default="90">
+  Days of equity history to analyze (1-365)
+</ParamField>
+
+### Authentication
+
+Requires API key via `X-API-Key` header.
+
+```bash
+curl -H "X-API-Key: ps_live_your_key" \
+  https://api.polysimulator.com/v1/account/profile-analysis
+```
+
+## Response
+
+The response contains these sections:
+
+### `profile` — User Metadata
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `username` | string | Public username |
+| `display_name` | string | Display name |
+| `account_age_days` | integer | Days since registration |
+| `api_key_tier` | string | API tier (free/pro/enterprise) |
+
+### `balance` — Balance Summary
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ui_balance` | string | UI trading balance |
+| `api_balance` | string | API trading balance |
+| `api_pnl` | string | API profit/loss |
+| `api_pnl_percentage` | string | API P&L as percentage |
+| `total_portfolio_value` | string | Cash + positions |
+| `unrealized_pnl` | string | Open-position mark-to-market P&L |
+| `realized_pnl` | string | Realized P&L from closed positions |
+
+### `trading_stats` — Trading Statistics
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_trades` | integer | Total filled trades |
+| `win_rate` | string | Win rate percentage |
+| `profit_factor` | string | Gross profit / gross loss |
+| `total_volume` | string | Total traded volume |
+| `avg_trade_size` | string | Average trade notional |
+| `best_trade_pnl` | string | Best single trade P&L |
+| `worst_trade_pnl` | string | Worst single trade P&L |
+| `unique_markets_traded` | integer | Distinct markets |
+| `active_trading_days` | integer | Days with at least one trade |
+
+### `risk_metrics` — Risk Analysis
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `portfolio_diversity_score` | string | 1 - HHI (0=concentrated, 1=diverse) |
+| `largest_position_weight` | string | Largest position as % of portfolio |
+| `top_3_concentration` | string | Top 3 positions as % of portfolio |
+| `max_drawdown_7d` | string | Max running-peak drawdown over 7 days |
+| `max_drawdown_30d` | string | Max running-peak drawdown over 30 days |
+| `cash_percentage` | string | Cash as % of total |
+
+## How Metrics Are Calculated
+
+### Balance and PnL
+
+- **Total portfolio value** = `api_balance + total_position_value`
+- **UI PnL** = `ui_balance - 1000.00`
+- **API PnL** = `total_portfolio_value - 10000.00`
+- **UI PnL %** = `ui_pnl / 1000.00 * 100`
+- **API PnL %** = `api_pnl / 10000.00 * 100`
+
+### Open Position Valuation
+
+For each open position:
+
+- **Cost basis** = `avg_entry_price * quantity`
+- **Market value** = `current_price * quantity` (if live price exists)
+- If no live price is available, cost basis is used as fallback valuation.
+- **Unrealized PnL (position)** = `market_value - cost_basis`
+- **Unrealized PnL (account)** = `sum(open_position_market_values) - sum(open_position_cost_basis)`
+
+### Realized PnL (Closed Positions)
+
+Closed positions in storage have `quantity = 0`, so realized PnL is reconstructed from filled orders.
+
+For each `(market_id, outcome)` closed position:
+
+- `buy_notional = sum(BUY order notionals)`
+- `sell_notional = sum(SELL order notionals)`
+- `buy_qty = sum(BUY order quantities)`
+- `sell_qty = sum(SELL order quantities)`
+- `remaining_qty = buy_qty - sell_qty`
+- `settlement_value = exit_price * remaining_qty`
+- **position_realized_pnl** = `sell_notional + settlement_value - buy_notional`
+
+Then:
+
+- **realized_pnl** = `sum(position_realized_pnl over closed positions)`
+
+This handles partial closes and settlement-style closes consistently.
+
+### Win Rate and Win/Loss Counts
+
+Win/loss is based on **realized PnL sign**, not on price comparison alone:
+
+- Win: `position_realized_pnl > 0`
+- Loss: `position_realized_pnl < 0`
+- Break-even: `position_realized_pnl == 0` (excluded from win/loss counts)
+
+`win_rate` uses closed position count as denominator:
+
+- **win_rate** = `wins / total_closed_positions * 100`
+
+### Profit Factor and Trade PnL Stats
+
+- **Gross profit** = `sum(all positive position_realized_pnl)`
+- **Gross loss** = `sum(abs(all negative position_realized_pnl))`
+- **profit_factor** = `gross_profit / gross_loss` (when gross_loss > 0)
+- **best_trade_pnl** = max positive closed-position PnL
+- **worst_trade_pnl** = min negative closed-position PnL
+- **avg_win_pnl** = average of positive closed-position PnLs
+- **avg_loss_pnl** = average of negative closed-position PnLs
+
+### Drawdown (7d and 30d)
+
+Drawdown is computed from `portfolio_snapshots.total_value` using a **running peak**:
+
+1. Walk snapshots in chronological order
+2. Track highest value seen so far (`peak`)
+3. Compute drawdown each point: `(value - peak) / peak`
+4. Maximum drawdown = most negative drawdown in the period
+
+This avoids overstating drawdown by comparing early values to a later peak.
+
+### Portfolio Diversity and Concentration
+
+For each open position:
+
+- **Effective value** = `market_value` (live price × quantity) when a live price exists,
+  or `cost_basis` (entry price × quantity) as fallback when no live price is available.
+- Weight per position: `w_i = effective_value / total_invested`
+- **HHI** = `sum(w_i^2)`
+- **portfolio_diversity_score** = `1 - HHI`
+- **largest_position_weight** = largest `w_i`
+- **top_3_concentration** = sum of top 3 `w_i`
+
+Weights always sum to approximately 100% across all open positions.
+
+### Equity Returns
+
+Using snapshots in the requested `equity_days` window:
+
+- `return_7d`: first-to-last return among snapshots in last 7 days
+- `return_30d`: first-to-last return among snapshots in last 30 days
+- `return_all_time`: first-to-last return across the full `equity_days` window
+
+Each is:
+
+- **period_return** = `(end_value - start_value) / start_value * 100`
+
+If there are fewer than two snapshots in a period, return is `null`.
+
+## Data Scope and Semantics
+
+- `open_positions` contains only `status=OPEN` with `quantity > 0`
+- Trading stats and realized metrics use only filled orders
+- Category exposure is based on open-position values
+- Cash/invested percentages are relative to current total portfolio value
+
+### `equity_timeline` — Performance Timeline
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `return_7d` | string | 7-day return |
+| `return_30d` | string | 30-day return |
+| `return_all_time` | string | All-time return |
+| `peak_value` / `peak_date` | string | Portfolio high watermark |
+| `trough_value` / `trough_date` | string | Portfolio low point |
+
+### `category_exposure` — Category Breakdown
+
+Array of objects showing exposure per market category:
+
+```json
+[
+  { "category": "crypto", "position_count": 3, "total_value": "500.00", "weight_percentage": "45.5%" },
+  { "category": "sports", "position_count": 2, "total_value": "300.00", "weight_percentage": "27.3%" }
+]
+```
+
+### `natural_language_summary`
+
+A pre-computed human-readable summary of the profile:
+
+> "trader123 is a PolySimulator paper trader who joined 45 days ago. Current API balance: $9,750.00 (started at $10,000.00, P&L: -$250.00, -2.50%). Has made 127 trades across 34 markets over 22 active trading days. Win rate: 62.5%. Currently holding 5 open positions worth ~$1,100.00. Top categories: crypto (45.5%), sports (27.3%), politics (18.2%)."
+
+## MCP Server
+
+A standalone MCP server is available at `mcp/profile-analysis/`. See the [MCP README](https://github.com/Bavariance/polysimulator/tree/main/mcp/profile-analysis) for setup instructions.
+
+### Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_profile_analysis` | Full analysis (primary tool) |
+| `get_balance` | Quick balance check |
+| `get_positions` | Position list with live prices |
+| `get_trade_history` | Trade history with pagination |
+| `get_equity_curve` | Equity curve snapshots |
