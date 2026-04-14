@@ -107,15 +107,9 @@ This prevents the complement-book logic from accidentally inverting fills on hig
 
 ## Layer 3: CLOB Midpoint Cache
 
-Redis stores the latest CLOB midpoint for each token:
+The engine caches the latest CLOB midpoint for each token. The midpoint is `(best_bid + best_ask) / 2` from Polymarket's live order book, refreshed every 30 seconds by the price poller.
 
-```
-cache key (internal) → float (e.g., 0.8523)
-```
-
-The midpoint is `(best_bid + best_ask) / 2` from Polymarket's live order book, refreshed every 30 seconds by the price poller.
-
-**Latency**: Sub-millisecond (Redis GET).
+**Latency**: Sub-millisecond.
 
 ---
 
@@ -245,16 +239,4 @@ flowchart TD
     N --> O[Create Order + Ledger Entry]
 ```
 
----
 
-## Source Code Reference
-
-The execution logic lives in [`internal source`](https://github.com/Bavariance/polysimulator/blob/main/internal source):
-
-- `internal function` — VWAP calculation with complement merging
-- `internal function` — Top-of-book with sanity guards
-- `internal function` — Redis midpoint lookup
-- `internal function` — Cached price fallback chain
-- `internal function` — Label → price resolution
-
-For the full audit trail, see the `orders` table schema in the database.
