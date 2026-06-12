@@ -1,0 +1,460 @@
+# PolySimulator API
+
+Tooling note: an official Python SDK is coming soon; until then the API is plain REST (any HTTP client works — see /quickstart).
+
+
+> Virtual trading environment for Polymarket prediction markets.
+
+PolySimulator provides a complete algorithmic trading API for trading bots to practice trading with real market data using simulated money, then switch to live trading on Polymarket by changing only API credentials.
+
+## API Base URL
+- Production: https://api.polysimulator.com/v1
+
+## Authentication
+All endpoints (except bootstrap) require an API key via `X-API-Key` header.
+Key format: `ps_live_` prefix + 64 hex characters (total 72 chars).
+
+### First-time setup (Bootstrap)
+New users have no key yet. To create your first key without a chicken-and-egg problem:
+1. Sign in at polysimulator.com to get a Supabase access_token.
+2. Call `POST /v1/keys/bootstrap` with `Authorization: Bearer <access_token>`.
+   Body: `{"name": "my-bot"}` — `name` is optional (defaults to null if omitted). Send `{}` for defaults.
+3. Store the returned `raw_key` — it is shown only once.
+4. All subsequent requests use `X-API-Key: <raw_key>`.
+
+Bootstrap response (201 Created). NOTE: a free-tier key is READ-ONLY — free + ["read","trade"] is unrealizable (free + trade is 403-rejected as TIER_REQUIRES_UPGRADE). A free bootstrap returns ["read"]; ["read","trade"] needs a paid tier (pro/pro_plus/enterprise):
+```json
+{
+  "id": 1,
+  "raw_key": "ps_live_abc123...",
+  "key_prefix": "ps_live_abc1",
+  "rate_limit_tier": "free",
+  "permissions": ["read"],
+  "created_at": "2025-01-01T00:00:00Z",
+  "name": "my-bot"
+}
+```
+
+Bootstrap Python example:
+```python
+import requests
+
+supabase_jwt = "your_supabase_access_token"  # from polysimulator.com sign-in
+resp = requests.post(
+    "https://api.polysimulator.com/v1/keys/bootstrap",
+    headers={"Authorization": f"Bearer {supabase_jwt}", "Content-Type": "application/json"},
+    json={"name": "my-bot"},  # optional
+)
+resp.raise_for_status()
+raw_key = resp.json()["raw_key"]  # save this — shown only once
+```
+
+Manage additional keys via POST /v1/keys (body: name, tier, permissions), GET /v1/keys, DELETE /v1/keys/{key_id}.
+
+## Rate Limits
+Authoritative source: GET /v1/keys/tiers (if a value here disagrees, the endpoint wins).
+- Free: 2 req/sec (burst) / 120 req/min (sustained), 1 WebSocket connection, batch size 1
+- Pro: 10 req/sec / 600 req/min, 3 WebSocket connections, batch size 5
+- Pro+ (pro_plus): 30 req/sec / 1,800 req/min, 10 WebSocket connections, batch size 10
+- Enterprise: 100 req/sec / 6,000 req/min, 50 WebSocket connections, batch size 25
+Closed-beta cohort keys (`api_keys.beta_until` set) run at the enterprise tier until the cutoff (default 2026-08-31T23:59:59Z), then auto-downgrade to free + read-only.
+Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier
+
+## Polymarket compatibility — what's identical, what's documented deviation
+
+PolySimulator is designed for the "swap base URL to port from py-clob-client" workflow. The contract is anchored against docs.polymarket.com (surveyed 2026-05-11). Each item below is either "identical to PM" (drop-in) or "documented deviation" (call out for SDK porters):
+
+| Surface | Status |
+| --- | --- |
+| Error envelope shape: `{"error": "<message>"}` | ✅ identical |
+| `GET /book` level ordering: PolySim sorts `bids` price-**ASCENDING** (best/highest bid = `bids[-1]`, last) and `asks` price-**DESCENDING** (best/lowest ask = `asks[-1]`, last) — best level at the **tail** on BOTH sides, byte-identical to Polymarket's LIVE `/book` wire (verified against `clob.polymarket.com/book` 2026-06-10). NOTE: PM's *docs* say "bids highest-first" but the live *wire* does the opposite; we match the wire. **Recommended: read order-independently** — `max(float(b["price"]) for b in bids)` / `min(float(a["price"]) for a in asks)` (coerce to a number — string compare mis-orders `"0.9"` vs `"0.10"`). Migration (2026-06-10): a brief earlier build emitted bids descending / asks ascending (best at `[0]`); now PM live-wire (best at `[-1]`). | ✅ identical — best bid/ask at index `[-1]` on both platforms (live wire). |
+| `GET /price?token_id=X&side=BUY\|SELL` — side REQUIRED, returns `{"price": "X"}`. `side=BUY` → best **bid**, `side=SELL` → best **ask** (matches Polymarket's live `/price` wire; corrected 2026-06-10 — before that PolySim returned the opposite side of the book). | ✅ identical |
+| `GET /midpoint?token_id=X` — returns `{"mid": "X"}` (no side param) | ✅ identical |
+| `GET /spread?token_id=X` — returns `{"spread": "X"}` | ✅ identical |
+| All monetary fields are JSON STRINGS (Decimal-safe) | ✅ identical |
+| `POST /order` body shape: `{order: {tokenId, makerAmount, takerAmount, side}, owner, orderType}` | ✅ identical |
+| `POST /orders` batch — raw JSON array (PM caps at 15 entries) | ✅ identical cap — the PM-shape array body (`POST /v1/orders` with a JSON array) is capped at a flat **15 entries regardless of tier**, matching PM. (`DELETE /v1/orders` bulk cancel is capped separately at **100**.) The tier-aware max-batch (free=1, pro=5, pro_plus=10, enterprise=25; see `GET /v1/keys/tiers`) applies ONLY to the NATIVE wrapped path `POST /v1/orders/batch`, not the PM array form. See Trading section. |
+| Order status enum is endpoint-specific (read the one for the endpoint you call): **POST `/v1/order` / `/v1/clob/order` write response** → `live` (resting) \| `matched` (filled) \| `unmatched` (cancelled/rejected) — PM also has `delayed`, which the sim never emits (no taker-delay markets). **GET `/v1/data/order/{id}` / `/v1/order/{id}` (PM-CLOB shape)** → `ORDER_STATUS_PENDING` \| `ORDER_STATUS_FILLED` \| `ORDER_STATUS_CANCELLED` \| `ORDER_STATUS_REJECTED`. **POST `/v1/orders` (PolySim-shape `OrderResponse` write)** → `PENDING` \| `FILLED` \| `CANCELLED` \| `REJECTED` \| `EXPIRED`. Note: `REJECTED` only ever appears on this synchronous write response (a rejected order is never persisted — it comes back with `order_id: 0`). **GET `/v1/orders` + GET `/v1/orders/{id}`** read a PERSISTED row, so they return `PENDING` \| `FILLED` \| `CANCELLED` \| `EXPIRED` only — never `REJECTED`. | 📌 documented deviation — write-response enum (`live/matched/unmatched`) matches PM; the PolySim-shape listing/lookup uses the bare `PENDING/FILLED/...` words. Branch on the enum for the endpoint you actually call. |
+| Order types: `GTC \| FOK \| FAK \| GTD` | ✅ identical (we also accept `IOC` as a `FAK` alias) |
+| Tick-size enforcement on limit prices, market-aware (0.0001 / 0.001 / 0.01 / 0.1) | ✅ identical |
+| `X-Polysim-Code` response header carrying machine code | 📌 PolySim extension (PM uses `X-Polymarket-Code`) — body still PM-shape `{error}` |
+| 402 UPGRADE_REQUIRED body retains `feature_key` + `upgrade_url` | 📌 documented deviation — PM has no equivalent (no entitlement layer). All non-402 errors stay pure single-field. |
+| `POST /v1/clob/order` accepts legacy FLAT shape, NOT PM nested | 📌 use `POST /v1/order` for PM nested body |
+| WebSocket auth via `?token=<jwt>` from `POST /v1/keys/ws-token` (60s JWT) | 📌 PolySim signs WS with our own JWT; PM uses HMAC. Both endpoints stream identical JSON frames once connected. |
+| L1/L2 EIP-712 signing | ❌ not enforced — paper-trading. On-chain fields (salt, signer, signature, nonce, feeRateBps, signatureType) accepted but ignored. Live mode (real Polymarket) requires real signing. |
+
+### Special cases / edge behaviour
+
+- **Market orders require `price`** as a STRICT slippage bound (worst-acceptable fill).
+  BUY: pass `"1.0"` to accept any fill. SELL: pass `"0.0"`. Validator accepts `[0.0, 1.0]` inclusive.
+- **`make_amount`/`take_amount` in PM nested body** are 6-decimal fixed-point. The math:
+  - BUY at price P, size Q shares: `makerAmount = P * Q * 1_000_000`, `takerAmount = Q * 1_000_000`.
+  - Validate both before submitting. Mis-units silently mis-prices orders.
+- **/v1/data/orders** PM-envelope response includes `side` field (added 2026-05-11). SDK consumers branching on side for P&L sign or fill-price interpretation should read it directly rather than inferring from `original_size`/`size_matched`. `original_size` is FIXED at the order's placed size for its whole life and `size_matched` GROWS as it fills (PM behaviour): a 3-of-5 partial fill reports `original_size=5, size_matched=3`; a full fill reports `size_matched == original_size`. (Orders placed before 2026-06-09 lack the original-size column and fall back to reporting the live remaining size — only affects pre-existing resting orders.)
+- **Heartbeat dead-man's-switch** IS implemented at `POST /v1/heartbeats` (canonical) and `POST /heartbeats` (PM-shape root path) — both route through the same handler. Body `{"interval_ms": <1000–60000>, "client_label"?: <≤64 chars>}` → `200 {"ok": true, "expires_at_ms": <unix ms>}`. If no heartbeat arrives before `expires_at_ms`, a ~1s sweeper cancels ALL of the key's resting limit orders (same logic as `POST /v1/cancel-all`). Note the path is PLURAL: singular `POST /v1/heartbeat` is not a route (404). See `/trading/heartbeats`.
+
+## Key Concepts
+- All numeric values (price, quantity, balance) are **JSON strings** — parse with
+  `Decimal(str(value))` in Python, never use `float()` for monetary arithmetic
+- Use `client_order_id` in order requests to prevent duplicate fills on retries (idempotency)
+- Market data endpoints (GET /v1/markets, POST /v1/prices/batch) return `condition_id`.
+  Trading and account endpoints use `market_id` in requests and responses.
+  Both refer to the same Polymarket condition_id value.
+
+## Trading Fees (Polymarket V2 schedule — fees are NOT zero)
+PolySimulator charges Polymarket's exact V2 per-category TAKER fee on every taker fill
+(simulated money, real economics). Formula: `fee = C × feeRate × p × (1 − p)` where C =
+shares filled, p = fill price. The formula computes to 5 dp (smallest non-zero result
+0.00001 USD), but the amount actually DEBITED is settled at cent precision — both fill
+paths quantize to 2 dp (orders.fee is Numeric(18,2)), so sub-cent fees round to $0.00.
+Category rates (= GET /v1/fee-rate `fee_rate_bps`; NOT `base_fee` — see Endpoints):
+- Crypto: 7% (700 bps)
+- Economics / Culture / Weather / Other: 5% (500 bps)
+- Finance / Politics / Mentions / Tech: 4% (400 bps)
+- Sports: 3% (300 bps)
+- Geopolitics: 0% (0 bps)
+- Unknown / missing category: 5% fallback (500 bps)
+Makers pay 0. Maker vs taker is classified by MARKETABILITY AT PLACEMENT: a GTC limit
+that crosses the live book when placed pays the taker fee even though it fills via the
+~1s matching loop; only genuinely resting GTC orders earn maker (zero-fee) treatment.
+Fee-free fills: maker fills, geopolitics markets, emergency-exit (break-even safety
+valve) fills. Documented divergences from PM: (1) NO maker rebate (PM redistributes
+25% of taker fees, 20% on crypto — the sim has no fee pool); (2) no per-market
+`feesEnabled` sync — the category schedule applies to ALL markets. Read the debited
+amount from the `fee` field on fill responses / GET /v1/account/history; per-fill
+`fee_rate_bps` on GET /v1/data/trades reports the rate applied (0 for fee-free fills).
+
+## Endpoints
+
+### Market Data
+- GET /v1/markets — List active markets (params: hot_only, limit, offset, search)
+- GET /v1/markets/{condition_id} — Get single market with live price
+- GET /v1/markets/{condition_id}/book — L2 order book (bids/asks arrays)
+- GET /v1/markets/{condition_id}/candles — OHLCV price candles. Params: outcome (default first), interval (1h/6h/1d/1w/max — sub-hour intervals are not yet available; unknown values return 400 INVALID_INTERVAL). Response: array of {t, o, h, l, c, v} where t=unix-second bucket-start, OHLC are bucketed from Polymarket's tick stream, v=our internal fill volume in the bucket (0 if no internal fills).
+- POST /v1/prices/batch — Batch price lookup (body: {"market_ids": [...]}, max 50; returns: condition_id, buy, sell, outcomes[], source)
+
+### Polymarket CLOB-shape Read Endpoints (May 8 launch)
+These mirror Polymarket's path + payload exactly. Public, no auth required for read endpoints.
+- GET /v1/markets-by-token/{token_id} — Resolve token_id to {condition_id, primary_token_id, secondary_token_id, outcome}. NOTE: `secondary_token_id` is ALWAYS null in PolySimulator (only condition_id, primary_token_id, outcome are populated); don't rely on it to find the sibling (e.g. NO) token.
+- GET /v1/midpoint?token_id=... — Mid price: {mid: "0.50"}
+- POST /v1/midpoints — Batch mid prices (max 50). Body accepts BOTH the PM-compat raw array `[{token_id}, ...]` AND the wrapped `{items: [{token_id}, ...]}`.
+- GET /v1/spread?token_id=... — Best bid/ask spread, capped at $0.10 like Polymarket. Returns {spread, bid, ask}.
+- POST /v1/spreads — Batch spreads (max 50). Body accepts BOTH the PM-compat raw array `[{token_id}, ...]` AND the wrapped `{items: [{token_id}, ...]}`.
+- GET /v1/book?token_id=... — Order book by token_id (params: depth, default 10, max 50). NOTE on tick type: the book object's `tick_size` is a JSON STRING (e.g. "0.001"), matching Polymarket's `/book` wire shape; `GET /v1/tick-size` returns the same value as a JSON NUMBER (see below). Both report the SAME canonical per-token tick (freshest-wins: live WS tick-change → live book → synced market tick → 0.01 default), so a price aligned to the book's `tick_size` is accepted by order validation. The string-vs-number split is intentional PM parity, not a discrepancy.
+- POST /v1/books — Batch books (max 50). Body accepts BOTH the PM-compat raw array `[{token_id}, ...]` AND the wrapped `{items: [{token_id}, ...]}`.
+- GET /v1/last-trade-price?token_id=... — Last trade {price, side}
+- GET /v1/tick-size/{token_id} — Minimum tick size as a JSON NUMBER: {minimum_tick_size} ∈ {0.1, 0.01, 0.001, 0.0001} (Polymarket emits this surface as a number, distinct from `/book`'s string `tick_size`; py-clob-client compares against numeric tick constants). Same canonical per-token value `/book` reports and order validation enforces.
+- GET /v1/neg-risk/{token_id} — {neg_risk: bool} for multi-outcome markets
+- GET /v1/fee-rate?token_id=... — PM-compat. Two-field contract: base_fee mirrors Polymarket's legacy base-fee parameter (observed live: 1000 on fee-charging markets of EVERY category, 0 on fee-free markets like geopolitics) — it signals whether fees are enabled, NOT the rate; the effective per-category taker rate actually charged is fee_rate_bps (polysim extra field: crypto 700, sports 300, etc. — use this for fee math). E.g. crypto → {"base_fee": 1000, "fee_rate_bps": 700}; geopolitics → {"base_fee": 0, "fee_rate_bps": 0}. token_id REQUIRED — missing/malformed → 400 {"error": "Invalid token id"}; unknown (resolves to no synced market) → 404 {"error": "fee rate not found for market"} (PM's messages verbatim). See "Trading Fees" section above for the schedule. Public/read.
+- GET /v1/balance-allowance — PM-compat (read scope). py-clob-client calls this before every order to pre-flight on-chain allowance; paper-trading stub returns effectively-unlimited sentinels so the SDK proceeds.
+- GET /v1/time — Server unix time as a BARE JSON integer (e.g. 1779147906), NOT an object. Parse with int(resp.text) or resp.json() directly (returns the int); resp.json()["server_time"] KeyErrors. Matches PM's getServerTime() (bare number).
+
+### PolySimulator Extensions (not available on Polymarket CLOB)
+These endpoints provide convenience features unique to PolySimulator.
+They are NOT part of Polymarket's API and will not work if you switch base URLs.
+Guard extension calls with an environment check (see migration section below).
+- GET /v1/markets/updown — List active up/down time-bound markets (params: asset, interval, limit). The /v1 alias WORKS: a startup route-hoist places the static /v1/markets/updown ahead of the dynamic /v1/markets/{condition_id}, so it no longer 404s. (The legacy v0 /markets/updown path also still works. Hidden from the OpenAPI schema by design.)
+- GET /v1/markets/updown/intervals — Updown markets grouped by interval (params: asset). v1 path works here — the trailing /intervals avoids the {condition_id} collision.
+
+### Trading
+- POST /v1/order — **Polymarket raw HTTP shape (single)**. Body: {order: {tokenId, makerAmount, takerAmount, side}, owner, orderType}. makerAmount/takerAmount are 6-decimal fixed point (USDC and outcome tokens both 1e6 units). For BUY at price P size Q: makerAmount=P*Q*1e6, takerAmount=Q*1e6. On-chain fields (salt, signer, signature, nonce, feeRateBps, signatureType) accepted but ignored. Response: {success, orderID, status, makingAmount, takingAmount, errorMsg}. status ∈ {"live", "matched", "unmatched"} (PM also defines "delayed" but the sim has no taker-delay markets so never emits it). Use this path for any py-clob-client port.
+- POST /v1/orders — **Dispatcher: PolySim single OR PM batch.** JSON object body → native PolySim single-order shape (body: market_id, outcome, side, quantity, price, order_type, time_in_force, client_order_id). JSON array body → PM batch shape, capped at a flat **15 entries regardless of tier** (matching PM; the tier-aware max-batch applies only to the native POST /v1/orders/batch — see below). Each entry is the same nested shape as POST /v1/order. Returns OrderResponse for the object form, List[PmSendOrderResponse] for the array form. Tick-size enforced — off-grid prices return 400 INVALID_ORDER_MIN_TICK_SIZE matching Polymarket's behaviour. **Per-entry failures in the array form return failed SendOrderResponse rather than 4xx-ing the whole batch.**
+- POST /v1/clob/order — **Legacy PolySim CLOB-flat single order** (body: token_id, side, size, price, order_type, client_order_id). Strings for numerics. Does NOT accept PM nested {order:{...}} body — use POST /v1/order for that.
+- GET /v1/orders — List orders (params: status, market_id, side, limit, offset, cursor)
+- GET /v1/data/orders — **Polymarket envelope**: {limit, count, next_cursor, data}. data[] are PM OpenOrder shape: {id, status, owner, maker_address, market, asset_id, original_size, size_matched, price, outcome, expiration, order_type, associate_trades, created_at}. next_cursor is urlsafe-base64; pass as ?cursor=... to paginate.
+- GET /v1/order/{order_id} — Single order in PM shape. Hex/non-numeric ids 404 cleanly.
+- GET /v1/data/order/{order_id} — PM-compat canonical nested path (sibling to /data/orders + /data/trades; what current py-clob-client calls). Same PM OpenOrder shape as GET /v1/order/{order_id}.
+- GET /v1/data/trades — PM-compat (read scope). py-clob-client fill-tracking loops use this; reads filled orders, emits PM-shape trade rows. Filters: market, asset_id, before, after, cursor (same pagination as /v1/data/orders).
+- DELETE /v1/orders/{order_id} — Cancel pending limit order (legacy path-param form).
+- DELETE /v1/order — **PM-shape body cancel**: body {orderID: "..."}.
+- DELETE /v1/orders — **PM-shape bulk cancel**: body is an array ["id1", "id2", ...]. Max 100.
+- POST /v1/orders/batch — Native batch (body: {"orders": [...]}). This is the ONLY batch path with a TIER-AWARE cap (max_batch — free=1, pro=5, pro_plus=10, enterprise=25, see GET /v1/keys/tiers); over the cap returns 400 BATCH_LIMIT_EXCEEDED. (The PM-shape array body on POST /v1/orders is capped at a flat 15 instead.)
+- POST /v1/cancel-all — Cancel all open orders for the authenticated key.
+### Account
+- GET /v1/account/balance — Account balance, PnL, unrealized PnL (always the API wallet)
+- GET /v1/account/positions — Open/closed positions (params: status, wallet_id, envelope)
+- GET /v1/account/portfolio — Aggregate portfolio snapshot (params: wallet_id)
+- GET /v1/account/history — Filled order history (params: market_id, side, limit, offset, wallet_id, envelope)
+- GET /v1/account/profile-analysis — Full LLM-friendly analysis: balance, positions, trading stats, risk metrics, equity timeline (params: recent_trades, equity_days, wallet_id)
+- GET /v1/account/equity — Hourly equity snapshots (params: days, wallet_id)
+
+Wallet scoping (since 2026-06-10): `wallet_id` accepts an integer wallet id you own (404 WALLET_NOT_FOUND otherwise), `all` (every wallet incl. UI MAIN/SANDBOX), or `api` (your API wallet; legacy pre-attribution rows included). Omitted = `api` on every account read. MIGRATION NOTE: before 2026-06-10, positions/history/profile-analysis defaulted to ALL wallets — pass `wallet_id=all` for the old behaviour. Invalid values → 422 VALIDATION_FAILED.
+
+### Key Management
+- POST /v1/keys/bootstrap — Create first API key via Bearer JWT (no X-API-Key needed)
+- POST /v1/keys — Create additional API key (body: name, tier, permissions; requires X-API-Key)
+- GET /v1/keys — List all keys (masked)
+- PATCH /v1/keys/{key_id} — Rename a key (body: name).
+- POST /v1/keys/{key_id}/rotate — Zero-downtime rotation: mints a replacement (returns the new raw key ONCE) and schedules the old key to expire after a 24h overlap. This is the recommended way to change a key's tier/permissions and to free a per-paid-tier key slot (TIER_KEY_LIMIT_EXCEEDED).
+- DELETE /v1/keys/{key_id} — Revoke key
+- GET /v1/keys/tiers — List available rate limit tiers
+- POST /v1/keys/ws-token — Get short-lived WebSocket auth token
+
+Key management (create/list/rename/rotate/revoke) requires only a valid credential for your account — any active ps_live_ key (even read-only) or your dashboard Supabase JWT — NOT a trade-scoped key.
+
+### Health & Monitoring
+- GET /v1/health — Liveness probe
+- GET /v1/health/ready — Readiness probe (checks DB + Redis)
+- GET /v1/status — System status with market sync info
+
+### WebSocket
+**PolySim-native channels** (cond-id keyed, JWT query-param auth):
+- WS /v1/ws/prices?token=<jwt> — Real-time price stream
+  - Auth: pass JWT from POST /v1/keys/ws-token as query param
+  - Subscribe: {"action": "subscribe", "markets": ["cond-123", ...]}
+  - Unsubscribe: {"action": "unsubscribe", "markets": ["cond-123"]}
+  - Ping: {"action": "ping"} → {"type": "pong"}
+  - Price message: {"type": "price", "market_id": "cond-123", "buy": "0.65", "sell": "0.35", "best_bid": "0.64", "best_ask": "0.66", "volume": "1000.00", "source": "clob", "updated_at": "..."}
+- WS /v1/ws/executions?token=<jwt> — Trade fill notifications
+- POST /v1/keys/ws-token — Mint short-lived WebSocket auth token (60s TTL)
+
+**Polymarket-parity channels** (token-id keyed, PM-shape subscribe — what a ported PM bot connects to):
+- WS /v1/ws/market — Public-by-asset book channel (mirrors PM /ws/market). Auth OPTIONAL.
+  - Subscribe: {"type": "market", "assets_ids": ["TOKEN_ID", ...]} (note: TOKEN ids, not cond ids)
+  - No `subscribed` ack — the first `book` snapshot is the implicit success signal (PM behaviour).
+  - Emits PM-verbatim event shapes: `book` (full L2 snapshot), `price_change`, `last_trade_price`, `best_bid_ask`.
+- WS /v1/ws/user — Auth-gated user channel (mirrors PM /ws/user). Auth REQUIRED.
+  - Subscribe: {"type": "user", "assets_ids": ["TOKEN_ID", ...], "auth": {"apiKey": "ps_live_..."}}
+  - PolySim is single-secret: pass the raw `ps_live_` key as `auth.apiKey`; PM's `secret`/`passphrase` are accepted but ignored. A `?token=<jwt>` query param is also accepted for back-compat.
+
+### CLOB Compatibility (May 8 launch — full PM-shape parity)
+Three paths to the same engine, pick by integration shape:
+1. **POST /v1/order** — Polymarket raw HTTP body with maker/taker amounts. SDKs ported from py-clob-client / @polymarket/clob-client work with only a base-URL change.
+2. **POST /v1/clob/order** — Legacy convenience shape (token_id, side, size, price). Same response envelope as PM. Predates the raw-HTTP shim.
+3. **POST /v1/orders** — Native shape (market_id+outcome). For new code that doesn't need PM compat.
+All three call the same matching engine. Response status enum: {"live", "matched", "unmatched"}.
+Cancel paths: DELETE /v1/order (body), DELETE /v1/orders (array body), DELETE /v1/orders/{id} (path), POST /v1/cancel-all.
+
+### Closed-beta cohort (ongoing)
+- API key issuance is cohort-gated. POST /v1/keys and POST /v1/keys/bootstrap return 403 CLOSED_BETA — the default for every non-admitted caller while the beta is closed (free, waitlisted, OR paying Pro/Pro+). 403 API_PRO_COMING_SOON is a conditional variant for paying Pro/Pro+ without a cohort grant, reached only once self-serve issuance is enabled. For all /v1/* errors the machine code is in the X-Polysim-Code response header (always present) and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses, not these 403s. A separate runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account isn't on the admin allowlist.
+- GET /api/beta/cohort-status — Public, no auth. Returns {cohort_label, available, active, cap, cutoff, reopens_at}. Pricing page uses this to swap the Pro card's API bullet to "currently full" with the reopen hint (the configured cutoff date) when cap is hit.
+- Beta-issued keys carry an X-API-Beta-Cutoff response header on every request when the cutoff is in the past — SDKs can pivot to read-only mode without an explicit "what's my cohort cutoff" round-trip.
+
+## Order Types & Time-in-Force
+- POST /v1/orders uses two fields:
+  - order_type: "market" (fill at current price) or "limit" (execute at specified price or better)
+  - time_in_force: "GTC" (good-til-cancel, default), "FOK" (fill-or-kill — default for market orders, all-or-nothing), "FAK" (fill-and-kill; alias "IOC") — NOTE: FAK/IOC legacy behavior executes atomically (fills the FULL quantity at the touch price or cancels entirely; no partial fills). Polymarket-style partial-fill-then-cancel-remainder + depth-aware FOK are ROLLING OUT behind a deployment flag — see /changelog for activation. "GTD" (good-til-date, requires unix-seconds `expiration` field, auto-cancels once it passes) is part of the same rollout and rejected until active. Casing is normalised.
+- POST /v1/clob/order uses order_type for time-in-force policy (matching Polymarket's CLOB schema):
+  - "GTC" (good-til-cancelled, default), "FOK" (fill-or-kill), "GTD" (good-til-date — treated as GTC until the PM-semantics rollout activates real expiry; then honors the `expiration` field). "IOC" is REJECTED on this endpoint with 400 UNSUPPORTED_ORDER_TYPE — use POST /v1/orders with time_in_force=IOC instead.
+  - All CLOB orders are effectively limit orders (price is required)
+- post_only (POST /v1/orders + /v1/clob/order; `postOnly` on the PM-shape POST /v1/order): ROLLING OUT — reject-if-marketable maker-only orders (PM semantics, GTC/GTD only). Advisory (ignored) until activation.
+- min_order_size: ROLLING OUT — the per-market minimum GET /v1/book advertises (5 shares standard binary) is enforced at placement; below-minimum orders get 400 INVALID_ORDER_MIN_SIZE.
+- Side values are always uppercase: "BUY" or "SELL"
+
+## Error Format
+Default (PM-shape): `{"error": "<message>"}` — human description when one is available, otherwise the short code as a fallback. Branch on the response HEADER for stable handling:
+- X-Polysim-Code: stable short code. Domain-specific when known (INVALID_KEY, INSUFFICIENT_PERMISSION, RATE_LIMIT_EXCEEDED, BOOK_UNAVAILABLE, VALIDATION_FAILED, MARKET_NOT_FOUND, …); generic HTTP_<status> fallback when not (HTTP_400, HTTP_500).
+- X-Request-Id: request id for log correlation.
+Verbose body opt-in (request header `X-Polysim-Verbose: true`): `{"error": "ERROR_CODE", "message": "Human description", "request_id": "uuid", "details": {...}}` — useful for SDK debugging.
+
+## Common Errors
+- 400 INSUFFICIENT_BALANCE — Not enough funds
+- 400 MARKET_CLOSED — Market is resolved
+- 400 INVALID_ORDER_MIN_TICK_SIZE — Limit price doesn't conform to the market's tick (PR-shape rejection mirroring Polymarket). Round to a multiple of GET /v1/tick-size/{token_id}.
+- 400 INVALID_ORDER_EXPIRATION — ROLLING OUT: GTD order with missing/unparseable/past `expiration` (unix seconds, must be strictly future)
+- 400 INVALID_POST_ONLY_ORDER (X-Polysim-Code POST_ONLY_WOULD_CROSS) — ROLLING OUT: post_only order is marketable at placement (would cross the book)
+- 400 INVALID_POST_ONLY_ORDER_TYPE — ROLLING OUT: post_only combined with FOK/FAK/IOC/market (GTC/GTD limits only)
+- 400 INVALID_ORDER_MIN_SIZE (X-Polysim-Code ORDER_BELOW_MIN_SIZE) — ROLLING OUT: order size below the market's min_order_size (the value GET /v1/book advertises)
+- 401 INVALID_KEY — Key invalid, revoked, or unknown (the X-Polysim-Code on a bad X-API-Key)
+- 401 MISSING_API_KEY — X-API-Key (or POLY_API_KEY / Poly-API-Key alias) header missing on a key-only route
+- 401 MISSING_AUTH — Authorization: Bearer <supabase JWT> missing on a session-only route (key bootstrap / dashboard-session endpoints)
+- 402 UPGRADE_REQUIRED — Hit a Pro-tier cap (sandbox count, API key creation, etc). detail includes upgrade_url.
+- 404 MARKET_NOT_FOUND — Unknown condition_id or token_id. Verify with GET /v1/markets-by-token/{token_id}.
+- 404 ORDER_NOT_FOUND — Unknown order id (PM hex hashes also 404 since we don't issue them).
+- 409 COHORT_FULL — Beta issuance refused. Detail: {current_active, cap, requested}.
+- 409 DUPLICATE_CLIENT_ORDER_ID — client_order_id already in use (or a unique-constraint collision); retry with a fresh client_order_id.
+- 409 (worst-price limit exceeded) — Fill price would exceed your worst-price limit (the `price` field). This path has NO domain-specific code: X-Polysim-Code falls back to the generic HTTP_409. Re-fetch the price and adjust `price`.
+- 429 RATE_LIMIT_EXCEEDED — Too many requests (check Retry-After header)
+
+## Trading Mode
+- Virtual (default): All trades are simulated. The API key trades against a tier-dependent **API wallet**, separate from the dashboard MAIN wallet: **Pro = $10,000**, **Pro+ = $25,000**, **Free = read-only (no trading, $0 API wallet)**. The dashboard MAIN/UI wallet starts at $1,000 but API keys never touch it — size PnL and order quantities off your API-wallet baseline (read it live via GET /v1/account/balance), not the $1,000 UI figure. Account reads (positions/history/profile-analysis/portfolio/equity) are API-wallet scoped by default — pass `wallet_id=all` to see UI-wallet activity too, or `wallet_id=<id>` for one specific wallet.
+- Live: Order format is identical — POST /v1/clob/order uses the same request body as
+  Polymarket's POST /order. What changes: base URL, authentication method (HMAC L2 via
+  py_clob_client SDK), and real USDC.e funds.
+  PolySimulator Extension endpoints (e.g. /markets/updown) are not available on
+  Polymarket — guard extension calls with an environment check (see migration section).
+
+## Error Handling & Retry Patterns
+All /v1 errors return PM-shape `{"error": "..."}` with `X-Polysim-Code` + `X-Request-Id` response headers (see Error Format). For verbose `{error, message, details, request_id}` body, send `X-Polysim-Verbose: true` on the request.
+
+### Retryable Errors
+- 429 RATE_LIMIT_EXCEEDED — Back off using `Retry-After` header (seconds).
+- 500/502/503 — Transient server error; retry with exponential backoff.
+- Network timeout — Retry with idempotent `client_order_id` to prevent duplicate fills.
+
+### Non-Retryable Errors
+- 400 INSUFFICIENT_BALANCE / MARKET_CLOSED / INVALID_QUANTITY — Fix request and resubmit.
+- 401 INVALID_KEY — Re-bootstrap or rotate key.
+- 404 MARKET_NOT_FOUND — Verify market_id via GET /v1/markets.
+- 409 (worst-price limit exceeded; generic HTTP_409 code) — Re-fetch price, adjust `price` (worst-price limit).
+
+### Retry Example
+```python
+import os
+import time
+import requests
+
+BASE = "https://api.polysimulator.com/v1"
+API_KEY = os.environ["POLYSIM_API_KEY"]
+HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+def place_order_with_retry(order_body, max_retries=3):
+    for attempt in range(max_retries):
+        resp = requests.post(f"{BASE}/orders", headers=HEADERS, json=order_body)
+        if resp.status_code == 429:
+            wait = int(resp.headers.get("Retry-After", 2 ** attempt))
+            time.sleep(wait)
+            continue
+        if resp.status_code >= 500:
+            time.sleep(2 ** attempt)
+            continue
+        resp.raise_for_status()
+        return resp.json()
+    raise RuntimeError("Max retries exceeded")
+```
+
+### Timeout & Price Protection
+```python
+# Set request timeout to avoid hanging connections
+resp = requests.post(f"{BASE}/orders", headers=HEADERS, json=order, timeout=10)
+
+# Use price as worst-price limit (identical to Polymarket)
+order = {
+    "market_id": "condition-id",
+    "side": "BUY",
+    "outcome": "Yes",
+    "quantity": "10",
+    "order_type": "market",
+    "price": "0.68",  # won't fill above $0.68
+    "client_order_id": "unique-id-for-idempotency",
+}
+```
+
+## Migration: Virtual → Live Polymarket Trading
+
+### Step 1 — Install the SDK
+```
+pip install py-clob-client
+```
+
+### Step 2 — Derive API Credentials (one-time L1 → L2 auth)
+```python
+from py_clob_client.client import ClobClient
+import os
+
+host = "https://clob.polymarket.com"
+chain_id = 137  # Polygon mainnet
+private_key = os.getenv("PRIVATE_KEY")  # Polygon wallet private key
+
+# L1 auth: derive L2 HMAC credentials from your private key
+temp_client = ClobClient(host, key=private_key, chain_id=chain_id)
+api_creds = temp_client.create_or_derive_api_creds()
+# Returns: { "apiKey": "...", "secret": "...", "passphrase": "..." }
+```
+
+### Step 3 — Initialize the Trading Client
+```python
+from py_clob_client.client import ClobClient
+from py_clob_client.clob_types import ApiCreds
+import os
+
+api_creds = ApiCreds(
+    api_key=os.getenv("POLY_API_KEY"),
+    api_secret=os.getenv("POLY_API_SECRET"),
+    api_passphrase=os.getenv("POLY_PASSPHRASE"),
+)
+
+client = ClobClient(
+    host="https://clob.polymarket.com",
+    key=os.getenv("PRIVATE_KEY"),
+    chain_id=137,
+    creds=api_creds,
+    signature_type=0,  # 0=EOA wallet, 1=MagicLink, 2=browser proxy
+    funder=os.getenv("FUNDER_ADDRESS"),  # wallet paying gas + holding USDC.e
+)
+```
+
+### Step 4 — Place an Order
+```python
+from py_clob_client.clob_types import OrderArgs, OrderType
+from py_clob_client.order_builder.constants import BUY, SELL
+
+response = client.create_and_post_order(
+    OrderArgs(
+        token_id="YOUR_TOKEN_ID",  # from clobTokenIds[0]=Yes, [1]=No
+        price=0.50,
+        size=10,
+        side=BUY,
+    ),
+    options={"tick_size": "0.01", "neg_risk": False},
+    order_type=OrderType.GTC,  # GTC, GTD, FOK, or IOC
+)
+print("Order ID:", response["orderID"])
+print("Status:", response["status"])
+```
+
+### Error Handling for Authentication Failures
+Common CLOB errors when trading live:
+- INVALID_ORDER_NOT_ENOUGH_BALANCE — Funder wallet lacks USDC.e or POL (gas)
+- INVALID_ORDER_MIN_TICK_SIZE — Price doesn't match market tick size
+- INVALID_ORDER_MIN_SIZE — Order size below minimum
+- INVALID_ORDER_EXPIRATION — Expiration timestamp in the past
+- FOK_ORDER_NOT_FILLED_ERROR — FOK order couldn't be fully filled
+- MARKET_NOT_READY — Market not yet accepting orders
+
+```python
+from py_clob_client.clob_types import OrderArgs
+from py_clob_client.order_builder.constants import BUY
+
+order_args = OrderArgs(
+    token_id="YOUR_TOKEN_ID",
+    price=0.50,
+    size=10,
+    side=BUY,
+)
+opts = {"tick_size": "0.01", "neg_risk": False}
+
+try:
+    response = client.create_and_post_order(order_args, options=opts)
+    if not response.get("success", True):
+        print(f"Order rejected: {response.get('errorMsg')}")
+except Exception as e:
+    print(f"CLOB request failed: {e}")
+```
+
+### What Changes Between Platforms
+| Aspect         | PolySimulator              | Polymarket                          |
+|----------------|----------------------------|-------------------------------------|
+| Base URL       | api.polysimulator.com/v1   | clob.polymarket.com                 |
+| Auth           | X-API-Key header           | py_clob_client SDK (HMAC L2 auth)   |
+| Money          | Virtual API wallet: Pro $10,000 / Pro+ $25,000 / Free read-only ($0). (Dashboard MAIN wallet is $1,000 but API keys never use it.) | Real USDC.e on Polygon              |
+| Market IDs     | `market_id` = `condition_id` | Order routing uses `token_id` per outcome (`clobTokenIds`) |
+| Prices         | Same real-time CLOB prices | Same                                |
+| Extensions     | /markets/updown etc.    | Not available — guard with env check|
+
+### Guard PolySimulator Extension Endpoints
+```python
+import os
+import requests
+
+TRADING_MODE = os.getenv("TRADING_MODE", "simulator")
+BASE = os.getenv("POLYSIM_API_URL", "https://api.polysimulator.com/v1")
+HEADERS = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+def get_updown_intervals(asset=None):
+    if TRADING_MODE != "simulator":
+        return None  # endpoint only exists on PolySimulator
+    params = {"asset": asset} if asset else None
+    resp = requests.get(f"{BASE}/markets/updown/intervals", headers=HEADERS, params=params)
+    return resp.json()
+```
+
+## For AI assistants
+- Full documentation corpus (one file): https://docs.polysimulator.com/llms-full.txt
+- Machine-readable OpenAPI spec (REST contract): https://docs.polysimulator.com/openapi.json
+- Live docs MCP server (search + read as a tool): https://docs.polysimulator.com/mcp
+- Setup guide for Claude / Cursor / ChatGPT: https://docs.polysimulator.com/ai-assistants
+
+## Links
+- Documentation: https://docs.polysimulator.com
+- Website: https://polysimulator.com

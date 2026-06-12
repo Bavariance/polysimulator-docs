@@ -1,0 +1,264 @@
+---
+title: "Order Management"
+sidebarTitle: "Order Management"
+description: "List, filter, and cancel pending orders with pagination."
+---
+
+# Order Management
+
+Query your order history and cancel pending limit orders.
+
+---
+
+## Order Endpoints Summary
+
+PolySimulator offers two order placement endpoints. Use the one that fits your workflow:
+
+| Endpoint | Best For | Time-in-force Field | Supported Values |
+|----------|----------|-----------------------|------------------|
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default), `FOK`, `IOC`, `FAK` (normalised to `IOC`) |
+| `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC`, `FOK`, `GTD` |
+
+<Info>
+  **Key difference**: The native `/v1/orders` endpoint uses `order_type` for
+  market/limit and `time_in_force` for GTC/FOK/IOC. It also accepts `FAK`
+  (Polymarket's term for IOC) and normalises it to `IOC` — so a listed order
+  may show `time_in_force: "IOC"` even though you sent `FAK`. The
+  CLOB-compatible endpoint uses `order_type` for the time-in-force policy
+  (matching Polymarket's schema). See [CLOB Compatibility](/concepts/clob-compatibility)
+  for the CLOB endpoint schema.
+</Info>
+
+<Warning>
+  **`POST /v1/clob/order` does not support every PM order type.**
+  `order_type=IOC` is **rejected with `400 UNSUPPORTED_ORDER_TYPE`** (the
+  engine only enforces FOK worst-price semantics; routing IOC through it
+  would silently behave like FOK). `order_type=GTD` is accepted but
+  **treated as GTC** until the PM-faithful semantics rollout activates —
+  there is no per-order date expiry yet, so manage your own deadline and
+  cancel explicitly when it lapses. Use `GTC` (rests on the book) or `FOK`
+  (immediate-or-fail) for predictable behaviour.
+</Warning>
+
+<Note>
+  **Rolling out: real GTD + post-only.** A flag-gated engine upgrade is
+  rolling out (see [Placing Orders](/trading/placing-orders) for the full
+  list). Once active: `order_type=GTD` on `/v1/clob/order` (and
+  `time_in_force=GTD` on `/v1/orders`) becomes a true Good-Til-Date —
+  the order carries a unix-seconds `expiration`, the matching engine skips
+  and auto-cancels it once the timestamp passes (the cancelled row carries
+  `cancelled_reason: "gtd_expired"`), and an expiration in the past is
+  rejected at placement with `INVALID_ORDER_EXPIRATION`. Both endpoints
+  also gain Polymarket's `post_only` option (reject-if-marketable).
+  Watch the [changelog](/changelog) for activation.
+</Note>
+
+---
+
+## List Orders
+
+```
+GET /v1/orders
+```
+
+Returns orders from two internal data sources merged into a single stream:
+- **Pending limit orders** — unfilled GTC orders stored in the `pending_orders` table.
+- **Filled / cancelled orders** — executed trades from the `orders` table.
+
+Both types share the same `OrderItem` response shape. Supports offset and cursor-based pagination.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `status` | string | — | Filter: `PENDING`, `FILLED`, `CANCELLED`, `EXPIRED` |
+| `market_id` | string | — | Filter by condition_id |
+| `side` | string | — | Filter: `BUY`, `SELL` |
+| `limit` | int | 50 | Max results (1–200) |
+| `offset` | int | 0 | Pagination offset (ignored when `cursor` is set) |
+| `cursor` | string | — | ISO-8601 timestamp for cursor pagination (preferred for bots) |
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `order_id` | int | Unique order identifier |
+| `market_id` | string | Market condition_id |
+| `side` | string | `BUY` or `SELL` |
+| `outcome` | string | Outcome label (e.g. `Yes`, `No`) |
+| `order_type` | string | `market` or `limit` |
+| `limit_price` | string \| null | Limit order price (null for market orders) |
+| `quantity` | string | Order size in shares |
+| `time_in_force` | string | `GTC`, `FOK`, or `IOC`. A `FAK` order is normalised server-side, so it surfaces here as `IOC`. With the PM-semantics rollout, `GTD` also appears here for date-expiring resting limits. |
+| `status` | string | `PENDING`, `FILLED`, `CANCELLED`, or `EXPIRED` (PolySimulator-native enum). See the [order-status table](/bots/error-handling#order-status-values). PM-SDK ports read the `ORDER_STATUS_*` enum from `GET /v1/data/orders`. |
+| `client_order_id` | string \| null | Your idempotency key |
+| `created_at` | string | ISO-8601 creation timestamp |
+| `filled_at` | string \| null | ISO-8601 fill timestamp (null if unfilled) |
+| `fill_price` | string \| null | Execution price (null if unfilled) |
+| `cancelled_at` | string \| null | ISO-8601 cancellation timestamp |
+
+### Examples
+
+<CodeGroup>
+```bash Offset Pagination
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/orders?status=PENDING&limit=20&offset=0"
+```
+
+```bash Cursor Pagination
+# Use next_cursor from the previous response — since 2026-06-11 it is
+# urlsafe-base64 (URL-safe by construction; no percent-encoding needed)
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/orders?limit=20&cursor=MjAyNi0wMi0wNlQxMjowMDowMCswMDowMA"
+```
+
+```python Python (paginate all)
+import requests
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+headers = {"X-API-Key": API_KEY}
+
+all_orders = []
+cursor = None
+
+while True:
+    params = {"limit": 50}
+    if cursor:
+        params["cursor"] = cursor
+    resp = requests.get(f"{BASE}/orders", headers=headers, params=params)
+    data = resp.json()
+    all_orders.extend(data["orders"])
+    if not data["has_more"]:
+        break
+    cursor = data["next_cursor"]
+
+print(f"Fetched {len(all_orders)} orders")
+```
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "orders": [
+    {
+      "order_id": 15,
+      "market_id": "0x1a2b3c...",
+      "side": "BUY",
+      "outcome": "Yes",
+      "order_type": "limit",
+      "limit_price": "0.60",
+      "quantity": "10.0",
+      "time_in_force": "GTC",
+      "status": "PENDING",
+      "client_order_id": "limit-001",
+      "created_at": "2026-02-06T12:00:00+00:00",
+      "filled_at": null,
+      "fill_price": null,
+      "cancelled_at": null
+    }
+  ],
+  "next_cursor": "MjAyNi0wMi0wNlQxMTo1NTowMCswMDowMA",
+  "has_more": true,
+  "total_hint": 137
+}
+```
+
+The envelope is `{orders, has_more, next_cursor, total_hint}`. `total_hint`
+is an approximate count of matching orders for progress display — treat it
+as a hint, not an exact total, and rely on `has_more` / `next_cursor` to
+iterate.
+
+<Tip>
+  **Use cursor-based pagination for bots.** Treat the cursor as **opaque**
+  (since 2026-06-11 it is urlsafe-base64 wrapping the last item's
+  `created_at` — every character is URL-safe, so naive string
+  interpolation round-trips correctly; the legacy raw-ISO form is still
+  accepted on the way in). Cursoring avoids page drift when new orders
+  arrive between requests. Pass the `next_cursor` value from the previous
+  response back as the `cursor` (or `next_cursor`) parameter.
+</Tip>
+
+---
+
+## Cancel Order
+
+```
+DELETE /v1/orders/{order_id}
+```
+
+Cancel a pending limit order. Only `PENDING` orders can be cancelled.
+
+```bash
+curl -X DELETE -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/orders/42
+```
+
+### Response
+
+```json
+{
+  "order_id": 42,
+  "status": "CANCELLED",
+  "order_type": "limit",
+  "side": "BUY",
+  "outcome": "Yes",
+  "price": "0.60",
+  "quantity": "10.0",
+  "notional": "6.00",
+  "fee": "0"
+}
+```
+
+**Cancellation returns reserved funds:**
+- **BUY orders**: Reserved cash is returned to your balance
+- **SELL orders**: Reserved shares are returned to your position
+
+---
+
+## Cancel All Orders
+
+```
+POST   /v1/cancel-all
+DELETE /v1/cancel-all   (deprecated alias)
+```
+
+Cancel **every** pending limit order for your account in one call. `POST` is
+the canonical verb; `DELETE` is a back-compat alias kept live for SDKs that
+adopted the earlier shape (it returns `X-Deprecation` / `Sunset` headers).
+
+<Warning>
+  **Confirmation is required** to prevent accidental wipeouts. Pass either
+  `?confirm=true` (query parameter) **or** the `X-Confirm-Cancel-All: true`
+  header. Without one, the call is rejected with `400 CONFIRMATION_REQUIRED`
+  and no orders are touched. To cancel a single order use
+  `DELETE /v1/orders/{order_id}`; to cancel by market use
+  `DELETE /v1/cancel-market-orders`.
+</Warning>
+
+```bash
+curl -X POST "https://api.polysimulator.com/v1/cancel-all?confirm=true" \
+  -H "X-API-Key: $API_KEY"
+```
+
+The response matches Polymarket's cancel shape — `canceled` is a list of
+order-id strings, `not_canceled` maps each skipped order-id to the reason:
+
+```json
+{
+  "canceled": ["42", "43", "44"],
+  "not_canceled": {}
+}
+```
+
+This is the same cancel-all logic the
+[heartbeat dead-man's-switch](/trading/heartbeats) delegates to when a bot
+stops sending heartbeats.
+
+---
+
+## Next Steps
+
+- [Batch Orders](/trading/batch-orders) — Place multiple orders at once
+- [Trade History](/account/trade-history) — View filled orders

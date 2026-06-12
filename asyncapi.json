@@ -1,0 +1,667 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "PolySimulator WebSocket API",
+    "version": "1.0.0",
+    "description": "Real-time price feeds and trade execution notifications via WebSocket."
+  },
+  "servers": {
+    "production": {
+      "host": "api.polysimulator.com",
+      "protocol": "wss",
+      "description": "Production WebSocket server"
+    },
+    "local": {
+      "host": "localhost:8000",
+      "protocol": "ws",
+      "description": "Local development server"
+    }
+  },
+  "channels": {
+    "prices": {
+      "address": "/v1/ws/prices",
+      "description": "Real-time market price updates. Connect with a short-lived token from POST /v1/keys/ws-token.",
+      "parameters": {
+        "token": {
+          "description": "Authentication token from POST /v1/keys/ws-token"
+        }
+      },
+      "messages": {
+        "subscribe": {
+          "$ref": "#/components/messages/SubscribeRequest"
+        },
+        "unsubscribe": {
+          "$ref": "#/components/messages/UnsubscribeRequest"
+        },
+        "priceUpdate": {
+          "$ref": "#/components/messages/PriceUpdate"
+        },
+        "ping": {
+          "$ref": "#/components/messages/Ping"
+        },
+        "pong": {
+          "$ref": "#/components/messages/Pong"
+        }
+      }
+    },
+    "executions": {
+      "address": "/v1/ws/executions",
+      "description": "Real-time trade execution (fill) notifications. Connect with a short-lived token from POST /v1/keys/ws-token.",
+      "parameters": {
+        "token": {
+          "description": "Authentication token from POST /v1/keys/ws-token"
+        }
+      },
+      "messages": {
+        "execution": {
+          "$ref": "#/components/messages/ExecutionUpdate"
+        }
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "SubscribeRequest": {
+        "name": "subscribe",
+        "summary": "Subscribe to price updates for specific markets",
+        "payload": {
+          "type": "object",
+          "required": [
+            "action",
+            "markets"
+          ],
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "subscribe"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of condition IDs to subscribe to (max 50)"
+            }
+          }
+        }
+      },
+      "UnsubscribeRequest": {
+        "name": "unsubscribe",
+        "summary": "Unsubscribe from specific markets",
+        "payload": {
+          "type": "object",
+          "required": [
+            "action",
+            "markets"
+          ],
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "unsubscribe"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "PriceUpdate": {
+        "name": "price",
+        "summary": "Real-time price change for a subscribed market",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "price"
+            },
+            "market_id": {
+              "type": "string",
+              "description": "Condition ID"
+            },
+            "buy": {
+              "type": "string",
+              "description": "Yes outcome price (0-1)"
+            },
+            "sell": {
+              "type": "string",
+              "description": "No outcome price (0-1)"
+            },
+            "best_bid": {
+              "type": "string"
+            },
+            "best_ask": {
+              "type": "string"
+            },
+            "volume": {
+              "type": "string",
+              "description": "24h trading volume"
+            },
+            "source": {
+              "type": "string"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "Ping": {
+        "name": "ping",
+        "summary": "Client heartbeat to keep connection alive",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "const": "ping"
+            }
+          }
+        }
+      },
+      "Pong": {
+        "name": "pong",
+        "summary": "Server heartbeat response",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pong"
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "ExecutionUpdate": {
+        "name": "execution",
+        "summary": "Trade fill notification sent when an order is executed",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "execution"
+            },
+            "order_id": {
+              "type": "string"
+            },
+            "market_id": {
+              "type": "string"
+            },
+            "side": {
+              "type": "string",
+              "enum": [
+                "BUY",
+                "SELL"
+              ]
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "quantity": {
+              "type": "string",
+              "description": "Filled quantity (string numeric)"
+            },
+            "price": {
+              "type": "string",
+              "description": "Execution price (string numeric)"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "FILLED",
+                "PARTIALLY_FILLED"
+              ]
+            },
+            "timestamp": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "PartnerSubscribe": {
+        "name": "subscribe",
+        "summary": "Subscribe to one or more governed accounts (tenant-scoped).",
+        "payload": {
+          "type": "object",
+          "required": [
+            "op"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "subscribe"
+            },
+            "accounts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "description": "Account UUIDs to subscribe to (max 200/connection). Omit when 'all' is true."
+            },
+            "all": {
+              "type": "boolean",
+              "description": "Subscribe to every account under your tenant. Mutually exclusive with 'accounts'."
+            }
+          }
+        }
+      },
+      "PartnerUnsubscribe": {
+        "name": "unsubscribe",
+        "summary": "Stop streaming the given accounts.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "op",
+            "accounts"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "unsubscribe"
+            },
+            "accounts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        }
+      },
+      "PartnerPing": {
+        "name": "ping",
+        "summary": "Client liveness ping.",
+        "payload": {
+          "type": "object",
+          "required": [
+            "op"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "const": "ping"
+            }
+          }
+        }
+      },
+      "PartnerPong": {
+        "name": "pong",
+        "summary": "Server pong response.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pong"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "PartnerConnected": {
+        "name": "connected",
+        "summary": "Sent once on a successful upgrade, before any subscription.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "connected"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "tenant": {
+              "type": "string",
+              "description": "Your tenant slug."
+            },
+            "protocol_version": {
+              "type": "string",
+              "const": "1.0"
+            }
+          }
+        }
+      },
+      "PartnerSubscribed": {
+        "name": "subscribed",
+        "summary": "Acknowledges the current subscription set after a subscribe/unsubscribe op.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "subscribed"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "accounts": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "description": "The full set of accounts currently subscribed on this connection."
+            }
+          }
+        }
+      },
+      "PartnerSnapshot": {
+        "name": "snapshot",
+        "summary": "Full account state. Emitted on subscribe, on the 60s drift re-sync, and after a lifecycle change.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "snapshot"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "account_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "seq": {
+              "type": "integer",
+              "description": "Per-account monotonic sequence (per connection; resets on reconnect)."
+            },
+            "equity": {
+              "type": "string",
+              "description": "balance + sum(open position market value), string numeric."
+            },
+            "balance": {
+              "type": "string"
+            },
+            "upnl": {
+              "type": "string",
+              "description": "equity - starting_balance."
+            },
+            "open_value": {
+              "type": "string",
+              "description": "equity - balance."
+            },
+            "positions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "market_id": {
+                    "type": "string"
+                  },
+                  "outcome": {
+                    "type": "string"
+                  },
+                  "qty": {
+                    "type": "string"
+                  },
+                  "avg_entry_price": {
+                    "type": "string"
+                  },
+                  "mark": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Current mark; null if no cached price (equity falls back to entry)."
+                  },
+                  "upnl": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PartnerEquity": {
+        "name": "equity",
+        "summary": "Equity tick (every 1-2s). Emitted ONLY when equity changed vs the last sent value after cents-quantize.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "equity"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "account_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "equity": {
+              "type": "string"
+            },
+            "balance": {
+              "type": "string"
+            },
+            "upnl": {
+              "type": "string"
+            },
+            "open_value": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartnerTrade": {
+        "name": "trade",
+        "summary": "A new fill, detected by the watermark poll within one tick (<=2s).",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "trade"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "account_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "order_id": {
+              "type": "integer"
+            },
+            "client_order_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "side": {
+              "type": "string",
+              "enum": [
+                "BUY",
+                "SELL"
+              ]
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "market_id": {
+              "type": "string"
+            },
+            "qty": {
+              "type": "string"
+            },
+            "price": {
+              "type": "string"
+            },
+            "fee": {
+              "type": "string"
+            },
+            "notional": {
+              "type": "string"
+            },
+            "filled_at": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "PartnerPositionUpdate": {
+        "name": "position_update",
+        "summary": "A position whose qty/status changed (emitted alongside the trade that moved it).",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "position_update"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "account_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "market_id": {
+              "type": "string"
+            },
+            "outcome": {
+              "type": "string"
+            },
+            "qty": {
+              "type": "string"
+            },
+            "avg_entry_price": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PartnerAccountLifecycle": {
+        "name": "account_lifecycle",
+        "summary": "An account lifecycle transition (close/reset/freeze), detected via the backing wallet's status change.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "account_lifecycle"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "account_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "seq": {
+              "type": "integer"
+            },
+            "event": {
+              "type": "string",
+              "enum": [
+                "closed",
+                "reset",
+                "frozen"
+              ]
+            }
+          }
+        }
+      },
+      "PartnerHeartbeat": {
+        "name": "heartbeat",
+        "summary": "Sent on idle connections (~every 15s) to keep the socket alive.",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "heartbeat"
+            },
+            "ts": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      },
+      "PartnerError": {
+        "name": "error",
+        "summary": "A non-fatal error frame (the connection stays open unless NOT_YOUR_TENANT).",
+        "payload": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "error"
+            },
+            "code": {
+              "type": "string",
+              "enum": [
+                "UNKNOWN_ACCOUNT",
+                "ACCOUNT_LIMIT",
+                "RATE_LIMIT",
+                "BAD_REQUEST",
+                "BAD_JSON",
+                "UNKNOWN_OP"
+              ]
+            },
+            "message": {
+              "type": "string"
+            },
+            "account_id": {
+              "type": "string",
+              "description": "Present on UNKNOWN_ACCOUNT (echoes the rejected id)."
+            }
+          }
+        }
+      }
+    }
+  }
+}

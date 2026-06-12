@@ -1,0 +1,239 @@
+---
+title: "Changelog"
+description: "API and documentation changes, including breaking changes shipped during the beta."
+icon: "clock-rotate-left"
+---
+
+<Note>
+**Beta notice.** During the closed beta, breaking changes may ship with little or no
+advance notice — this page is the authoritative record. Pin your integration to the
+behaviors documented here and re-check after the dates listed. A formal versioning
+and deprecation policy will be published when the API leaves beta.
+</Note>
+
+## 2026-06-11 — Realistic book impact + maker price fidelity (rolling out)
+
+Two further matching-engine fidelity upgrades, **flag-dependent** — they ship
+behind the same deployment flag as the "PM-faithful order semantics" entry
+below and activate together (announced here). Until activation, the legacy
+behaviors remain in force.
+
+- **Book-impact depletion.** Limit-order fills now consume the displayed
+  liquidity they walk. Within one upstream order-book snapshot, size already
+  consumed at a price level by limit executions (your fills or anyone
+  else's) is not offered again: the depth walk subtracts prior consumption
+  before pricing, so repeated orders walk to worse levels within your
+  limit, partial-fill, or (FOK) kill — instead of repeatedly buying the
+  same displayed shares while the snapshot stayed cached. A fresh upstream
+  snapshot supersedes the synthetic depletion (real book truth wins; the
+  safety TTL is sized to outlive the snapshot cache window). Applies to
+  both resting-limit matching and immediate FOK/FAK/IOC execution.
+  **Market-order fills don't yet feed or read the depletion overlay** —
+  that path re-resolves fresher books per request; wiring it into the same
+  overlay is a documented follow-up. Simulated fills still never move the
+  *displayed* book or midpoint — depletion is execution-side only.
+  *Legacy: the same displayed level was re-buyable every cycle.*
+- **Resting maker orders fill at their limit price.** Polymarket's
+  maker/taker rule — price improvement always benefits the taker. A resting
+  GTC/GTD limit the market later crosses now executes at the maker's own
+  limit price (for BUYs the reserve equals the spend — zero refund delta;
+  maker fee remains \$0). Marketable orders (FOK/FAK/IOC and limits that
+  cross at placement) are takers and keep their depth-walk price
+  improvement, exactly as before. *Legacy: resting orders filled at the
+  later touch/VWAP price — systematically better than the maker's own
+  limit, which inflated PnL.*
+
+## 2026-06-11 — PM-compat P1 batch (pagination, status enums, prices-history, neg-risk, cursors, full book, WS fills)
+
+The second wire-parity wave, driven by the 2026-06-10 API evaluation's confirmed
+P1 findings. Every item below was verified against live `clob.polymarket.com`
+probes and/or Polymarket's API reference before changing.
+
+### Breaking changes
+
+- **`GET /v1/data/orders` status enum now uses Polymarket's exact members.**
+  `ORDER_STATUS_LIVE` (was the invented `ORDER_STATUS_PENDING`),
+  `ORDER_STATUS_MATCHED` (was `ORDER_STATUS_FILLED`), `ORDER_STATUS_CANCELED`
+  — single L, per PM — (was `ORDER_STATUS_CANCELLED`), `ORDER_STATUS_INVALID`
+  (was `ORDER_STATUS_REJECTED`). Bots string-matching the old values must
+  update; the `?status=` filter accepts both spellings.
+- **`GET /v1/data/orders` defaults to OPEN orders only** — matching PM
+  ("Retrieves open orders for the authenticated user"). History is an explicit
+  opt-in via the new polysim-extension `?status=` param
+  (`ORDER_STATUS_MATCHED`, `ORDER_STATUS_CANCELED`, `ALL`, friendly aliases).
+  Previously every status came back, so open-order counts and cancel-all
+  sweeps operated on dead rows.
+- **`GET /v1/prices-history` returns PM's exact shape by default**:
+  `{"history": [{"t": <unix int>, "p": <float>}]}` — `p` is a JSON number
+  here, mirroring PM's wire. The old default (a bare array of
+  `{t, o, h, l, c}` string points) remains available via `?format=ohlcv`.
+  The endpoint also accepts PM's required `?market=` param (token id;
+  `?token_id=` stays as an alias), supports `startTs`/`endTs`/`fidelity` and
+  PM's full interval enum (`1h/6h/1d/1w/1m/max/all`), and 400s (not 422s)
+  with PM's verbatim message when `market` is missing.
+- **`GET /v1/orders` `next_cursor` is now urlsafe-base64.** The raw ISO form
+  contained `+`, which broke un-percent-encoded round-trips with a 400.
+  Treat cursors as opaque; legacy raw-ISO (and the `+`-mangled-to-space
+  form) are still accepted on the way in.
+- **`GET /v1/markets?envelope=true` cursors are now PM-format and actually
+  round-trip.** `next_cursor` is a base64-encoded offset (`"NTA="` = 50) with
+  PM's `"LTE="` terminal sentinel (was a raw int string + `""` terminal that
+  NO query param accepted — PM-style paginators looped on page 1 forever).
+  Pass it back via `?next_cursor=` or `?cursor=`; raw int offsets are still
+  accepted on the way in.
+- **Order-book endpoints return the FULL book by default** (`/v1/book`,
+  `/v1/clob/book/{token_id}`, `/v1/markets/{condition_id}/book`,
+  `POST /v1/books`) — PM's wire contract (PM has no depth param; we measured
+  PM 96/113 levels where polysim silently returned 10/10). `?depth=N` remains
+  as an explicit best-N trim, cap raised from 50 to 500.
+- **`before`/`after` filters on `/v1/data/orders` + `/v1/data/trades` take
+  unix-seconds timestamps** (PM convention). Unparseable values now return
+  400 `INVALID_TIME_FILTER` instead of being silently dropped (which returned
+  the full unfiltered set). ISO datetimes remain accepted as a polysim extra.
+
+### Fixes
+
+- **Pagination request param `next_cursor` honored** on `/v1/data/orders`,
+  `/v1/data/trades`, `/v1/orders` and `/v1/markets?envelope=true` —
+  py-clob-client sends the cursor back under this name; it was silently
+  ignored, so `get_orders()` / `get_trades()` refetched page 1 forever. The
+  SDK's `MA==` initial seed and `LTE=` terminal sentinel now behave exactly
+  as on real PM. `cursor` remains an accepted alias everywhere.
+- **`/v1/data/orders` `asset_id` filter implemented** (was accepted and
+  ignored): resolves the token to its market+outcome and filters both;
+  unknown tokens short-circuit to an empty terminal envelope.
+- **`GET /v1/neg-risk` reports the market's real flag** (was hardcoded
+  `false`, contradicting both real PM and polysim's own `/v1/book` for the
+  same token). Source is the upstream book payload with cached-book and
+  catalog fallbacks; unknown tokens get PM's verbatim
+  `404 {"error": "market not found"}`. Sim execution semantics are unchanged
+  for neg-risk markets — the flag is for routing/branching parity.
+- **`GET /v1/balance-allowance` emits PM's keys**: `balance` / `allowance`
+  (base-unit strings, 1.00 USDC = `"1000000"`) so `resp["balance"]` no longer
+  KeyErrors in ported SDK code. The legacy `collateral` / `conditional` keys
+  remain as extras. `asset_type` / `token_id` / `signature_type` are now
+  declared query params. The values stay "effectively unlimited" sentinels —
+  read `GET /v1/account/balance` for real sizing.
+
+### New
+
+- **`WS /v1/ws/user` now pushes PM-shape `trade` frames when your orders
+  fill** on a subscribed market (`event_type: "trade"`, `type: "TRADE"`,
+  `status: "MATCHED"`, unix-string timestamps — PM's documented user-channel
+  trade message). Divergences: paper trades terminate at `MATCHED` (no
+  `MINED`/`CONFIRMED` — no chain), `maker_orders` is empty, and
+  `owner`/`trade_owner` are empty strings. PM's `order`
+  placement/update/cancel events are still not emitted — poll
+  `GET /v1/data/orders`, or use the polysim-native `/v1/ws/executions`.
+
+## 2026-06-11 — PM-faithful order semantics (rolling out)
+
+The matching-engine fidelity fast-follows announced on 2026-06-10 are
+implemented and **rolling out behind a deployment flag**. Until the rollout
+activates (announced here), the legacy behaviors below remain in force;
+once active, the engine matches real Polymarket on all five:
+
+- **FAK/IOC partial fills.** Synchronous IOC/FAK limit orders walk the
+  displayed order-book depth within your limit, fill what's available at the
+  level-by-level VWAP, and cancel the remainder. A partial fill returns
+  `status: "FILLED"` (PM-compat surfaces map it to `matched`) with `quantity`
+  set to the filled slice and a `partial_fill:filled=…,requested=…` entry in
+  `warnings`. *Legacy: atomic — full quantity at the touch price or cancel.*
+- **FOK depth-aware atomicity.** FOK computes the fillable quantity within
+  your limit across book levels first: fills entirely (at the walked VWAP)
+  iff depth covers your size, else kills cleanly. *Legacy: full-size fill at
+  the touch price whenever the top of book crossed, regardless of depth.*
+- **GTD auto-expiry.** `time_in_force=GTD` on `POST /v1/orders`,
+  `order_type=GTD` on `/v1/clob/order`, and `orderType=GTD` on the PM-shape
+  `POST /v1/order` become true Good-Til-Date resting limits: the engine
+  skips and auto-cancels them once their unix-seconds `expiration` passes
+  (cancelled rows carry `cancelled_reason: "gtd_expired"`; reservations are
+  refunded). Expired-at-placement → `400 INVALID_ORDER_EXPIRATION`.
+  *Legacy: GTD coerced to GTC (and rejected on native `/v1/orders`).*
+- **post-only.** New `post_only` field (PM-shape: top-level `postOnly`):
+  guaranteed-maker orders rejected with `400 INVALID_POST_ONLY_ORDER`
+  (`X-Polysim-Code: POST_ONLY_WOULD_CROSS`) when marketable at placement;
+  `400 INVALID_POST_ONLY_ORDER_TYPE` when combined with FOK/FAK/IOC/market.
+  GTC/GTD limits only. *Legacy: field accepted but ignored.*
+- **Minimum order size.** The per-market `min_order_size` that `GET /v1/book`
+  advertises (5 shares on standard binary markets, 1 on ≤0.001-tick markets)
+  is enforced at placement: `400 INVALID_ORDER_MIN_SIZE`
+  (`X-Polysim-Code: ORDER_BELOW_MIN_SIZE`). Note this applies to SELL too —
+  like real Polymarket, a sub-minimum residual position can't be exited via
+  a below-minimum order. *Legacy: any size > 0.0001 shares accepted.*
+
+New request fields (`expiration`, `post_only`) are accepted today on
+`POST /v1/orders`, `POST /v1/clob/order`, and the PM-shape `POST /v1/order` /
+batch; they are advisory no-ops until the rollout activates. The activation
+will be announced in this changelog.
+
+## 2026-06-10 — Polymarket wire-parity wave
+
+A coordinated set of fixes aligning the API with Polymarket's **live wire behavior**
+(verified against `clob.polymarket.com`, not just Polymarket's docs — the two
+disagree in places), plus truthful fee reporting and wallet scoping.
+
+### Breaking changes
+
+- **`GET /v1/price` side semantics flipped.** `side=BUY` now returns the best **bid**
+  (your side of the book) and `side=SELL` the best **ask** — matching Polymarket's
+  live wire and its API reference. Previously the values were inverted. Quotes return
+  your side of the book; *executions* still cross the spread (market BUY fills at the
+  best ask) — same convention as Polymarket.
+- **`GET /v1/book` level ordering re-sorted to Polymarket's live wire.** `bids` are
+  ASCENDING and `asks` DESCENDING by price — the **best price is the LAST element on
+  both sides** (`bids[-1]` / `asks[-1]`), byte-compatible with real
+  `clob.polymarket.com/book` responses. Recommendation: read the inside market
+  order-independently (max bid price / min ask price) so ordering can never bite you.
+  Applies to `/v1/book`, `/v1/clob/book/{token_id}`, `POST /v1/books`, and
+  `/v1/markets/{condition_id}/book`.
+- **Account reads default to the API wallet.** `GET /v1/account/positions`,
+  `/history`, and `/profile-analysis` previously returned rows from ALL your wallets
+  (including website MAIN/SANDBOX wallets) when `wallet_id` was omitted. The default
+  is now your **API wallet**, consistent with `/balance`, `/portfolio`, and
+  `/equity`. Pass `wallet_id=all` for the old behavior, `wallet_id=<id>` for a
+  specific wallet. The `all`/`api` keywords work on all five account-read endpoints.
+
+### Fees — now reported truthfully
+
+The engine has always charged Polymarket-V2 per-category taker fees; the reporting
+surfaces wrongly claimed zero. Now:
+
+- `GET /v1/fee-rate` returns `{"base_fee": 0|1000, "fee_rate_bps": <effective rate>}`.
+  `base_fee` mirrors Polymarket's legacy base-fee parameter (observed: flat `1000` on
+  fee-charging markets, `0` on fee-free ones); **`fee_rate_bps` is the effective
+  per-category taker rate actually charged** (sports 300, finance/politics/mentions/tech
+  400, economics/culture/weather/other 500, crypto 700, geopolitics 0).
+- The crypto taker rate was corrected from 7.2% to **7.0%** (Polymarket's published
+  rate). Fills before 2026-06-10 may have been charged at 7.2%.
+- `GET /v1/data/trades` rows now carry the real `fee_rate_bps` (0 for maker fills).
+- Maker/taker classification now follows **marketability at placement**: a limit
+  order that crosses the book when placed pays the taker fee even though it fills via
+  the ~1s matching cycle; resting orders that fill later remain fee-free makers, and
+  the resting remainder of a partial fill is treated as maker. See
+  [Trading Fees](/trading/fees) for the schedule and formula.
+
+### Fixes
+
+- Candle intervals documented correctly: `1h/6h/1d/1w/max` (sub-hour intervals are
+  not yet available; unknown values return `400 INVALID_INTERVAL`).
+- FAK/IOC behavior documented honestly: currently **atomic** (full fill at the touch
+  price or cancel) — Polymarket-style partial-fill-then-cancel is a planned
+  fast-follow and will be announced here.
+- `llms.txt` corrected across both hosts (error codes, bootstrap permissions,
+  book-ordering parity claims, fee schedule).
+
+### Coming soon
+
+- Official Python SDK (PyPI). Until then the API is plain REST — see the
+  [Quickstart](/quickstart).
+- Matching-engine fidelity fast-follows: GTD auto-expiry, post-only, per-market
+  minimum order size, FAK partial fills. *Update 2026-06-11: implemented and
+  rolling out — see the entry above.*
+
+## 2026-06-09 and earlier
+
+The beta API surface was assembled and hardened through internal audit waves
+(error-envelope consistency, public market-data reads without a key, PM-shape
+compatibility endpoints, rate-limit headers). The 2026-06-10 entries above are the
+first changes shipped after external-facing documentation went live.

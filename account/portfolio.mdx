@@ -1,0 +1,129 @@
+---
+title: "Portfolio"
+sidebarTitle: "Portfolio"
+description: "Complete portfolio snapshot with balance, positions, and aggregate P&L."
+---
+
+# Portfolio
+
+```
+GET /v1/account/portfolio
+```
+
+Returns a complete portfolio snapshot combining balance, positions, and aggregate metrics.
+
+By default this endpoint reports the caller's **API wallet** (baseline Pro:
+$10,000 / Pro+: $25,000), so the nested `balance` object uses API-wallet
+figures — never the $1,000 UI MAIN wallet. `wallet_id` accepts
+`all` / `api` / `<integer id>` (404 `WALLET_NOT_FOUND` for ids you don't
+own) — see [Wallets → Scoping account reads](/account/wallets#scoping-account-reads-to-a-wallet).
+With `wallet_id=all`, positions and trade stats span every wallet you own
+while the `balance` object keeps the API-wallet cash basis (the same
+blended view as Profile Analysis).
+
+---
+
+## Authentication
+
+API key only — `X-API-Key: <key>` (or the PM-compat `POLY_API_KEY` /
+`Authorization: Bearer ps_live_...` aliases). A Supabase Bearer **JWT** is
+**not** accepted here (unlike `GET /v1/account/balance`).
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/account/portfolio
+```
+
+---
+
+## Response
+
+```json
+{
+  "balance": {
+    "balance": "9993.50",
+    "currency": "USD",
+    "unrealized_pnl": "-6.50",
+    "total_value": "10000.50",
+    "starting_balance": "10000.00"
+  },
+  "positions": [
+    {
+      "id": 1,
+      "market_id": "0x1a2b3c...",
+      "outcome": "Yes",
+      "quantity": "10.0",
+      "avg_entry_price": "0.65",
+      "current_price": "0.70",
+      "market_value": "7.00",
+      "unrealized_pnl": "0.50",
+      "status": "OPEN"
+    }
+  ],
+  "total_trades": 5,
+  "win_rate": "60.0%"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `balance` | Nested balance object (see [Balance](/account/balance)) |
+| `positions` | Array of open positions (see [Positions](/account/positions)). Each position's `current_price`, `market_value`, and `unrealized_pnl` are `null` when no live price is cached. |
+| `total_trades` | Total filled orders for the resolved wallet |
+| `win_rate` | Percentage of profitable closed positions (string with `%` suffix), or `null` when no closed positions have a classifiable exit price |
+
+---
+
+## Bot Integration
+
+```python
+import requests, os
+from decimal import Decimal
+
+BASE_URL = os.environ["POLYSIM_BASE_URL"]
+headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+portfolio = requests.get(
+    f"{BASE_URL}/v1/account/portfolio",
+    headers=headers,
+).json()
+
+cash = Decimal(portfolio["balance"]["balance"])
+total = Decimal(portfolio["balance"]["total_value"])
+positions = portfolio["positions"]
+
+print(f"Cash: ${cash} | Total: ${total} | Positions: {len(positions)}")
+if portfolio["win_rate"]:
+    print(f"Win rate: {portfolio['win_rate']}")
+
+# Check if over-allocated
+if total > 0:
+    cash_pct = cash / total * 100
+    if cash_pct < 20:
+        print("Warning: Low cash — consider reducing positions")
+```
+
+---
+
+## Errors
+
+All errors return `{"error": "<CODE>", "message": "<human-readable>"}`.
+
+| Status | `error` code | When |
+|--------|--------------|------|
+| 401 | `MISSING_API_KEY` | No API key header supplied |
+| 401 | `INVALID_KEY` | API key is unknown, deactivated, or expired |
+| 404 | `WALLET_NOT_FOUND` | `wallet_id` is not owned by the caller |
+| 404 | `ACCOUNT_NOT_FOUND` | Authenticated user has no account record |
+| 500 | `INTERNAL_ERROR` | Unexpected server error building the portfolio |
+
+---
+
+## Next Steps
+
+- [Trade History](/account/trade-history) — View filled orders
+- [Equity Curve](/account/equity-curve) — Portfolio value over time

@@ -1,0 +1,21 @@
+# context7.yaml — indexing metadata for https://context7.com
+# Repository: https://github.com/Bavariance/polysimulator-docs
+# Docs site:  https://docs.polysimulator.com
+
+title: PolySimulator API
+description: >
+  Virtual prediction market trading platform with a developer API.
+  Paper-trade with real Polymarket order-book data using simulated balance.
+  Switch to live trading by changing only the API credentials —
+  no code changes required.
+version: "1.0"
+topics:
+  - trading
+  - prediction-markets
+  - REST API
+  - WebSocket
+  - Python
+  - FastAPI
+  - paper-trading
+  - Polymarket
+sourceBaseUrl: https://docs.polysimulator.com

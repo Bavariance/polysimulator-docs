@@ -1,0 +1,151 @@
+---
+title: "Order Book"
+sidebarTitle: "Order Book"
+description: "Access L2 order book depth from Polymarket's CLOB for any market."
+---
+
+# Order Book
+
+```
+GET /v1/markets/{condition_id}/book
+```
+
+Returns the CLOB L2 order book snapshot for a market's primary token.
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets/0x1a2b3c/book?outcome=Yes&depth=5"
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `outcome` | string | — | Filter by outcome label (e.g. `Yes`, `No`) |
+| `depth` | int | full book | Optional trim: keep only the best N levels per side (max 500). Omitted = the FULL book — Polymarket's wire contract. Before 2026-06-11 the default silently truncated to 10 levels. |
+
+---
+
+## Response
+
+```json
+{
+  "token_id": "71321...",
+  "market": "0x1a2b3c...",
+  "asset_id": "71321...",
+  "hash": "0x9f4c...",
+  "bids": [
+    {"price": "0.62", "size": "3000.0"},
+    {"price": "0.63", "size": "1200.0"},
+    {"price": "0.64", "size": "500.0"}
+  ],
+  "asks": [
+    {"price": "0.68", "size": "2500.0"},
+    {"price": "0.67", "size": "800.0"},
+    {"price": "0.66", "size": "400.0"}
+  ],
+  "min_order_size": "5",
+  "tick_size": "0.01",
+  "neg_risk": false,
+  "last_trade_price": "0.65",
+  "mid": "0.65",
+  "spread": "0.02",
+  "timestamp": "2026-02-06T12:00:45Z"
+}
+```
+
+In the example above the **best bid is `0.64` — the LAST `bids` entry (`bids[-1]`)** — and the
+**best ask is `0.66` — the LAST `asks` entry (`asks[-1]`)**. The best level is at the **tail**
+on both sides, byte-identical to Polymarket's live `/book` wire. For safety, read
+order-independently — see the warning below.
+
+---
+
+## Understanding the Book
+
+| Field | Description |
+|-------|-------------|
+| `token_id` | The CLOB outcome token (asset) the book is for. |
+| `market` | The market's `condition_id`. PM-compat alias — the SDK reads this to associate the book with a market. |
+| `asset_id` | Same value as `token_id`. PM uses `asset_id` as the canonical book key, so `py-clob-client`-ported code reads this name. |
+| `hash` | Order-book hash for change detection (PM convention). Compare across snapshots to detect whether the book moved without diffing every level. |
+| `bids` | Buy orders sorted by price **ascending** — **best (highest) bid is `bids[-1]`** (the last element), worst bid first. This is byte-identical to what the real Polymarket CLOB `/book` returns on the wire, so SDKs ported from `py-clob-client` read the same index. |
+| `asks` | Sell orders sorted by price **descending** — **best (lowest) ask is `asks[-1]`** (the last element), worst ask first. |
+| `min_order_size` | Minimum orderable shares for this market (string). |
+| `tick_size` | Price quantum as a **string** (e.g. `"0.01"`). `py-clob-client` reads this to quantize limit prices client-side. (Note: the standalone [`GET /v1/tick-size/{token_id}`](/concepts/pm-raw-http) endpoint returns the tick as a JSON **number**; here, inside the book, it is a string — see [String Numerics](/concepts/string-numerics).) |
+| `neg_risk` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
+| `last_trade_price` | The most recent trade price for this token (string), or `null` if no trades yet. |
+| `mid` | Average of best bid and best ask |
+| `spread` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
+| `stale` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
+| `price` | Price level (inside a `bids`/`asks` entry) |
+| `size` | Total shares available at that price |
+
+<Warning>
+  **Recommended: read the inside market order-independently, not by index.**
+  Bids are sorted **ascending** (best/highest bid last, `bids[-1]`) and asks
+  **descending** (best/lowest ask last, `asks[-1]`) — the best of each side is
+  the **last** element, byte-identical to what Polymarket's live CLOB `/book`
+  returns on the wire. Rather than indexing a fixed position, compute the best
+  bid as the max bid price and the best ask as the min ask price. **Coerce the
+  price to a number first** — prices are JSON strings, and
+  `max(b["price"] for b in bids)` compares them lexicographically, where
+  `"0.9" > "0.10"` is `True` (wrong). Use
+  `max(float(b["price"]) for b in bids)` /
+  `min(float(a["price"]) for a in asks)` (or `Decimal` for exactness). This
+  stays correct regardless of array order. The ordering above is verified
+  against the live `clob.polymarket.com/book` wire (2026-06-10).
+</Warning>
+
+<Note>
+  **Migration (2026-06-10): book level ordering changed to Polymarket
+  live-wire parity.** Levels are now **bids ascending (best = `bids[-1]`),
+  asks descending (best = `asks[-1]`)** — best at the tail on both sides,
+  byte-identical to the real `clob.polymarket.com/book` wire. A brief earlier
+  build (2026-06-10 AM) emitted bids descending / asks ascending (best at
+  `[0]`) to match Polymarket's *published docs*; the docs contradict the live
+  wire, so that ordering was the exact opposite of the wire on both sides. If
+  your integration hard-coded `bids[0]` / `asks[0]` for the inside market,
+  switch to the order-independent `max`/`min` reads above — they survive this
+  and any future wire-format change.
+</Note>
+
+### Liquidity Assessment
+
+```python
+from decimal import Decimal
+
+book = api.get_order_book("0x1a2b3c...")
+
+# Calculate total bid liquidity
+bid_liquidity = sum(
+    Decimal(level["size"]) for level in book["bids"]
+)
+
+# Calculate total ask liquidity
+ask_liquidity = sum(
+    Decimal(level["size"]) for level in book["asks"]
+)
+
+spread = Decimal(book["spread"])
+
+print(f"Spread: {spread}")
+print(f"Bid depth: {bid_liquidity} shares")
+print(f"Ask depth: {ask_liquidity} shares")
+```
+
+<Tip>
+  **Check the book before large orders.** If your order size exceeds the
+  top-of-book liquidity, you'll walk through multiple price levels and
+  experience slippage. Use [slippage protection](/trading/slippage-protection)
+  to guard against this.
+</Tip>
+
+---
+
+## Next Steps
+
+- [Markets](/market-data/markets) — Browse available markets
+- [Placing Orders](/trading/placing-orders) — Trade with real book depth

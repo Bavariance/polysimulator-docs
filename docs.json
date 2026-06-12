@@ -1,0 +1,451 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "PolySimulator",
+  "description": "Virtual prediction market trading API — practice with real Polymarket data, go live with one config change.",
+  "colors": {
+    "primary": "#00d26a",
+    "light": "#e6fff2",
+    "dark": "#0a0f1c"
+  },
+  "logo": {
+    "light": "/logo/polysim-light.svg",
+    "dark": "/logo/polysim-dark.svg",
+    "href": "https://polysimulator.com"
+  },
+  "favicon": "/favicon.svg",
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://polysimulator.com/markets"
+      },
+      {
+        "label": "GitHub",
+        "href": "https://github.com/Bavariance/polysimulator-docs"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get API Key",
+      "href": "https://polysimulator.com/profile"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "icon": "book",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "icon": "rocket",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication",
+              "changelog",
+              "ai-assistants"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "icon": "lightbulb",
+            "pages": [
+              "concepts/api-keys",
+              "concepts/rate-limits",
+              "concepts/string-numerics",
+              "concepts/clob-compatibility",
+              "concepts/pm-raw-http"
+            ]
+          },
+          {
+            "group": "Trading Guide",
+            "icon": "chart-line",
+            "pages": [
+              "trading/placing-orders",
+              "trading/order-management",
+              "trading/batch-orders",
+              "trading/slippage-protection",
+              "trading/fees",
+              "trading/heartbeats",
+              "trading/execution-internals"
+            ]
+          },
+          {
+            "group": "Market Data",
+            "icon": "chart-bar",
+            "pages": [
+              "market-data/markets",
+              "market-data/events",
+              "market-data/updown-markets",
+              "market-data/order-book",
+              "market-data/price-candles",
+              "market-data/batch-prices"
+            ]
+          },
+          {
+            "group": "Account & Portfolio",
+            "icon": "wallet",
+            "pages": [
+              "account/wallets",
+              "account/balance",
+              "account/positions",
+              "account/portfolio",
+              "account/trade-history",
+              "account/equity-curve",
+              "account/profile-analysis"
+            ]
+          },
+          {
+            "group": "WebSocket Feeds",
+            "icon": "signal-stream",
+            "pages": [
+              "websockets/overview",
+              "websockets/price-feed",
+              "websockets/execution-feed",
+              "websockets/pm-compat-market"
+            ]
+          },
+          {
+            "group": "Bot Development",
+            "icon": "robot",
+            "pages": [
+              "bots/example-trading-bot",
+              "bots/websocket-bot",
+              "bots/error-handling",
+              "bots/best-practices"
+            ]
+          },
+          {
+            "group": "Going Live",
+            "icon": "rocket-launch",
+            "pages": [
+              "deployment/live-migration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "icon": "square-terminal",
+        "groups": [
+          {
+            "group": "Overview",
+            "icon": "book-open",
+            "pages": [
+              "api-reference/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "icon": "code",
+            "openapi": "openapi.json"
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Bavariance/polysimulator-docs",
+      "x": "https://x.com/PolySimulatorHQ"
+    },
+    "links": [
+      {
+        "header": "Product",
+        "items": [
+          {
+            "label": "Markets",
+            "href": "https://polysimulator.com/markets"
+          },
+          {
+            "label": "Leaderboard",
+            "href": "https://polysimulator.com/leaderboard"
+          }
+        ]
+      },
+      {
+        "header": "Developers",
+        "items": [
+          {
+            "label": "API Reference",
+            "href": "/api-reference"
+          },
+          {
+            "label": "GitHub",
+            "href": "https://github.com/Bavariance/polysimulator-docs"
+          }
+        ]
+      }
+    ]
+  },
+  "api": {
+    "baseUrl": "https://api.polysimulator.com",
+    "auth": {
+      "method": "key",
+      "name": "X-API-Key"
+    },
+    "playground": {
+      "mode": "simple"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "mcp": {
+    "enabled": true
+  },
+  "seo": {
+    "indexHiddenPages": false
+  },
+  "errors": {
+    "404": {
+      "title": "Page Not Found",
+      "description": "The page you're looking for doesn't exist. Check the sidebar or search for what you need."
+    }
+  },
+  "redirects": [
+    {
+      "source": "/api-reference/v1/markets/:condition_id/candles",
+      "destination": "/api-reference/getMarketCandles"
+    },
+    {
+      "source": "/api-reference/v1/me/wallets/:wallet_id/reset",
+      "destination": "/api-reference/resetWallet"
+    },
+    {
+      "source": "/api-reference/v1/markets/:condition_id/book",
+      "destination": "/api-reference/getMarketOrderBook"
+    },
+    {
+      "source": "/api-reference/v1/markets-by-token/:token_id",
+      "destination": "/api-reference/getMarketByToken"
+    },
+    {
+      "source": "/api-reference/v1/account/reset-api-balance",
+      "destination": "/api-reference/resetApiBalance"
+    },
+    {
+      "source": "/api-reference/v1/markets/updown/intervals",
+      "destination": "/api-reference/listUpdownIntervals"
+    },
+    {
+      "source": "/api-reference/v1/account/profile-analysis",
+      "destination": "/api-reference/getProfileAnalysis"
+    },
+    {
+      "source": "/api-reference/v1/account/me/entitlements",
+      "destination": "/api-reference/getEntitlements"
+    },
+    {
+      "source": "/api-reference/v1/billing/topup/checkout",
+      "destination": "/api-reference/createTopupCheckout"
+    },
+    {
+      "source": "/api-reference/v1/markets/:condition_id",
+      "destination": "/api-reference/getMarket"
+    },
+    {
+      "source": "/api-reference/v1/markets/by-slug/:slug",
+      "destination": "/api-reference/getMarketBySlug"
+    },
+    {
+      "source": "/api-reference/v1/me/wallets/:wallet_id",
+      "destination": "/api-reference/getWallet"
+    },
+    {
+      "source": "/api-reference/v1/cancel-market-orders",
+      "destination": "/api-reference/cancelMarketOrders"
+    },
+    {
+      "source": "/api-reference/v1/data/order/:order_id",
+      "destination": "/api-reference/getDataOrder"
+    },
+    {
+      "source": "/api-reference/v1/billing/subscription",
+      "destination": "/api-reference/getSubscription"
+    },
+    {
+      "source": "/api-reference/v1/tick-size/:token_id",
+      "destination": "/api-reference/getTickSize"
+    },
+    {
+      "source": "/api-reference/v1/neg-risk/:token_id",
+      "destination": "/api-reference/getNegRisk"
+    },
+    {
+      "source": "/api-reference/v1/account/positions",
+      "destination": "/api-reference/listPositions"
+    },
+    {
+      "source": "/api-reference/v1/account/portfolio",
+      "destination": "/api-reference/getPortfolio"
+    },
+    {
+      "source": "/api-reference/v1/last-trade-price",
+      "destination": "/api-reference/getLastTradePrice"
+    },
+    {
+      "source": "/api-reference/v1/orders/:order_id",
+      "destination": "/api-reference/cancelOrderById"
+    },
+    {
+      "source": "/api-reference/v1/billing/checkout",
+      "destination": "/api-reference/createCheckout"
+    },
+    {
+      "source": "/api-reference/v1/account/balance",
+      "destination": "/api-reference/getBalance"
+    },
+    {
+      "source": "/api-reference/v1/account/history",
+      "destination": "/api-reference/getTradeHistory"
+    },
+    {
+      "source": "/api-reference/v1/order/:order_id",
+      "destination": "/api-reference/getOrder"
+    },
+    {
+      "source": "/api-reference/v1/prices-history",
+      "destination": "/api-reference/getPricesHistory"
+    },
+    {
+      "source": "/api-reference/v1/account/equity",
+      "destination": "/api-reference/getEquityCurve"
+    },
+    {
+      "source": "/api-reference/v1/keys/bootstrap",
+      "destination": "/api-reference/bootstrapApiKey"
+    },
+    {
+      "source": "/api-reference/v1/billing/portal",
+      "destination": "/api-reference/createPortal"
+    },
+    {
+      "source": "/api-reference/v1/keys/ws-token",
+      "destination": "/api-reference/getWsToken"
+    },
+    {
+      "source": "/api-reference/v1/ws/executions",
+      "destination": "/api-reference/ws_executions_upgrade_hint_v1_ws_executions_get"
+    },
+    {
+      "source": "/api-reference/v1/status/uptime",
+      "destination": "/api-reference/statusUptime"
+    },
+    {
+      "source": "/api-reference/v1/health/ready",
+      "destination": "/api-reference/readinessCheck"
+    },
+    {
+      "source": "/api-reference/v1/prices/batch",
+      "destination": "/api-reference/getPricesBatchInternal"
+    },
+    {
+      "source": "/api-reference/v1/orders/batch",
+      "destination": "/api-reference/placeBatch"
+    },
+    {
+      "source": "/api-reference/v1/keys/:key_id",
+      "destination": "/api-reference/revokeApiKey"
+    },
+    {
+      "source": "/api-reference/v1/data/orders",
+      "destination": "/api-reference/listOrdersPmShape"
+    },
+    {
+      "source": "/api-reference/v1/clob/order",
+      "destination": "/api-reference/placeClobOrder"
+    },
+    {
+      "source": "/api-reference/v1/cancel-all",
+      "destination": "/api-reference/cancelAll"
+    },
+    {
+      "source": "/api-reference/v1/keys/tiers",
+      "destination": "/api-reference/listTiers"
+    },
+    {
+      "source": "/api-reference/v1/me/wallets",
+      "destination": "/api-reference/listMyWallets"
+    },
+    {
+      "source": "/api-reference/v1/heartbeats",
+      "destination": "/api-reference/postHeartbeat"
+    },
+    {
+      "source": "/api-reference/v1/midpoints",
+      "destination": "/api-reference/getMidpoints"
+    },
+    {
+      "source": "/api-reference/v1/ws/prices",
+      "destination": "/api-reference/ws_prices_upgrade_hint_v1_ws_prices_get"
+    },
+    {
+      "source": "/api-reference/v1/midpoint",
+      "destination": "/api-reference/getMidpoint"
+    },
+    {
+      "source": "/api-reference/v1/markets",
+      "destination": "/api-reference/listMarkets"
+    },
+    {
+      "source": "/api-reference/v1/spreads",
+      "destination": "/api-reference/getSpreads"
+    },
+    {
+      "source": "/api-reference/v1/health",
+      "destination": "/api-reference/healthCheck"
+    },
+    {
+      "source": "/api-reference/v1/status",
+      "destination": "/api-reference/systemStatus"
+    },
+    {
+      "source": "/api-reference/v1/prices",
+      "destination": "/api-reference/getPrices"
+    },
+    {
+      "source": "/api-reference/v1/spread",
+      "destination": "/api-reference/getSpread"
+    },
+    {
+      "source": "/api-reference/v1/orders",
+      "destination": "/api-reference/placeOrder"
+    },
+    {
+      "source": "/api-reference/v1/price",
+      "destination": "/api-reference/getPrice"
+    },
+    {
+      "source": "/api-reference/v1/books",
+      "destination": "/api-reference/getBooks"
+    },
+    {
+      "source": "/api-reference/v1/order",
+      "destination": "/api-reference/cancelOrder"
+    },
+    {
+      "source": "/api-reference/v1/book",
+      "destination": "/api-reference/getOrderBook"
+    },
+    {
+      "source": "/api-reference/v1/time",
+      "destination": "/api-reference/getServerTime"
+    },
+    {
+      "source": "/api-reference/v1/keys",
+      "destination": "/api-reference/listApiKeys"
+    },
+    {
+      "source": "/api-reference/v1/me",
+      "destination": "/api-reference/getMe"
+    }
+  ]
+}
