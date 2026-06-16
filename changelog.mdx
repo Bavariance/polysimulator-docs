@@ -11,6 +11,33 @@ behaviors documented here and re-check after the dates listed. A formal versioni
 and deprecation policy will be published when the API leaves beta.
 </Note>
 
+## 2026-06-16 — Dollar sizing, market-order slippage, GTD + post-only (live)
+
+Three execution / telemetry improvements surfaced by a near-HFT SDK developer
+review, now live in production.
+
+- **Dollar-denominated market BUYs spend the full amount.** A market BUY priced
+  by `amount` (USD) now sizes to spend ~the full `amount` at the displayed price
+  (Polymarket's "spend up to `amount`" semantics), instead of the conservative
+  `amount / worst-price-limit` that under-bought — a `$50` BUY had been buying
+  only ~`$12` of shares. The `price` field still caps execution: a fill that
+  would cross your worst-price limit kills rather than overspending. *Legacy:
+  `amount` was sized off the worst-price cap, under-buying ~4×.*
+- **Accurate `slippage_bps` on market orders.** A market order's `slippage_bps`
+  is now measured against the displayed price you saw at submit, not the
+  worst-price cap — a clean fill at the touch now reports a small, true value
+  (~tens of bps), and the `high_slippage_bps_*` warning no longer fires on every
+  clean market fill. `impact_bps` (the book-walk cost from top-of-book) is
+  unchanged and remains the authoritative depth-impact field. *Legacy: slippage
+  was measured vs the cap, reporting price improvement as ~7500 bps of "slippage"
+  plus a false high-slippage warning on essentially every clean fill.*
+- **`GTD` (Good-Til-Date) and `post_only` orders.** `time_in_force=GTD` (a
+  resting limit that auto-expires at its `expiration` timestamp) and
+  `post_only=true` (maker-only — rejected if it would cross at placement) are now
+  accepted, matching `py-clob-client`. Part of the PM-faithful order-semantics
+  rollout (same flag as the entries below). *Legacy: `GTD` returned `422`;
+  `post_only` was advisory.*
+
 ## 2026-06-11 — Realistic book impact + maker price fidelity (rolling out)
 
 Two further matching-engine fidelity upgrades, **flag-dependent** — they ship
