@@ -11,6 +11,33 @@ behaviors documented here and re-check after the dates listed. A formal versioni
 and deprecation policy will be published when the API leaves beta.
 </Note>
 
+## 2026-06-18 — Python SDK `0.4.0`: Polymarket py-sdk mirror (`polysim_polymarket`)
+
+The [`polysimulator`](https://pypi.org/project/polysimulator/) package ships a
+**third import surface** in `0.4.0`: `polysim_polymarket`, a **paper-mode mirror**
+of Polymarket's newer unified py-sdk
+([`polymarket-client`](https://pypi.org/project/polymarket-client/), import
+`polymarket`), pinned to **`0.1.0b8`**.
+
+- **Sync + async `PublicClient` / `SecureClient`**, returning typed pydantic models
+  (`OrderBook`, `Market`, `LastTradePrice`, …) instead of raw dicts. CLOB market-data
+  reads are **full parity**; the authenticated **trading** write surface, account/auth
+  reads, on-chain methods (paper no-ops), and the **core realtime streams** (`market` /
+  `user` / `crypto_prices`) are implemented with documented paper-mode seams.
+- **Port = the same mechanical swap as the v1 drop-in** — change the import **prefix**
+  (`polymarket` → `polysim_polymarket`), the **host**, and the **auth** (drop the
+  private key + EIP-712 signing for a single `ps_live_…` key). The one deliberate
+  divergence: the named errors subclass `PolyException` here, not py-sdk's
+  `PolymarketError`.
+- **One install ships all three surfaces** — `polysim_sdk` (native),
+  `polysim_clob_client` (`py-clob-client` v1 drop-in), and `polysim_polymarket`
+  (this py-sdk mirror).
+
+See the [py-sdk Mirror overview](/sdk-polymarket) and the
+[py-sdk Compatibility](/concepts/py-sdk-compatibility) deep reference (sim→real seam
+contract, compat matrix, fidelity gaps, stream seams) for the full surface and every
+documented paper-mode seam.
+
 ## 2026-06-16 — Dollar sizing, market-order slippage, GTD + post-only (live)
 
 Three execution / telemetry improvements surfaced by a near-HFT SDK developer
