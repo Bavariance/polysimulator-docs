@@ -434,6 +434,147 @@
         ],
         "title": "BookLevel"
       },
+      "BracketData": {
+        "properties": {
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/BracketRound"
+            },
+            "type": "array",
+            "title": "Rounds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rounds"
+        ],
+        "title": "BracketData"
+      },
+      "BracketMatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "roundName": {
+            "type": "string",
+            "title": "Roundname"
+          },
+          "home": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "away": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TeamRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "homeScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homescore"
+          },
+          "awayScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awayscore"
+          },
+          "winner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner"
+          },
+          "marketSlug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marketslug"
+          },
+          "homeWinProb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homewinprob"
+          },
+          "awayWinProb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awaywinprob"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "roundName"
+        ],
+        "title": "BracketMatch"
+      },
+      "BracketRound": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/BracketMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "matches"
+        ],
+        "title": "BracketRound"
+      },
       "CancelOrdersResponse": {
         "properties": {
           "canceled": {
@@ -786,6 +927,41 @@
         ],
         "title": "ClobOrderResponse",
         "description": "Response matching Polymarket CLOB order response shape."
+      },
+      "CommentaryItem": {
+        "properties": {
+          "minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "CommentaryItem"
       },
       "CreateKeyRequest": {
         "properties": {
@@ -1141,6 +1317,199 @@
         "title": "EventsListResponse",
         "description": "Envelope returned by ``GET /v1/events``.\n\nPer-event payloads are typed as ``Dict[str, Any]`` deliberately: the\nlegacy ``app.main.list_events`` returns a heterogeneous event dict\nwhose fields evolve with the poller (markets, enriched prices,\nclassified category, weather_category, ...). Modelling the envelope\nalone is enough to move the OpenAPI output off ``\"schema\": {}``;\nSDK consumers consult the docs for per-event fields."
       },
+      "Fixture": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "competitionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competitionid"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "kickoffUtc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoffutc"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "homeScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homescore"
+          },
+          "awayScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awayscore"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "competition",
+          "status",
+          "home",
+          "away"
+        ],
+        "title": "Fixture"
+      },
+      "GroupStanding": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/StandingRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "rows"
+        ],
+        "title": "GroupStanding"
+      },
+      "H2HMeeting": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "competition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition"
+          },
+          "homeName": {
+            "type": "string",
+            "title": "Homename"
+          },
+          "awayName": {
+            "type": "string",
+            "title": "Awayname"
+          },
+          "homeScore": {
+            "type": "integer",
+            "title": "Homescore"
+          },
+          "awayScore": {
+            "type": "integer",
+            "title": "Awayscore"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "homeName",
+          "awayName",
+          "homeScore",
+          "awayScore"
+        ],
+        "title": "H2HMeeting"
+      },
+      "H2HSummary": {
+        "properties": {
+          "homeWins": {
+            "type": "integer",
+            "title": "Homewins"
+          },
+          "draws": {
+            "type": "integer",
+            "title": "Draws"
+          },
+          "awayWins": {
+            "type": "integer",
+            "title": "Awaywins"
+          },
+          "meetings": {
+            "items": {
+              "$ref": "#/components/schemas/H2HMeeting"
+            },
+            "type": "array",
+            "title": "Meetings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "homeWins",
+          "draws",
+          "awayWins",
+          "meetings"
+        ],
+        "title": "H2HSummary"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -1209,6 +1578,65 @@
           "expires_at_ms"
         ],
         "title": "HeartbeatResponse"
+      },
+      "HomeAwayFloat": {
+        "properties": {
+          "home": {
+            "type": "number",
+            "title": "Home"
+          },
+          "away": {
+            "type": "number",
+            "title": "Away"
+          }
+        },
+        "type": "object",
+        "required": [
+          "home",
+          "away"
+        ],
+        "title": "HomeAwayFloat"
+      },
+      "LineupSide": {
+        "properties": {
+          "formation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formation"
+          },
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerLineupEntry"
+            },
+            "type": "array",
+            "title": "Players",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "LineupSide"
+      },
+      "Lineups": {
+        "properties": {
+          "home": {
+            "$ref": "#/components/schemas/LineupSide"
+          },
+          "away": {
+            "$ref": "#/components/schemas/LineupSide"
+          }
+        },
+        "type": "object",
+        "required": [
+          "home",
+          "away"
+        ],
+        "title": "Lineups"
       },
       "LivePrice": {
         "properties": {
@@ -1773,6 +2201,257 @@
         ],
         "title": "MarketsEnvelope",
         "description": "PM-shape envelope for ``GET /v1/markets?envelope=true``.\n\nAudit 2026-05-11 \u00a7P1-3: ``py-clob-client`` (and forks like\n``clob-rust``) expect a ``{data, next_cursor}`` envelope on the\nmarkets-list endpoint. The bare-array response polysim has\nhistorically returned breaks the SDK at parse time.\n\nTo avoid breaking existing consumers that DO depend on the bare\narray (the polysim frontend + first-party SDK), the envelope is\nopt-in via the ``envelope=true`` query parameter. When the operator\nis ready to flip the SDK default we'll mass-rebase the SDKs +\nflip the default; for now the bare-array path is the default to\npreserve back-compat.\n\nPM-compat P1 batch (eval 2026-06-10, endpoint-hygiene #5):\n``next_cursor`` is now PM's exact cursor format \u2014 a BASE64-ENCODED\nOFFSET (e.g. ``\"NTA=\"`` = offset 50; live PM /markets emits\n``\"MTAwMA==\"`` = 1000) with the terminal ``\"LTE=\"`` sentinel\n(base64 of -1) on the last page. Pass it back via the\n``next_cursor`` (or ``cursor``) query param \u2014 exactly what\nPM-ported paginators do. Pre-fix the field was a raw int string\nthat NO query param accepted (both ``?cursor=`` and\n``?next_cursor=`` were silently ignored \u2014 paginators looped on\npage 1 forever); raw int strings are still accepted on the way in\nfor back-compat."
+      },
+      "MatchDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "competition": {
+            "type": "string",
+            "title": "Competition"
+          },
+          "competitionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competitionid"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "kickoffUtc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoffutc"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minute"
+          },
+          "home": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "away": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "homeScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Homescore"
+          },
+          "awayScore": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awayscore"
+          },
+          "venue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue"
+          },
+          "weatherC": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weatherc"
+          },
+          "possession": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeAwayFloat"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "xg": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeAwayFloat"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "momentum": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MomentumPoint"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Momentum"
+          },
+          "commentary": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CommentaryItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commentary"
+          },
+          "lineups": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Lineups"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "topStats": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StatRowKV"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topstats"
+          },
+          "shots": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Shot"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shots"
+          },
+          "formHome": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formhome"
+          },
+          "formAway": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formaway"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "competition",
+          "status",
+          "home",
+          "away"
+        ],
+        "title": "MatchDetail"
+      },
+      "MomentumPoint": {
+        "properties": {
+          "minute": {
+            "type": "integer",
+            "title": "Minute"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minute",
+          "value"
+        ],
+        "title": "MomentumPoint"
       },
       "NegRiskResponse": {
         "properties": {
@@ -2576,6 +3255,74 @@
           "outcome"
         ],
         "title": "PlaceOrderRequest"
+      },
+      "PlayerLineupEntry": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "photoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photourl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PlayerLineupEntry"
       },
       "PmBalanceAllowanceResponse": {
         "properties": {
@@ -4039,6 +4786,143 @@
         ],
         "title": "ServiceRow"
       },
+      "Shot": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "team": {
+            "type": "string",
+            "title": "Team"
+          },
+          "xg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Xg"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "team"
+        ],
+        "title": "Shot"
+      },
+      "StandingRow": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamRef"
+          },
+          "played": {
+            "type": "integer",
+            "title": "Played"
+          },
+          "win": {
+            "type": "integer",
+            "title": "Win"
+          },
+          "draw": {
+            "type": "integer",
+            "title": "Draw"
+          },
+          "loss": {
+            "type": "integer",
+            "title": "Loss"
+          },
+          "gf": {
+            "type": "integer",
+            "title": "Gf"
+          },
+          "ga": {
+            "type": "integer",
+            "title": "Ga"
+          },
+          "gd": {
+            "type": "integer",
+            "title": "Gd"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "qualifyZone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualifyzone"
+          },
+          "form": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "team",
+          "played",
+          "win",
+          "draw",
+          "loss",
+          "gf",
+          "ga",
+          "gd",
+          "points"
+        ],
+        "title": "StandingRow"
+      },
+      "StatRowKV": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "home": {
+            "title": "Home"
+          },
+          "away": {
+            "title": "Away"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "home",
+          "away"
+        ],
+        "title": "StatRowKV"
+      },
       "StatusResponse": {
         "properties": {
           "status": {
@@ -4158,6 +5042,46 @@
           "status"
         ],
         "title": "SubscriptionResponse"
+      },
+      "TeamRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "countryCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Countrycode"
+          },
+          "shortName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortname"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TeamRef"
       },
       "TickSizeResponse": {
         "properties": {
@@ -5001,6 +5925,10 @@
     {
       "name": "Health",
       "description": "Health, liveness, readiness, and authenticated-identity probes (/v1/health, /v1/health/live, /v1/health/ready, /v1/me)."
+    },
+    {
+      "name": "Football",
+      "description": "Football / World-Cup 2026 enrichment \u2014 live score, minute, momentum, possession, xG, shotmap, commentary, lineups, group standings, knockout bracket, and head-to-head. Public read-only sports facts the UI merges with tradable Polymarket prices; degrades to empty shapes on upstream failure."
     }
   ],
   "security": [
@@ -37709,6 +38637,2275 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HeartbeatResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/football/fixtures": {
+      "get": {
+        "tags": [
+          "Football"
+        ],
+        "summary": "Football Fixtures",
+        "description": "Scoreboard for a UTC date. Returns ``[]`` (HTTP 200) when sources fail.",
+        "operationId": "footballFixtures",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "UTC day YYYY-MM-DD; defaults to today",
+              "title": "Date"
+            },
+            "description": "UTC day YYYY-MM-DD; defaults to today"
+          },
+          {
+            "name": "competitionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(\\d{1,10}|wc-2026)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to one competition",
+              "title": "Competitionid"
+            },
+            "description": "Filter to one competition"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Fixture"
+                  },
+                  "title": "Response Footballfixtures"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/football/match/{match_id}": {
+      "get": {
+        "tags": [
+          "Football"
+        ],
+        "summary": "Football Match",
+        "description": "Full match detail. Returns ``null`` (HTTP 200) when the match is\nunresolvable; otherwise a partially-filled shape.",
+        "operationId": "footballMatch",
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,12}$",
+              "description": "Numeric match id",
+              "title": "Match Id"
+            },
+            "description": "Numeric match id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MatchDetail"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Footballmatch"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/football/standings": {
+      "get": {
+        "tags": [
+          "Football"
+        ],
+        "summary": "Football Standings",
+        "description": "Group standings. Returns ``[]`` (HTTP 200) when sources fail.",
+        "operationId": "footballStandings",
+        "parameters": [
+          {
+            "name": "competitionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(\\d{1,10}|wc-2026)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competitionid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupStanding"
+                  },
+                  "title": "Response Footballstandings"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/football/bracket": {
+      "get": {
+        "tags": [
+          "Football"
+        ],
+        "summary": "Football Bracket",
+        "description": "Knockout bracket. Returns ``{\"rounds\": []}`` (HTTP 200) on failure.",
+        "operationId": "footballBracket",
+        "parameters": [
+          {
+            "name": "competitionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(\\d{1,10}|wc-2026)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Competitionid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BracketData"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/football/h2h": {
+      "get": {
+        "tags": [
+          "Football"
+        ],
+        "summary": "Football H2H",
+        "description": "Head-to-head summary. Returns a zeroed shape (HTTP 200) on failure.",
+        "operationId": "footballH2H",
+        "parameters": [
+          {
+            "name": "homeId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,12}$",
+              "description": "Home team id",
+              "title": "Homeid"
+            },
+            "description": "Home team id"
+          },
+          {
+            "name": "awayId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,12}$",
+              "description": "Away team id",
+              "title": "Awayid"
+            },
+            "description": "Away team id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/H2HSummary"
                 }
               }
             },
