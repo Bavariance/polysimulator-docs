@@ -120,13 +120,6 @@ while True:
   Offset pagination (`offset=100`) can skip or duplicate items when new records are inserted between pages. Use cursor pagination for trading data.
 </Warning>
 
-<Note>
-  The result-list key differs by endpoint. The native `GET /v1/orders` returns
-  `data["orders"]` (shown above). The PM-shape `GET /v1/data/orders` returns the
-  rows under `data["data"]` instead — read the right key for whichever endpoint
-  you call, or the loop silently iterates nothing.
-</Note>
-
 ---
 
 ## 6. Cache Market Metadata

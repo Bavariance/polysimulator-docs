@@ -6,7 +6,7 @@ description: "Historical OHLCV candlestick data — bucketed from Polymarket's t
 
 # Price Candles
 
-```http
+```
 GET /v1/markets/{condition_id}/candles
 ```
 
@@ -18,10 +18,10 @@ requested interval and aggregates `open` (first tick), `high` (max),
 **your internal fills** on PolySimulator, not Polymarket's chain volume.
 
 <Info>
-  Each bucket aggregates every tick that falls within it, so candles show
-  proper OHLC variation whenever the underlying tick stream has it. A bucket
-  with a single tick reports `O = H = L = C` — see the note under
-  [Response](#response).
+  Before the May 8, 2026 launch, this endpoint returned `O = H = L = C`
+  for every tick (no bucketing). Bots using technical indicators on the
+  prior output saw flat candles. The current implementation produces
+  proper OHLC variation when the underlying tick stream has it.
 </Info>
 
 ---

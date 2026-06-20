@@ -68,9 +68,9 @@ def get_hot_markets(limit=20):
 
 # Terminal (non-resting) order states returned by GET /v1/orders/{id}.
 # A PENDING order is still resting on the book; anything in this set is
-# done. NOTE the endpoint matters — and the CANCELLED spelling differs:
-#   * GET /v1/orders/{id}        → PENDING | FILLED | CANCELLED | REJECTED | EXPIRED  (native, double-L CANCELLED — this bot)
-#   * GET /v1/data/order/{id}    → ORDER_STATUS_LIVE | _MATCHED | _CANCELED | _INVALID  (PM-CLOB shape, single-L CANCELED)
+# done. NOTE the endpoint matters:
+#   * GET /v1/orders/{id}        → PENDING | FILLED | CANCELLED | REJECTED | EXPIRED  (this bot)
+#   * GET /v1/data/order/{id}    → ORDER_STATUS_PENDING | _FILLED | _CANCELLED | _REJECTED  (PM-CLOB shape)
 #   * POST /v1/order response    → live | matched | unmatched  (PM write-response shape)
 TERMINAL_STATUSES = ("FILLED", "CANCELLED", "REJECTED", "EXPIRED")
 

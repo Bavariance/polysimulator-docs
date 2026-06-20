@@ -6,7 +6,7 @@ description: "Drop-in WebSocket layer that mirrors the Polymarket CLOB WS contra
 
 # Polymarket-compatible WebSocket
 
-```http
+```
 WS /v1/ws/market   # public market channel
 WS /v1/ws/user     # auth-gated user channel
 ```
@@ -337,7 +337,7 @@ stringified prices — work without modification.
 ## What's NOT in the PM-compat layer (yet)
 
 - **PM's `order` PLACEMENT / UPDATE / CANCELLATION events on `/ws/user`** —
-  **fill (`trade`) events ARE emitted**: when one of
+  **fill (`trade`) events ARE emitted since 2026-06-11**: when one of
   your orders fills on a subscribed market, `/ws/user` pushes PM's
   user-channel `trade` frame (`event_type: "trade"`, `type: "TRADE"`,
   `status: "MATCHED"`, unix-string timestamps). Divergences: paper
@@ -371,5 +371,5 @@ stringified prices — work without modification.
 | `last_trade_price` event shape | yes | yes |
 | `best_bid_ask` event shape | yes | yes (no `spread` field; emitted unconditionally — PM gates it behind `custom_feature_enabled`) |
 | Plain-string `PING` → `PONG` | yes | accepted, but reply is JSON `{event_type:"pong"}` (not plain `PONG`) |
-| `tick_size_change` event | yes | not on this channel — read it on the SSE `/prices/stream` feed instead (see [Price Feed](/websockets/price-feed#tick-size-changes)) |
+| `tick_size_change` event | yes | not on this channel — SSE `/prices/stream` only (see [Price Feed](/websockets/price-feed#tick-size-changes)); PM channel passthrough is a follow-up |
 | Per-user execution events on `/ws/user` | yes | use `/v1/ws/executions` for now |

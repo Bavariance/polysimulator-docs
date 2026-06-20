@@ -19,15 +19,14 @@ The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**
 
 ## The Migration Promise
 
-<Note>
-  **Change only the base URL and credentials to go live** — the request and
-  response schemas are identical.
-</Note>
-
-| Mode | `/clob/order` endpoint |
-|------|------------------------|
-| **Virtual** (PolySimulator) | `https://api.polysimulator.com/v1/clob/order` |
-| **Live** (Polymarket) | `https://clob.polymarket.com/order` |
+```
+┌──────────────────────────────────────────────────────────────────┐
+│  Change ONLY the base URL and credentials to go live             │
+│                                                                  │
+│  Virtual: https://api.polysimulator.com/v1/clob/order            │
+│  Live:    https://clob.polymarket.com/order                      │
+└──────────────────────────────────────────────────────────────────┘
+```
 
 <CodeGroup>
 ```python Virtual Mode (PolySimulator)
@@ -170,7 +169,7 @@ string-match on the wrong field.
 
 | Polymarket CLOB | PolySimulator `/v1/clob/order` | Notes |
 |-----------------|-------------------------------|-------|
-| `tokenId` / `token_id` | `token_id` | Resolved to its condition_id server-side |
+| `tokenId` / `token_id` | `token_id` | Resolved to condition_id via Redis |
 | `side` (0=BUY, 1=SELL) | `side` ("BUY"/"SELL") | String enum |
 | `price` (string) | `price` (string) | Decimal string: `"0.65"` |
 | `size` (string) | `size` (string) | Decimal string: `"10"` |
@@ -208,20 +207,22 @@ They accept `token_id` (the CLOB outcome token) as query parameter.
 | `GET` | `/v1/prices-history?market=...` | PM wire shape: `{"history": [{"t": int, "p": float}]}`. Accepts PM's `market=` param (token id), `startTs`/`endTs`/`fidelity`, and PM's full interval enum (`1h/6h/1d/1w/1m/max/all`). For bucketed OHLCV use [`GET /v1/markets/{condition_id}/candles`](/market-data/price-candles) or `?format=ohlcv`. |
 
 <Note>
-  **`/v1/prices-history` is PM wire-compatible.** It accepts PM's required
-  `?market=` (token id; the `?token_id=` alias also works), returns PM's exact
-  `{"history": [{"t", "p"}]}` envelope by default (`p` is a JSON **number**
-  here, mirroring PM), supports `startTs`/`endTs`/`fidelity`, and 400s with
-  PM's verbatim error message when `market` is missing. For a bucketed OHLCV
-  array of `{t, o, h, l, c}` points instead, pass `?format=ohlcv`.
+  **`/v1/prices-history` is PM wire-compatible since 2026-06-11.** It
+  accepts PM's required `?market=` (token id; the legacy `?token_id=`
+  alias still works), returns PM's exact `{"history": [{"t", "p"}]}`
+  envelope by default (`p` is a JSON **number** here, mirroring PM),
+  supports `startTs`/`endTs`/`fidelity`, and 400s with PM's verbatim
+  error message when `market` is missing. **Migration:** the
+  pre-2026-06-11 default was a bare array of `{t, o, h, l, c}` string
+  points — that shape is still available via `?format=ohlcv`.
 </Note>
 
 <CodeGroup>
 ```python Single Price
 import requests
 # `side` is REQUIRED (BUY → best bid, SELL → best ask — matches
-# Polymarket's live /price wire). A missing or invalid side returns
-# 400 {"error": "Invalid side"}.
+# Polymarket's live /price wire; corrected 2026-06-10). A missing or
+# invalid side returns 400 {"error": "Invalid side"}.
 price = requests.get(
     "https://api.polysimulator.com/v1/price",
     params={"token_id": "71321045679252...", "side": "BUY"}
@@ -256,8 +257,8 @@ mid = requests.get(
 </CodeGroup>
 
 <Info>
-  These endpoints serve the same cached prices as the authenticated API,
-  refreshed roughly every 30 seconds.
+  These endpoints use the same Redis price cache as the authenticated API.
+  Data is refreshed every 30 seconds by the price poller.
 </Info>
 
 ---

@@ -91,9 +91,9 @@ Orders are returned **most-recent first** (descending `filled_at`).
 | `price` | string | Fill price per share (string-encoded decimal) |
 | `quantity` | string | Number of shares filled (string-encoded decimal) |
 | `notional` | string | Total cash value of the fill (`price × quantity`), string-encoded decimal |
-| `fee` | string | Taker fee charged on the fill, string-encoded decimal (USD) — the per-category fee `C × feeRate × p × (1 − p)` (example: 10-share BUY at $0.65 on a 4% politics market → `10 × 0.04 × 0.65 × 0.35 = $0.09`). `0.00` for fee-free fills (maker fills, geopolitics markets, emergency exits). The stored `fee` is always the authoritative debited amount. See [Trading Fees](/trading/fees). |
+| `fee` | string | Taker fee charged on the fill, string-encoded decimal (USD) — the real PM-V2 per-category fee `C × feeRate × p × (1 − p)` (example: 10-share BUY at $0.65 on a 4% politics market → `10 × 0.04 × 0.65 × 0.35 = $0.09`). `0.00` for fee-free fills (maker fills, geopolitics markets, emergency exits). Note: crypto rows filled before 2026-06-10 may have been charged the prior 7.2% rate, while rate-reporting fields (e.g. `fee_rate_bps` on `GET /v1/data/trades`) report the current 700 bps — the stored `fee` is always the authoritative debited amount. See [Trading Fees](/trading/fees). |
 | `status` | string | Simulator order status. For trade history this is always `FILLED` (the endpoint returns filled orders only). See the note below on Polymarket parity. |
-| `price_source` | string \| null | How the fill price was sourced (e.g. `clob_midpoint_live`). The exact label set is non-stable — substring-match rather than hard-coding members. See [Slippage Protection](/trading/slippage-protection) for the documented labels and how to monitor fill quality. `null` on legacy rows. |
+| `price_source` | string \| null | Free-form label for how the fill price was sourced (e.g. `clob_midpoint_live`, `clob_midpoint_cached_hft`, `matching_engine`, `ws:<source>`, `emergency_exit_entry_price`). `null` on legacy rows. |
 | `price_age_ms` | int \| null | Age of the price data at execution time, in milliseconds; `null` when not recorded |
 | `filled_at` | string \| null | ISO-8601 UTC fill timestamp |
 | `created_at` | string \| null | ISO-8601 UTC order-creation timestamp |

@@ -387,14 +387,21 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 
 <Note>
   **`fee` is a real per-category taker fee — not zero.** Every taker fill
-  is charged Polymarket's V2 per-category schedule, and the charged amount is
-  price-dependent (it peaks near $0.50 and shrinks toward the price extremes).
-  The example above is a 10-share BUY at $0.65 on a crypto market, returned as
-  `0.16`. Always read `OrderResponse.fee` when computing realized PnL — see
-  the canonical formula and full rate table on [Trading Fees](/trading/fees).
-  Discover a market's rate programmatically via
-  [`GET /v1/fee-rate?token_id=…`](/concepts/clob-compatibility) and read its
-  `fee_rate_bps` field (the effective category rate in bps).
+  is charged Polymarket's V2 fee `C × feeRate × p × (1 − p)`, where
+  `feeRate` is the market's category rate (crypto 7%, finance / politics /
+  tech 4%, sports 3%, economics / culture / weather / other 5%, geopolitics
+  0%; unknown → 5%). The `(p × (1 − p))` factor means the charge peaks near
+  $0.50 and shrinks toward the price extremes. The example above is a
+  10-share BUY at $0.65 on a crypto market:
+  `0.07 × 10 × 0.65 × 0.35 = 0.15925`, settled and returned as `0.16` —
+  the debited amount is quantized to cent precision on every fill.
+  Always read `OrderResponse.fee`
+  when computing realized PnL — see the full schedule on
+  [Trading Fees](/trading/fees). Discover a market's rate
+  programmatically via [`GET /v1/fee-rate?token_id=…`](/concepts/clob-compatibility)
+  and read its `fee_rate_bps` field (the effective category rate in bps;
+  the `base_fee` field mirrors Polymarket's legacy base-fee parameter —
+  `1000` when fees are enabled, `0` when fee-free — not the rate).
 </Note>
 
 ### Fill Quality Telemetry
@@ -415,21 +422,21 @@ position on the next tick.
 #### `price_source` — common values
 
 Today the engine emits the labels below. Some get a transport prefix
-(e.g. `ws:` when the underlying price snapshot arrived over a streaming
-source rather than a REST poll) — strip prefixes before string comparison,
-or just log the raw label and grep on substring.
+(`ws:` when the underlying price snapshot arrived via the Gamma/CLOB
+WebSocket stream rather than a REST poll) — strip prefixes before string
+comparison, or just log the raw label and grep on substring.
 
 | Label (prefix-stripped) | Path | When you see it | Quality |
 |-------------------------|------|-----------------|---------|
 | `book_walk` | VWAP across live orderbook levels | Most BTC/ETH/SOL UpDown fills on liquid markets | Gold standard — all six telemetry fields populated |
 | `best_ask` (BUY) / `best_bid` (SELL) | Single top-of-book quote, cross the spread | Liquid market, single-tick fill (no walk needed) | Good — `quote_age_ms` + `spread_bps` populated, walk fields `null` |
-| `clob_midpoint_cached_hft` | Sub-ms midpoint cache (HFT fast-path) | Used when bid/ask sides are stale but cached midpoint is fresh | Good — `quote_age_ms = 0` (cache hit); spread/impact/walk `null` |
-| `clob_midpoint_cached` | Cached CLOB-midpoint fallback | Cascade miss on book-walk + best-bid/ask | Acceptable — `quote_age_ms = 0`; quality fields `null` |
-| `clob_midpoint_live` | Synchronous CLOB midpoint fetch (0.5s timeout) | Cold-market guard when all caches missed | Acceptable — `quote_age_ms = 0`; quality fields `null` |
-| `outcome_yes` / `outcome_no` / `outcome_mid` / `midpoint` / `last_trade_only` / `last_trade_spread_fallback` | Cached display-price fallback | All CLOB sources unavailable — last-resort path | Lower confidence — `quote_age_ms` may be present (from payload timestamp), but spread/impact/walk all `null` |
+| `clob_midpoint_cached_hft` | Sub-ms Redis midpoint cache (HFT fast-path) | Used when bid/ask sides are stale but cached midpoint is fresh | Good — `quote_age_ms = 0` (cache hit); spread/impact/walk `null` |
+| `clob_midpoint_cached` | CLOB Redis cache fallback | Cascade miss on book-walk + best-bid/ask | Acceptable — `quote_age_ms = 0`; quality fields `null` |
+| `clob_midpoint_live` | Synchronous CLOB midpoint REST fetch (0.5s timeout) | Cold-market guard when all caches missed | Acceptable — `quote_age_ms = 0`; quality fields `null` |
+| `outcome_yes` / `outcome_no` / `outcome_mid` / `midpoint` / `last_trade_only` / `last_trade_spread_fallback` | Gamma cached-payload fallback | All CLOB sources unavailable — last-resort path | Lower confidence — `quote_age_ms` may be present (from payload timestamp), but spread/impact/walk all `null` |
 | `emergency_exit_entry_price` / `emergency_exit_entry_price_postexpiry` | Position-close at the original entry price | SELL on a market that resolved or has invalid (post-expiry) cached prices | Special case — `quote_age_ms` is `null`; this is not a market-priced fill |
 
-Bots should treat the `clob_midpoint_*` and cached-display-price paths as
+Bots should treat the `clob_midpoint_*` and Gamma-fallback paths as
 lower-confidence and the emergency-exit paths as informational-only.
 
 <Tip>

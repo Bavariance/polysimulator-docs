@@ -128,23 +128,19 @@ trading pages link here rather than restating the codes.
 ### Order status values
 
 `OrderResponse.status` (and the `status` filter on `GET /v1/orders`) use
-the PolySimulator-native enum — note the **double-L** `CANCELLED`:
+the PolySimulator-native enum:
 
 | Status | Meaning |
 |--------|---------|
 | `PENDING` | Limit order resting on the book, not yet filled. |
 | `FILLED` | Order matched and executed. |
-| `CANCELLED` | Order cancelled (by you, a FOK/FAK non-fill, or the auto-cancel safeguard). Native spelling is **double-L** `CANCELLED`. |
+| `CANCELLED` | Order cancelled (by you, FOK/IOC non-fill, or the dead-man's-switch). |
 | `EXPIRED` | Order expired (e.g. market resolved while resting). |
 | `REJECTED` | Per-entry batch failure (see [Batch Orders](/trading/batch-orders)). |
 | `ERROR` | Per-entry batch internal error (batch only). |
 
 SDKs ported from Polymarket read the PM-shape `ORDER_STATUS_*` enum from
-`GET /v1/data/orders` instead — where the cancelled member is the
-**single-L** `ORDER_STATUS_CANCELED` (PM's exact spelling). The native
-`GET /v1/orders` path uses double-L `CANCELLED`; the PM-shape
-`GET /v1/data/orders` path uses single-L `ORDER_STATUS_CANCELED`. See
-[CLOB Compatibility](/concepts/clob-compatibility).
+`GET /v1/data/orders` instead — see [CLOB Compatibility](/concepts/clob-compatibility).
 
 #### No naked shorts — `INSUFFICIENT_POSITION` explained
 
@@ -183,7 +179,7 @@ your inventory per `token_id` before submitting a SELL.
 | `KEY_DEACTIVATED` | 401 | Key was administratively disabled |
 | `TOKEN_EXPIRED` | 401 | Bearer JWT past its `exp` claim |
 | `INSUFFICIENT_PERMISSION` | 403 | Key missing the required permission (e.g. `trade` for order endpoints) |
-| `ACCESS_RESTRICTED` | 403 | An already-issued key (or Bearer JWT) is not on the API v1 access list (or the account is flagged / under review). Returned on authenticated `/v1/*` requests. Body is PM-shape; check the `X-Polysim-Code` header. |
+| `ACCESS_RESTRICTED` | 403 | An already-issued key (or Bearer JWT) is not on the admin-managed API v1 allowlist (or the account is flagged / under review). Returned on authenticated `/v1/*` requests. Body is PM-shape; check the `X-Polysim-Code` header. |
 | `CLOSED_BETA` | 403 | Key issuance refused on `POST /v1/keys` / `POST /v1/keys/bootstrap`. The default for every non-admitted caller while the beta is closed, including paying Pro / Pro+. Machine code in the `X-Polysim-Code` header; the body's `error` is the human message. |
 | `API_PRO_COMING_SOON` | 403 | Conditional variant of the issuance gate for a paying Pro / Pro+ caller without a cohort grant — reached only once self-serve issuance is enabled (until then they also get `CLOSED_BETA`). Machine code in the `X-Polysim-Code` header. |
 | `UPGRADE_REQUIRED` | 402 | Pro-tier cap reached (sandbox count, etc.). **Only** 402 carries `feature_key` + `upgrade_url` at the root of the response body. |
@@ -206,7 +202,8 @@ either, or simply treat any 429 as a back-off signal:
   of which code is in the header.
 </Tip>
 
-The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
+The per-tier limits (authoritative source: `GET /v1/keys/tiers`, seeded
+from the `ApiRateLimit` ladder):
 
 | Tier | Req/sec | Req/min | WS conns | Max batch |
 |------|:-------:|:-------:|:--------:|:---------:|
@@ -227,8 +224,8 @@ The API is in an ongoing closed beta. Key **issuance** is cohort-gated:
 |-----------|------|-------------|
 | `CLOSED_BETA` | 403 | `POST /v1/keys` / `POST /v1/keys/bootstrap` refused. The default for every non-admitted caller while the beta is closed, including paying Pro / Pro+. Machine code in the `X-Polysim-Code` header; the body's `error` is the human message. **Not retryable** — apply via the waitlist at https://polysimulator.com/api-trading. |
 | `API_PRO_COMING_SOON` | 403 | Same endpoints, conditional variant for a paying Pro / Pro+ caller without a cohort grant — reached only once self-serve issuance is enabled (until then they also get `CLOSED_BETA`). Machine code in the `X-Polysim-Code` header. |
-| `ACCESS_RESTRICTED` | 403 | Separate runtime gate: an already-issued key (or Bearer JWT) is not on the API v1 access list (or is flagged / under review). Returned on authenticated `/v1/*` requests. Check the `X-Polysim-Code` header. **Not retryable**. |
-| `COHORT_FULL` | 409 | Beta cohort issuance is at capacity. Detail: `current_active`, `cap`, `requested`. |
+| `ACCESS_RESTRICTED` | 403 | Separate runtime gate: an already-issued key (or Bearer JWT) is not on the admin-managed allowlist (or is flagged / under review). Returned on authenticated `/v1/*` requests. Check the `X-Polysim-Code` header. **Not retryable**. |
+| `COHORT_FULL` | 409 | Beta cohort issuance refused (admin endpoint). Detail: `current_active`, `cap`, `requested`. |
 
 Beta-issued keys carry an `X-API-Beta-Cutoff` response header on every request after the cutoff date — SDKs can pivot to read-only mode without an extra round-trip.
 

@@ -127,9 +127,9 @@ miss or a failed sanity guard):
 
 1. **Order-book walk (VWAP)** across live CLOB levels — most realistic
 2. **Best bid/ask** from the CLOB order book (cross the spread)
-3. **CLOB midpoint** — sub-ms cache fast-path, then the cached read-through
+3. **CLOB midpoint** — sub-ms Redis fast-path, then the cached read-through
 4. **Live CLOB midpoint** — synchronous fetch (cold-market guard)
-5. **Cached display price** — last-resort fallback
+5. **Cached display price** — Gamma/SSE fallback (last resort)
 
 See [Trade Execution Internals](/trading/execution-internals) for the full
 cascade and the exact `price_source` labels each tier emits.
@@ -159,24 +159,24 @@ protection mechanism.
 
 `price_source` is an **opaque diagnostic label** — log it for post-trade
 analysis, but treat it as a non-stable enum (the label set evolves with
-engine changes). Some labels carry a transport prefix (e.g. `ws:`) when the
-underlying snapshot arrived over a streaming source rather than a poll —
-strip the prefix or substring-match. The labels the engine actually emits
-today, from highest to lowest confidence:
+engine changes). Some labels carry a transport prefix (`ws:` / `gamma:`)
+when the underlying snapshot arrived over a WebSocket/poller stream — strip
+the prefix or substring-match. The labels the engine actually emits today,
+from highest to lowest confidence:
 
 | Label (prefix-stripped) | Path | Quality |
 |-------------------------|------|---------|
 | `book_walk` | VWAP across live order-book levels | Gold standard — all telemetry fields populated |
 | `best_ask` (BUY) / `best_bid` (SELL) | Single top-of-book quote | Good — `spread_bps` populated, walk fields null |
-| `clob_midpoint_cached_hft` | Sub-ms midpoint cache | Good — `quote_age_ms = 0` |
-| `clob_midpoint_cached` | Cached CLOB-midpoint read-through | Acceptable |
+| `clob_midpoint_cached_hft` | Sub-ms Redis midpoint cache | Good — `quote_age_ms = 0` |
+| `clob_midpoint_cached` | Redis CLOB-midpoint read-through | Acceptable |
 | `clob_midpoint_live` | Synchronous CLOB midpoint fetch (cold-market guard) | Acceptable |
-| `outcome_yes` / `outcome_no` / `outcome_mid` / `midpoint` / `last_trade_only` / `last_trade_spread_fallback` | Cached display-price fallback | Lower confidence |
+| `outcome_yes` / `outcome_no` / `outcome_mid` / `midpoint` / `last_trade_only` / `last_trade_spread_fallback` | Gamma cached-payload fallback | Lower confidence |
 | `emergency_exit_entry_price` / `emergency_exit_entry_price_postexpiry` | Position-close at entry price (resolved / post-expiry SELL) | Informational — not a market-priced fill |
 
 <Tip>
   **Monitor `price_source`** in your bot logs. Frequent fills on the
-  `clob_midpoint_*` or cached-display-price labels (rather than `book_walk` /
+  `clob_midpoint_*` or Gamma-fallback labels (rather than `book_walk` /
   `best_ask` / `best_bid`) mean the live book was unavailable — consider
   pausing during degraded price quality. (Labels like `clob_book` or
   `redis_cache` are **not** emitted — don't grep for them.)
@@ -210,7 +210,7 @@ today, from highest to lowest confidence:
 | Default time-in-force (market) | FOK | FOK |
 | Execution model | BUY at best ask, SELL at best bid | BUY at best ask, SELL at best bid |
 | Price improvement | Yes — fill at best available | Yes — fill at best available |
-| Order types (`/v1/orders`) | FOK, FAK, GTC, GTD | GTC (default for limit), FOK (default for market), FAK, IOC; GTD rolling out |
+| Order types | FOK, FAK, GTC, GTD | FOK, FAK, IOC, GTC |
 | Fees | Per-category taker fees | Per-category taker fees (PM-V2 schedule, mirrored) |
 
 ---
@@ -218,20 +218,46 @@ today, from highest to lowest confidence:
 ## Fees
 
 PolySimulator charges the **same per-category taker fee schedule as
-Polymarket V2** — fees are **not** zero, takers pay and makers pay zero, and
-the charged amount is returned in `OrderResponse.fee`. A bot computing PnL
-on the assumption of zero fees will be wrong on most markets.
+Polymarket V2** — fees are **not** zero. Every taker fill is charged and the
+amount is returned in `OrderResponse.fee`. A bot computing PnL on the
+assumption of zero fees will be wrong on most markets.
 
-See [Trading Fees](/trading/fees) for the canonical formula, the full
-per-category rate table, the maker/taker (marketability) classification, and
-the documented divergences from Polymarket.
+The fee formula is:
+
+```
+fee = C × feeRate × p × (1 − p)
+```
+
+where `C` is the number of shares filled, `p` is the fill price (0–1), and
+`feeRate` is the market's category rate. Because of the `p × (1 − p)`
+factor, the effective fee is largest near $0.50 and shrinks toward the price
+extremes.
+
+| Category | `feeRate` |
+|----------|:---------:|
+| Crypto | 7% |
+| Finance / Politics / Tech | 4% |
+| Sports | 3% |
+| Economics / Culture / Weather / Other | 5% |
+| Geopolitics | 0% |
+| Unknown / missing category | 5% (conservative fallback) |
+
+Makers pay no fee (matching Polymarket V2), and break-even emergency-exit
+fills (selling a position on a resolved / expired market) are fee-free.
+Maker vs taker is classified by **marketability at placement**: a GTC limit
+that crosses the live book when you place it pays the taker fee even though
+it technically fills via the matching loop — only orders that genuinely
+rest earn maker (zero-fee) treatment. See [Trading Fees](/trading/fees)
+for the full schedule, formula, and divergences.
 
 <Tip>
   Always read `OrderResponse.fee` when computing realized PnL — don't infer
-  it from the rate alone, since the charged amount is price-dependent. To
-  discover a market's rate up front, call `GET /v1/fee-rate?token_id=…` and
-  read the `fee_rate_bps` field (the effective category rate in bps). See
-  [Trading Fees](/trading/fees).
+  it from the rate alone, since the `p × (1 − p)` factor makes the charged
+  amount price-dependent. To discover a market's rate up front, call
+  `GET /v1/fee-rate?token_id=…` and read the `fee_rate_bps` field — that is
+  the effective category rate in bps. (The `base_fee` field mirrors
+  Polymarket's legacy base-fee parameter — `1000` when fees are enabled, `0`
+  when fee-free — not the rate. See [Trading Fees](/trading/fees).)
 </Tip>
 
 ---

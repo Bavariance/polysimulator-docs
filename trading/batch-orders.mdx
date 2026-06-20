@@ -10,9 +10,7 @@ description: "Place multiple orders in a single request to reduce latency and ra
 POST /v1/orders/batch
 ```
 
-Place multiple orders in a single request, up to your tier's max batch size
-(see the [table below](#batch-size-limits)). Each order is processed
-independently — partial failures are reported per-order.
+Place up to N orders in a single request. Each order is processed independently — partial failures are reported per-order.
 
 ---
 
@@ -172,11 +170,6 @@ batches client-side.
 // 400 BATCH_LIMIT_EXCEEDED
 {"error": "BATCH_LIMIT_EXCEEDED", "message": "Batch size 12 exceeds tier limit (10)"}
 ```
-
-Note the key difference between the two failure shapes: a **request-level**
-rejection (like this oversize-batch 400) uses the standard `{error, message}`
-envelope, while a **per-entry** rejection inside a 200 `results` array uses
-`{error, error_message}` (shown above). Branch on `error` in both cases.
 
 ---
 

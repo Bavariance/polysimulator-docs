@@ -107,7 +107,8 @@ we don't delay matching.
   `unmatched`) — that's PM's `SendOrderResponse` contract.
 
   The **read-side** (`GET /v1/data/orders`, `GET /v1/order/{id}`)
-  returns PM's `OpenOrder.status` enum — PM's **exact** members:
+  returns PM's `OpenOrder.status` enum — PM's **exact** members since
+  the 2026-06-11 PM-compat batch:
 
   | Read endpoint | Write endpoint | Meaning |
   |---|---|---|
@@ -116,8 +117,11 @@ we don't delay matching.
   | `ORDER_STATUS_CANCELED` | (n/a — write side never returns this) | cancelled or expired (single-L spelling, per PM) |
   | `ORDER_STATUS_INVALID` | `unmatched` | rejected / never accepted |
 
-  The `?status=` filter accepts the single-L `ORDER_STATUS_CANCELED`
-  spelling as well as the double-L `ORDER_STATUS_CANCELLED` alias.
+  **Migration (2026-06-11):** before this date the read side emitted
+  invented members (`ORDER_STATUS_PENDING` / `ORDER_STATUS_FILLED` /
+  double-L `ORDER_STATUS_CANCELLED` / `ORDER_STATUS_REJECTED`) that
+  real PM never sends. Update any string matches; the `?status=`
+  filter accepts both spellings.
 
   This mirrors Polymarket's real CLOB exactly — the two enums come
   from different protobufs in PM's internal codebase. SDK clients
@@ -260,7 +264,7 @@ what py-clob-client sends) or the `?cursor=...` alias to paginate.
 Cursor is urlsafe-base64 and opaque; the SDK's initial `MA==` seed and
 the `LTE=` terminal sentinel both behave exactly as on real PM.
 
-**Default scope matches PM: OPEN orders only.**
+**Default scope matches PM: OPEN orders only** (since 2026-06-11).
 Pass the polysim-extension `?status=` param (`ORDER_STATUS_MATCHED`,
 `ORDER_STATUS_CANCELED`, `ALL`, or friendly aliases like `matched` /
 `canceled`) to read history.
@@ -298,9 +302,9 @@ curl -X DELETE https://api.polysimulator.com/v1/orders \
   -d '["6391", "6392", "6393"]'
 ```
 
-Up to **100** ids per request (PM's documented cap is 3,000; the
-PolySimulator cap is lower during the beta period). Invalid ids appear
-in `not_canceled` with an explanation.
+Up to **100** ids per request (PM's documented cap is 3,000; we cap
+lower for cohort stability — raise post-launch when load patterns
+stabilise). Invalid ids appear in `not_canceled` with an explanation.
 
 ### `POST /v1/cancel-all` — cancel all open orders
 

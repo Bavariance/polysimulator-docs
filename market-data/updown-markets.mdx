@@ -6,16 +6,17 @@ description: "Query short-term binary markets that resolve based on asset price 
 
 # Up/Down Markets
 
-```http
+```
 GET /markets/updown
 ```
 
 <Note>
-  Both `/markets/updown` and `/v1/markets/updown` work — they return the
-  identical payload. The `/v1/markets/updown` alias is not listed in the
-  OpenAPI schema, but it is a live, fully-functional route, so you can keep
-  your `/v1/...` base path everywhere. The companion interval-discovery
-  endpoint `GET /v1/markets/updown/intervals` is a regular versioned route.
+  Both `/markets/updown` and `/v1/markets/updown` work — they share one
+  handler and return the identical payload. The `/v1/markets/updown`
+  alias is hidden from the OpenAPI schema (`include_in_schema=False`)
+  but is a live, fully-functional route, so you can keep your `/v1/...`
+  base path everywhere. The companion interval-discovery endpoint
+  `GET /v1/markets/updown/intervals` is a regular versioned route.
 </Note>
 
 Returns active **up/down interval markets** — short-term binary markets that resolve based on whether an asset's price goes up or down within a specific time window.
@@ -144,7 +145,7 @@ curl -H "X-API-Key: $API_KEY" \
 | Field | Description |
 |-------|-------------|
 | `event_id` | Polymarket event ID |
-| `condition_id` | Convenience copy of the **first nested market's** `condition_id`. For trading, read the per-market `markets[].condition_id` you intend to trade rather than this top-level alias. |
+| `condition_id` | Condition ID of the first nested market |
 | `slug` | URL-safe slug for this market |
 | `title` | Display title (e.g., "BTC 1H Up/Down — March 15") |
 | `description` | Event description |
@@ -152,8 +153,8 @@ curl -H "X-API-Key: $API_KEY" \
 | `interval` | Time interval: `5M`, `15M`, `1H`, `4H`, `daily` |
 | `start_date` | Calculated interval start (ISO 8601) |
 | `end_date` | Resolution time (ISO 8601) |
-| `markets` | Nested array with `condition_id`, `question`, `outcomes`, `outcome_prices`, `token_ids`. Note: `outcome_prices` is a JSON-encoded **string** (e.g. `"[\"0.55\", \"0.45\"]"`) — parse it with a second `json.loads`. This differs from `live_price.buy`/`sell`, which are bare JSON numbers. |
-| `live_price` | Object with `buy`, `sell`, `updated_at` — updated in real time. **Note:** `buy`/`sell` here are JSON **numbers** (floats), unlike the string prices used everywhere else — see the caveat below. |
+| `markets` | Nested array with `condition_id`, `question`, `outcomes`, `outcome_prices` (JSON string), `token_ids` |
+| `live_price` | Object with `buy`, `sell`, `updated_at` — enriched from Redis in real time |
 | `group_item_threshold` | Strike price parsed from the event title |
 
 ---

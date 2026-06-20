@@ -9,13 +9,30 @@ description: "Create, list, and revoke API keys for programmatic access."
 API keys are the primary authentication mechanism for the PolySimulator API. Each key is tied to a user account, has configurable permissions, and can be revoked instantly.
 
 <Note>
-  **Closed beta (ongoing).** API key issuance is cohort-gated, so
-  `POST /v1/keys/bootstrap` and `POST /v1/keys` return a `403` for
-  callers who aren't yet admitted — branch on the `X-Polysim-Code`
-  response header. See [Authentication → Closed Beta](/authentication#closed-beta)
-  for the full lifecycle (the `CLOSED_BETA` / `API_PRO_COMING_SOON`
-  issuance gates and the separate runtime `ACCESS_RESTRICTED` allowlist
-  gate on already-issued keys).
+  **Closed beta (ongoing).** API key issuance is cohort-gated. New keys
+  are issued to approved cohorts only, so `POST /v1/keys/bootstrap`
+  (first key) and `POST /v1/keys` (additional keys) return a `403` for
+  callers who aren't yet admitted — **`CLOSED_BETA`** for free /
+  waitlisted accounts, or **`API_PRO_COMING_SOON`** for paying Pro /
+  Pro+ accounts that don't yet have a cohort grant:
+
+  ```http
+  HTTP/1.1 403 Forbidden
+  X-Polysim-Code: CLOSED_BETA
+  Content-Type: application/json
+
+  {"error": "API access is in closed beta. New keys are issued to approved cohorts only. Apply via the waitlist; we'll email you when a cohort opens."}
+  ```
+
+  Branch on the `X-Polysim-Code` response header (the body's `error` is
+  the human message) and surface a "join the waitlist" prompt. While the
+  beta is closed, every non-admitted caller — including paying Pro / Pro+ —
+  gets `CLOSED_BETA`; `API_PRO_COMING_SOON` appears only once self-serve
+  issuance is enabled. Apply via the waitlist at
+  [polysimulator.com/api-trading](https://polysimulator.com/api-trading).
+  See [Authentication → Closed Beta](/authentication#closed-beta)
+  for the full lifecycle, including the separate runtime
+  `ACCESS_RESTRICTED` allowlist gate on already-issued keys.
 </Note>
 
 ---
@@ -149,11 +166,11 @@ curl -X DELETE -H "X-API-Key: $API_KEY" \
 | Status | Endpoint | Meaning |
 |--------|----------|---------|
 | `201` | `POST /v1/keys` | Key created — save `raw_key` immediately |
-| `400` | `POST /v1/keys` | Max 5 keys reached, or unknown tier (`X-Polysim-Code: VALIDATION_FAILED`) |
+| `400` | `POST /v1/keys` | Max 5 keys reached, or unknown tier |
 | `400` | `POST /v1/keys/bootstrap` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` |
 | `401` | Any | Invalid, expired, or deactivated API key |
 | `401` | `POST /v1/keys/bootstrap` | Invalid or expired Supabase JWT |
-| `403` | `POST /v1/keys`, `POST /v1/keys/bootstrap` | Key issuance is [closed-beta](/authentication#closed-beta) gated (`CLOSED_BETA` / `API_PRO_COMING_SOON`), or `TIER_REQUIRES_UPGRADE` for a free key requesting `trade`. Branch on the `X-Polysim-Code` header. |
+| `403` | `POST /v1/keys`, `POST /v1/keys/bootstrap` | `CLOSED_BETA` — key issuance is in [closed beta](/authentication#closed-beta) (the default for every non-admitted caller, including paying Pro / Pro+). The `API_PRO_COMING_SOON` variant appears only once self-serve issuance is enabled. Branch on the `X-Polysim-Code` response header. |
 
 ```python
 # Robust key creation with error handling

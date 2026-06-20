@@ -149,10 +149,14 @@ etc.) the string convention continues to hold.
 <Note>
   **`GET /v1/price` returns a string.** Live Polymarket emits
   `GET /price` as `{"price": "0.28"}` — a JSON **string**, matching the
-  wire most trading bots actually parse, and PolySimulator does the same.
-  Wrap the value with `Decimal(resp["price"])` or `float(resp["price"])`
-  to be robust. The `quote_at` (ISO string) and `age_ms` (int) freshness
-  fields accompany the price.
+  wire most trading bots actually parse. PolySimulator briefly emitted
+  a JSON number here (2026-05-12) but reverted to the string form on
+  2026-05-19 because PM's real wire is the source of truth and a number
+  broke any client doing `isinstance(price, str)` / JSON-Schema
+  validation against PM's published shape. Wrap the value with
+  `Decimal(resp["price"])` or `float(resp["price"])` to be robust either
+  way. The `quote_at` (ISO string) and `age_ms` (int) freshness fields
+  accompany the price and are unchanged.
 </Note>
 
 ---

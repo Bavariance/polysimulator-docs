@@ -95,12 +95,7 @@ equity = requests.get(
     params={"days": 30},  # 30 days
 ).json()
 
-# On Python < 3.11, datetime.fromisoformat() rejects the trailing "Z" —
-# swap it for "+00:00" so this parses on 3.10+ (the SDK's floor).
-times = [
-    datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
-    for e in equity
-]
+times = [datetime.fromisoformat(e["timestamp"]) for e in equity]
 values = [float(e["total_value"]) for e in equity]
 
 plt.figure(figsize=(12, 6))

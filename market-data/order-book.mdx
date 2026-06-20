@@ -6,15 +6,11 @@ description: "Access L2 order book depth from Polymarket's CLOB for any market."
 
 # Order Book
 
-```http
+```
 GET /v1/markets/{condition_id}/book
 ```
 
-Returns the CLOB L2 order book snapshot for a market's primary token,
-keyed by **condition id**. The same `OrderBookSnapshot` payload is also available
-keyed by **token id** via `GET /v1/clob/book/{token_id}` or
-`GET /v1/book?token_id=...` — see the [Order Book Lookup Recipe](/market-data/markets#order-book-lookup-recipe)
-on the Markets page for when to use each form.
+Returns the CLOB L2 order book snapshot for a market's primary token.
 
 ---
 
@@ -28,7 +24,7 @@ curl -H "X-API-Key: $API_KEY" \
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `outcome` | string | — | Filter by outcome label (e.g. `Yes`, `No`) |
-| `depth` | int | full book | Optional trim: keep only the best N levels per side (max 500). Omitted = the FULL book — Polymarket's wire contract. |
+| `depth` | int | full book | Optional trim: keep only the best N levels per side (max 500). Omitted = the FULL book — Polymarket's wire contract. Before 2026-06-11 the default silently truncated to 10 levels. |
 
 ---
 
@@ -99,17 +95,21 @@ order-independently — see the warning below.
   `"0.9" > "0.10"` is `True` (wrong). Use
   `max(float(b["price"]) for b in bids)` /
   `min(float(a["price"]) for a in asks)` (or `Decimal` for exactness). This
-  stays correct regardless of array order, matching the live
-  `clob.polymarket.com/book` wire.
+  stays correct regardless of array order. The ordering above is verified
+  against the live `clob.polymarket.com/book` wire (2026-06-10).
 </Warning>
 
 <Note>
-  **Book level ordering matches Polymarket's live wire:** levels are
-  **bids ascending (best = `bids[-1]`), asks descending (best = `asks[-1]`)** —
-  best at the tail on both sides, byte-identical to the real
-  `clob.polymarket.com/book` wire. Read the inside market with the
-  order-independent `max`/`min` reads above rather than hard-coding `bids[0]` /
-  `asks[0]`, so your integration survives any future wire-format change.
+  **Migration (2026-06-10): book level ordering changed to Polymarket
+  live-wire parity.** Levels are now **bids ascending (best = `bids[-1]`),
+  asks descending (best = `asks[-1]`)** — best at the tail on both sides,
+  byte-identical to the real `clob.polymarket.com/book` wire. A brief earlier
+  build (2026-06-10 AM) emitted bids descending / asks ascending (best at
+  `[0]`) to match Polymarket's *published docs*; the docs contradict the live
+  wire, so that ordering was the exact opposite of the wire on both sides. If
+  your integration hard-coded `bids[0]` / `asks[0]` for the inside market,
+  switch to the order-independent `max`/`min` reads above — they survive this
+  and any future wire-format change.
 </Note>
 
 ### Liquidity Assessment
