@@ -151,6 +151,10 @@ description: "Get your API key and place your first trade in under 2 minutes."
         print(f"filled {fill['status']} @ {fill.get('price')} — order {fill['order_id']}")
     ```
 
+    <Frame caption="Install, run, filled — your first trade in seconds.">
+      <img src="/images/first-trade.svg" alt="A terminal: pip install polysimulator, then python first_trade.py prints 'filled FILLED @ 0.23 — order 102973'." noZoom />
+    </Frame>
+
     <Info>
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
