@@ -6,7 +6,7 @@ description: "Fetch live prices for multiple markets in a single request."
 
 # Batch Prices
 
-```
+```http
 POST /v1/prices/batch
 ```
 
@@ -57,8 +57,7 @@ tier limit long before the ceiling.
     "outcomes": [
       {"label": "Yes", "price": "0.65", "token_id": "71321..."},
       {"label": "No", "price": "0.35", "token_id": "71322..."}
-    ],
-    "source": "gamma_poller"
+    ]
   },
   {
     "condition_id": "0x4d5e6f..."
@@ -72,12 +71,13 @@ tier limit long before the ceiling.
 | `buy` | string \| null | Yes outcome price (0–1). Absent when price unavailable. |
 | `sell` | string \| null | No outcome price (0–1). Absent when price unavailable. |
 | `outcomes` | array | Per-outcome `{label, price, token_id}` breakdown |
-| `source` | string \| null | Opaque provenance label for where the cached price came from — observed values include `gamma_poller`, `gamma_api`, and `clob_market_fallback`. Treat it as informational; **do not branch on its exact value** (the set is not a stable contract). |
+| `source` | string \| null | An opaque provenance label that may accompany a price. Treat it as informational; **do not branch on its value** — the set is not a stable contract. |
 
 <Info>
   Markets with unavailable prices return only the `condition_id` field —
   all price fields will be absent. This can happen when a market is newly
-  listed and hasn't been cached yet.
+  listed and hasn't been cached yet. Always check for the presence of
+  `buy`/`sell` before using them.
 </Info>
 
 ---
@@ -147,12 +147,6 @@ elif resp.status_code == 429:
     retry_after = int(resp.headers.get("Retry-After", 1))
     time.sleep(retry_after)
 ```
-
-<Info>
-  Markets with unavailable prices return only the `condition_id` field —
-  all price fields will be absent. Always check for the presence of `buy`/`sell`
-  before using them.
-</Info>
 
 ---
 

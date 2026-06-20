@@ -11,14 +11,11 @@ PolySimulator aims to replicate Polymarket's execution semantics as closely as p
 
 When you submit a trade, the execution engine evaluates price sources in this order:
 
-```
-1. Redis Order Book Walk (VWAP)
-   ↓ if unavailable or sanity check fails
-2. Best Bid/Ask from Order Book
-   ↓ if unavailable or sanity check fails
-3. CLOB Midpoint Cache
-   ↓ if unavailable
-4. Cached Outcome Price (Gamma API / SSE)
+```mermaid
+flowchart TD
+    A[Order-book walk &#40;VWAP&#41;] -->|unavailable or sanity check fails| B[Best bid/ask from the order book]
+    B -->|unavailable or sanity check fails| C[CLOB midpoint]
+    C -->|unavailable| D[Cached display price]
 ```
 
 Each layer has sanity guards that reject fills diverging too far from the
@@ -124,7 +121,7 @@ This prevents the complement-book logic from accidentally inverting fills on hig
 
 ## Layer 3: CLOB Midpoint Cache
 
-The engine caches the latest CLOB midpoint for each token. The midpoint is `(best_bid + best_ask) / 2` from Polymarket's live order book, refreshed every 30 seconds by the price poller.
+The engine caches the latest CLOB midpoint for each token. The midpoint is `(best_bid + best_ask) / 2` from Polymarket's live order book, refreshed roughly every 30 seconds.
 
 **Latency**: Sub-millisecond.
 
@@ -132,7 +129,7 @@ The engine caches the latest CLOB midpoint for each token. The midpoint is `(bes
 
 ## Layer 4: Cached Outcome Price
 
-The final fallback uses the cached display price from the Gamma API or SSE price feed. This is the price visible in the UI.
+The final fallback uses the cached display price — the same price visible in the UI.
 
 ### Label Matching
 
@@ -144,7 +141,7 @@ for outcome in market.outcomes:
         return outcome.price
 ```
 
-This ensures label → price mapping is correct even when the Gamma API's `buy`/`sell` fields don't correspond positionally to `outcomes[0]`/`outcomes[1]`.
+This ensures label → price mapping is correct even when the upstream `buy`/`sell` fields don't correspond positionally to `outcomes[0]`/`outcomes[1]`.
 
 ### Fallback Chain
 
@@ -181,12 +178,12 @@ Every fill records which price source was used:
 | `book_walk` | VWAP from order book walk |
 | `best_ask` | Top-of-book ask (BUY) |
 | `best_bid` | Top-of-book bid (SELL) |
-| `clob_midpoint_cached` | Redis CLOB midpoint |
+| `clob_midpoint_cached` | Cached CLOB midpoint |
 | `outcome_X` | Cached price for outcome X |
 | `midpoint` | bid/ask midpoint fallback |
 | `last_trade_spread_fallback` | Last trade (wide spread) |
 
-This is returned in the order response and stored in the `orders` table for audit.
+This is returned in the order response and recorded server-side for auditing.
 
 ---
 

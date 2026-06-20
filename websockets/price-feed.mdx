@@ -62,11 +62,11 @@ The server pushes price changes automatically. All fields are at the **top level
 }
 ```
 
-The server broadcasts the cached `price:{condition_id}` payload with
-`type` and `market_id` stamped on top. Most fields are conditional —
-the exact set depends on whether the price came from the Gamma poller
-(REST), the CLOB WebSocket, the RTDS feed, or on-demand fetches during
-order placement. Always treat extra/missing fields defensively.
+The server broadcasts the cached price payload with `type` and
+`market_id` stamped on top. Most fields are conditional — the exact set
+depends on which writer last produced the snapshot (see
+[Source values](#source-values) below). Always treat extra/missing
+fields defensively.
 
 | Field | Type | Always present | Description |
 |-------|------|:-:|-------------|
@@ -80,28 +80,31 @@ order placement. Always treat extra/missing fields defensively.
 | `volume` | string | yes | 24h trading volume in USD |
 | `buy` | string | usually | Yes (first outcome) price (0–1). Absent if the outcome had no resolvable price. |
 | `sell` | string | usually | No (second outcome) price (0–1). Absent if the outcome had no resolvable price. |
-| `tokens` | object | usually | Per-outcome data keyed by `token_id` — convenience index for bots that already track tokens. Each value is `{label, price}`. Present whenever the cache writer had `token_id`s available (Gamma poller, CLOB WS); absent on a small number of Up/Down discovery writes. |
-| `best_bid` | string | sometimes | Best bid price on the order book. Set by CLOB WS writes and Gamma poller when `bestBid` is present upstream. |
+| `tokens` | object | usually | Per-outcome data keyed by `token_id` — convenience index for bots that already track tokens. Each value is `{label, price}`. Present whenever `token_id`s were available for the snapshot; absent on a small number of Up/Down discovery writes. |
+| `best_bid` | string | sometimes | Best bid price on the order book. Present when an order-book quote was available upstream. |
 | `best_ask` | string | sometimes | Best ask price on the order book. Same provenance as `best_bid`. |
-| `last_trade` | string | sometimes | Most recent trade price observed on the CLOB WS feed. Absent until the first trade is seen for the market. |
-| `active` | bool | sometimes | Market `active` flag (mirrors the Gamma metadata). Present when the writer had it; drop frames where `active=false` if you care. |
-| `closed` | bool | sometimes | Market `closed` flag (mirrors the Gamma metadata). Frames may still arrive briefly after resolution; ignore them. |
-| `ws_updated_at` | string | sometimes | ISO 8601 wall-clock of the most recent WS-source cache write. Present when `source="websocket"` or `"rtds_websocket"`; absent for Gamma-poll-only snapshots. |
+| `last_trade` | string | sometimes | Most recent trade price observed for the market. Absent until the first trade is seen. |
+| `active` | bool | sometimes | Market `active` flag. Present when known; drop frames where `active=false` if you care. |
+| `closed` | bool | sometimes | Market `closed` flag. Frames may still arrive briefly after resolution; ignore them. |
+| `ws_updated_at` | string | sometimes | ISO 8601 wall-clock of the most recent live-stream update. Present when `source="websocket"` or `"rtds_websocket"`; absent for periodic-refresh-only snapshots. |
 
 ### Source values
 
-The `source` field marks which writer last touched the cache key:
+The `source` field labels how fresh the price is. The only distinctions
+that matter to a bot are: whether the snapshot came from a live order-book
+stream (freshest) versus a periodic refresh, and whether the market is a
+settled Up/Down market you should no longer trade.
 
-| Value | Writer |
+| Value | Meaning |
 |---|---|
-| `gamma_poller` | Default for the Gamma REST poller — used when no later WS write happened. |
-| `websocket` | CLOB WebSocket write (book updates, last-trade events, on-demand midpoint poll for viewed conditions). |
-| `rtds_websocket` | Polymarket RTDS WS write (Up/Down side-keyed price stream). |
-| `clob_on_demand` | One-off CLOB fetch during order placement (lazy refresh when the cached snapshot is stale). |
-| `updown_discovery_clob` | Initial Up/Down market discovery — written when the poller first surfaces a new Up/Down nested market. |
-| `updown_resolved_*` | Settled Up/Down market — the suffix records the resolution source (e.g. `updown_resolved_chainlink_onchain`). Both `buy` and `sell` will be 0 or 1; new orders should not be placed against the market. |
+| `gamma_poller` | Periodic cached display price — used when no fresher live update has arrived. |
+| `websocket` | Fresh live order-book update (book change, last trade, or on-demand refresh for a viewed market). |
+| `rtds_websocket` | Fresh live update from the Up/Down real-time price stream. |
+| `clob_on_demand` | One-off refresh taken during order placement when the cached snapshot was stale. |
+| `updown_discovery_clob` | First price written when a new Up/Down market is surfaced. |
+| `updown_resolved_*` | A **settled** Up/Down market — both `buy` and `sell` will be 0 or 1; do not place new orders against it. |
 
-Bots that want only CLOB-WS-fresh prices can filter on
+Bots that want only live-stream-fresh prices can filter on
 `source === "websocket"` (or `"rtds_websocket"`); bots that just want
 "some price" can accept any source but drop `updown_resolved_*` frames.
 
@@ -128,11 +131,9 @@ on the client side.
 when the price was written to the cache, which **precedes** the
 broadcast. Use it only for backend-internal lag: the gap between the
 cache write and the broadcast is `emit_ts_ms - (updated_at parsed to
-ms)`. For latency that matters to your strategy, prefer `emit_ts_ms`.
-For the upstream lag (Polymarket book event → PolySim cache write),
-watch the server-side gauge
-`polysim_clob_token_last_msg_received_timestamp_seconds` in
-Prometheus rather than computing it client-side.
+ms)`. For latency that matters to your strategy, prefer `emit_ts_ms` —
+the client-observable end-to-end lag (`recv_ts_ms - emit_ts_ms`) is the
+number that governs how stale your signal is.
 
 **Recommended bot logic**: drop any quote where
 `observed_lag_ms > 2000`. For 5-min Up/Down crypto-timer markets,
@@ -202,10 +203,10 @@ like this (shown for reference — this is the SSE shape, not a
     quote-competitiveness: other bots that respect the finer grid can
     undercut you by 0.001 increments while you still quote at 0.01.
 
-  PolySim's matching engine reads the same `markets.minimum_tick_size`
-  column that gets refreshed on Gamma sync, so off-grid orders on grow
-  transitions are usually rejected here too — but with WS-fresh values
-  you avoid the gap between the price moving and the next column refresh.
+  PolySim's matching engine validates against its own recorded minimum
+  tick for the market, so off-grid orders on grow transitions are usually
+  rejected here too — but reading the WS-fresh tick lets you avoid the gap
+  between the price moving and the next refresh of that recorded value.
 </Warning>
 
 You can also read the current tick at any time via

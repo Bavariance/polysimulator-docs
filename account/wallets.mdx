@@ -13,14 +13,9 @@ authenticated**.
 
 ## Wallets at a glance
 
-{/* Source: backend/app/billing/plans.py FEATURE_MATRIX["wallets.api_baseline"]
-    → free=0, pro=10000, pro_plus=25000. Slice 3 (2026-05-16) flipped the
-    API wallet from a universal $10,000 to a tier-aware baseline; see
-    backend/app/wallets/repository.py:51-94 (_api_baseline_for_user). */}
-
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: none — read-only, Pro: $10,000, Pro+: $25,000) | Free reset; cooldown is `API_RESET_COOLDOWN_DAYS` (0 during the beta period, through 2026-08-31) | Any request authenticated with `X-API-Key` |
+| **API** | Plan-dependent baseline (Free: none — read-only, Pro: $10,000, Pro+: $25,000) | Free reset; no cooldown during the beta period (through 2026-08-31) | Any request authenticated with `X-API-Key` |
 | **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
 | **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
@@ -37,10 +32,6 @@ seeded with your tier's API wallet baseline ($10,000 on Pro, $25,000 on Pro+;
 Free-tier API keys are read-only and have no API wallet seeded). Every order
 you place via `X-API-Key` debits this wallet — `GET /v1/account/balance`
 always reports the API wallet balance for API-authenticated requests.
-
-{/* Source: backend/app/billing/plans.py FEATURE_MATRIX["wallets.api_baseline"]
-    → free=0, pro=10000, pro_plus=25000. The webhook handler
-    (_apply_baseline_grants) seeds the API wallet on Pro/Pro+ activation. */}
 
 ```bash
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
@@ -75,14 +66,13 @@ The reset response carries four fields:
 | `message` | string | Human-readable confirmation |
 | `new_api_balance` | string | The post-reset balance (your tier baseline) |
 | `positions_closed` | integer | Number of open API positions force-closed by the reset |
-| `cooldown_days` | integer | Days until the next reset is allowed — equals `API_RESET_COOLDOWN_DAYS` (`0` during the beta period) |
+| `cooldown_days` | integer | Days until the next reset is allowed (`0` during the beta period) |
 
 <Tip>
-  **API wallet resets are free and currently uncapped** — the cooldown is
-  gated by `API_RESET_COOLDOWN_DAYS`, which is `0` during the beta period
-  (through 2026-08-31). After that a daily cooldown may apply, but resets stay
-  included with the API tier. Use them aggressively to test new strategies from
-  a clean baseline.
+  **API wallet resets are free and currently uncapped** — there is no
+  cooldown during the beta period (through 2026-08-31). After that a daily
+  cooldown may apply, but resets stay included with the API tier. Use them
+  aggressively to test new strategies from a clean baseline.
 </Tip>
 
 ## Scoping account reads to a wallet

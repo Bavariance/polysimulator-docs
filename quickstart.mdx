@@ -86,7 +86,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       | `201` | Key created — save `raw_key` |
       | `400` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` instead |
       | `401` | Invalid or expired Supabase JWT |
-      | `403` | `CLOSED_BETA` — key issuance is in closed beta (the default for every non-admitted caller, including paying Pro / Pro+). The `API_PRO_COMING_SOON` variant appears only once self-serve issuance is enabled. Branch on the `X-Polysim-Code` header; apply via the waitlist (see the callout above). |
+      | `403` | Key issuance is closed-beta gated — branch on the `X-Polysim-Code` header. See [Authentication → Closed Beta](/authentication#closed-beta). |
       | `429` | Bootstrap rate limit hit — wait and retry |
 
       `Authorization: Bearer` is accepted on the dashboard surface
@@ -130,14 +130,14 @@ description: "Get your API key and place your first trade in under 2 minutes."
   </Step>
 
   <Step title="Place Your First Trade">
-    <CodeGroup>
-      <Info>
-        **Market orders require `price` as a worst-price limit** —
-        Polymarket-faithful slippage protection. BUY won't fill above
-        this price; SELL won't fill below it. Use the current best
-        ask + a small buffer (e.g. ask × 1.05) to allow normal fills.
-      </Info>
+    <Info>
+      **Market orders require `price` as a worst-price limit** —
+      Polymarket-faithful slippage protection. BUY won't fill above
+      this price; SELL won't fill below it. Use the current best
+      ask + a small buffer (e.g. ask × 1.05) to allow normal fills.
+    </Info>
 
+    <CodeGroup>
       ```bash cURL
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
         -H "X-API-Key: $POLYSIM_API_KEY" \

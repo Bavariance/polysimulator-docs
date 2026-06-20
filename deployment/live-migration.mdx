@@ -196,12 +196,14 @@ The `POST /v1/clob/order` endpoint accepts the same request body as Polymarket's
 | `side` | string | `BUY` or `SELL` (uppercase) |
 | `price` | string | Limit price as decimal string ("0.01"–"0.99") |
 | `size` | string | Number of shares as decimal string |
-| `order_type` | string | `GTC` (default), `FOK`, `IOC`, `GTD` |
+| `order_type` | string | `GTC` (default), `FOK`, or `GTD` |
 
 <Warning>
   All numeric fields (`price`, `size`) must be **strings** (e.g., `"0.65"` not `0.65`).
   `side` must be **uppercase** (`"BUY"` not `"buy"`).
-  `order_type` must be a CLOB type (`"GTC"`, `"FOK"`, `"IOC"`, `"GTD"`) — not `"market"`.
+  `order_type` must be a CLOB type (`"GTC"`, `"FOK"`, or `"GTD"`) — not `"market"`.
+  `POST /v1/clob/order` does **not** accept `IOC`/`FAK`; for fill-and-kill
+  semantics use the native `POST /v1/order` endpoint instead.
 </Warning>
 
 See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details and response format.

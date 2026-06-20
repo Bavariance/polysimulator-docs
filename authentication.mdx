@@ -99,15 +99,15 @@ When you send a request:
 sequenceDiagram
     participant Bot as Your Bot
     participant API as PolySimulator API
-    participant DB as Database
-    participant Redis as Redis
+    participant Store as Auth/Key store
+    participant Limiter as Rate limiter
 
     Bot->>API: GET /v1/markets (X-API-Key: ps_live_...)
     API->>API: SHA-256 hash the key
-    API->>DB: Look up key_hash
-    DB-->>API: Key record (user_id, tier, permissions)
-    API->>Redis: Check rate limit (tier bucket)
-    Redis-->>API: Allowed / Denied
+    API->>Store: Look up key_hash
+    Store-->>API: Key record (user_id, tier, permissions)
+    API->>Limiter: Check rate limit (tier bucket)
+    Limiter-->>API: Allowed / Denied
     API-->>Bot: 200 OK / 429 Rate Limited
 ```
 
@@ -443,11 +443,8 @@ Content-Type: application/json
 {"error": "API access restricted. Contact support to request access."}
 ```
 
-The cohort is managed by adding the user's email to the
-`api_allowlist` table (admin tooling: `POST /admin/api-keys/issue-beta`
-also pre-creates an enterprise-tier key with a fixed cutoff).
-Allowlist additions take effect on the next request — there's no
-client-visible toggle the gate is bound to.
+Access is granted by our team once your waitlist application is
+approved; additions take effect on your next request.
 
 Apply via the waitlist at
 [polysimulator.com/api-trading](https://polysimulator.com/api-trading).
@@ -473,7 +470,6 @@ required, used by the pricing page):
 curl https://api.polysimulator.com/api/beta/cohort-status
 # → {"cohort_label": "beta-2026-05", "available": true, "active": 12,
 #    "cap": 100, "cutoff": "2026-08-31T23:59:59Z", "reopens_at": null}
-# `cutoff` is operator-configurable via the BETA_COHORT_CUTOFF env var.
 ```
 
 ---

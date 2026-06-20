@@ -1,0 +1,150 @@
+---
+title: "Python SDK"
+sidebarTitle: "Python SDK"
+description: "The official polysimulator Python package — a clean native client plus a py-clob-client drop-in, in one pip install."
+---
+
+# Python SDK
+
+The official Python client for the PolySimulator paper-trading API is published on
+PyPI as [`polysimulator`](https://pypi.org/project/polysimulator/). **One install,
+three import surfaces:**
+
+| Import | Use it when |
+| --- | --- |
+| `polysim_sdk` | You're starting fresh — a modern client with sync **and** async, WebSocket + SSE streaming, pagination iterators, and typed exceptions. |
+| `polysim_clob_client` | You already have a Polymarket bot on [`py-clob-client`](https://github.com/Polymarket/py-clob-client) **v1** — this is a **drop-in mirror**; port by changing the import path, the host, and the auth call. |
+| `polysim_polymarket` | You target Polymarket's newer unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`pip install polymarket-client`, import `polymarket`) — a **paper-mode mirror** of its unified surface (sync + async `PublicClient` / `SecureClient`, reads, account/auth, trading, core streams), returning typed pydantic models. Port by swapping the import prefix + host + auth. |
+
+<Note>
+  New to the py-sdk mirror? Start with the
+  [py-sdk Mirror overview](/sdk-polymarket) for the install + prefix/host/auth swap,
+  then read the [py-sdk Compatibility](/concepts/py-sdk-compatibility) deep reference
+  (the sim→real seam contract + compat matrix) before relying on any surface area.
+</Note>
+
+Because PolySimulator is paper trading, there is **no on-chain anything** — no private
+key, no `chain_id`, no signing, no USDC allowances. The package depends only on
+`httpx` and `websockets`, and auth is a single `ps_live_…` key sent as `X-API-Key`.
+
+<CardGroup cols={2}>
+  <Card title="polysimulator on PyPI" icon="python" href="https://pypi.org/project/polysimulator/">
+    `pip install polysimulator` — the published package, with the complete README and method reference.
+  </Card>
+  <Card title="CLOB compatibility" icon="arrows-left-right" href="/concepts/clob-compatibility">
+    The full `py-clob-client` → PolySimulator migration map.
+  </Card>
+</CardGroup>
+
+## Install
+
+Targets Python 3.10+.
+
+```bash
+pip install polysimulator
+```
+
+<Note>
+  The install name is **`polysimulator`**; the import name stays **`polysim_sdk`**
+  (the same way `pip install pillow` gives you `import PIL`). The older `polysim-sdk`
+  package name is now a thin alias that installs `polysimulator` for you, so existing
+  installs keep working unchanged.
+</Note>
+
+Provide your key via the `POLYSIM_API_KEY` environment variable (recommended) or pass
+it to the constructor. Point at staging with `POLYSIM_BASE_URL`:
+
+```bash
+export POLYSIM_API_KEY="ps_live_…"
+# optional — defaults to https://api.polysimulator.com
+export POLYSIM_BASE_URL="https://staging-api.polysimulator.com"
+```
+
+## Quickstart — native `polysim_sdk`
+
+```python
+from polysim_sdk import PolySimClient
+
+with PolySimClient() as client:            # POLYSIM_API_KEY from env
+    me = client.me()
+    print(me["balance"])                   # your trading balance
+
+    market = client.list_markets(limit=1, hot_only=True)[0]
+    cid = market["condition_id"]
+
+    fill = client.place_order(
+        market_id=cid,
+        side="BUY",
+        outcome="YES",
+        quantity=10,
+        order_type="market",
+        price="0.99",                      # slippage cap: the worst price you'll accept.
+                                           #   For a YES market BUY, 0.99 is "fill at any price"
+                                           #   (a YES share can never cost more than $1).
+    )
+    print(f"filled {fill['status']} @ {fill.get('price')}")
+```
+
+Async is the same API with `await`:
+
+```python
+import asyncio
+from polysim_sdk import AsyncPolySimClient
+
+async def main():
+    async with AsyncPolySimClient() as client:
+        print((await client.me())["balance"])
+
+asyncio.run(main())
+```
+
+The native client also ships WebSocket price/execution streams (`polysim_sdk.ws`), an
+SSE underlying-spot firehose (`polysim_sdk.sse`), Up/Down helpers (`polysim_sdk.updown`),
+and pagination iterators (`polysim_sdk.pagination`). The
+[full README on PyPI](https://pypi.org/project/polysimulator/) documents every surface.
+
+## Migrating a `py-clob-client` bot
+
+Change **three things** and delete the on-chain prelude — method names, argument shapes,
+and return shapes all stay the same:
+
+```python
+from polysim_clob_client.client import ClobClient
+from polysim_clob_client.clob_types import OrderArgs
+
+client = ClobClient(
+    host="https://api.polysimulator.com",
+    key="ps_live_…",                       # your PolySimulator API key — no wallet, no chain_id
+)
+
+order = client.create_order(OrderArgs(token_id=tid, price=0.55, size=10, side="BUY"))
+resp = client.post_order(order)
+```
+
+The full per-method mapping (mirror / adapt / stub-noop), the `token_id` ↔ market+outcome
+seam, and the read-vs-write parity rules are documented in
+[CLOB compatibility](/concepts/clob-compatibility).
+
+## Rate limits & pacing
+
+The client paces itself (a 50 ms floor between requests) and backs off on `429`/`5xx`
+using `Retry-After`. Authoritative tier limits come live from `client.tiers()` — see
+[Rate limits](/concepts/rate-limits) for the per-tier table.
+
+## Errors
+
+Catch `PolySimError` to handle every SDK-raised error (`PolyApiException`, the drop-in
+alias, is the same class):
+
+```python
+from polysim_sdk.exceptions import PolySimError, RateLimitError, ValidationError
+
+try:
+    fill = client.place_order(...)
+except RateLimitError as exc:
+    print(f"backing off for {exc.retry_after}s")
+except ValidationError as exc:
+    print(f"bad request: {exc.code} → {exc}")
+except PolySimError as exc:
+    print(f"other API error ({exc.status_code}): {exc}")
+```

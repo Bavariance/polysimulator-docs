@@ -43,6 +43,8 @@
             "pages": [
               "introduction",
               "quickstart",
+              "sdk",
+              "sdk-polymarket",
               "authentication",
               "changelog",
               "ai-assistants"
@@ -56,6 +58,7 @@
               "concepts/rate-limits",
               "concepts/string-numerics",
               "concepts/clob-compatibility",
+              "concepts/py-sdk-compatibility",
               "concepts/pm-raw-http"
             ]
           },
