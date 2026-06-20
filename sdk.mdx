@@ -6,21 +6,35 @@ description: "The official polysimulator Python package — a clean native clien
 
 # Python SDK
 
-The official Python client for the PolySimulator paper-trading API is published on
-PyPI as [`polysimulator`](https://pypi.org/project/polysimulator/). **One install,
-three import surfaces:**
+The official Python client is published on PyPI as
+[`polysimulator`](https://pypi.org/project/polysimulator/) — `pip install polysimulator`.
 
-| Import | Use it when |
-| --- | --- |
-| `polysim_sdk` | You're starting fresh — a modern client with sync **and** async, WebSocket + SSE streaming, pagination iterators, and typed exceptions. |
-| `polysim_clob_client` | You already have a Polymarket bot on [`py-clob-client`](https://github.com/Polymarket/py-clob-client) **v1** — this is a **drop-in mirror**; port by changing the import path, the host, and the auth call. |
-| `polysim_polymarket` | You target Polymarket's newer unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`pip install polymarket-client`, import `polymarket`) — a **paper-mode mirror** of its unified surface (sync + async `PublicClient` / `SecureClient`, reads, account/auth, trading, core streams), returning typed pydantic models. Port by swapping the import prefix + host + auth. |
+## Start here: `PolySimClient`
+
+**New to PolySimulator? Use the native client.** It's the cleanest path — sync **and**
+async, WebSocket + SSE streaming, pagination iterators, typed exceptions — and the
+[**Quickstart**](/quickstart) places your first trade in ~5 lines. That's the one path
+most developers want; jump to [Install](#install) below.
+
+```python
+from polysim_sdk import PolySimClient   # pip install polysimulator
+
+with PolySimClient() as client:                              # POLYSIM_API_KEY from env
+    market = client.list_markets(limit=1, hot_only=True)[0]  # an actively-traded market
+    fill = client.place_order(market_id=market["condition_id"], side="BUY",
+                              outcome="Yes", quantity=10, order_type="market", price="0.99")
+    print(fill["status"])                                    # FILLED
+```
 
 <Note>
-  New to the py-sdk mirror? Start with the
-  [py-sdk Mirror overview](/sdk-polymarket) for the install + prefix/host/auth swap,
-  then read the [py-sdk Compatibility](/concepts/py-sdk-compatibility) deep reference
-  (the sim→real seam contract + compat matrix) before relying on any surface area.
+  **Porting an existing bot?** The package ships two **drop-in mirrors** so you don't
+  rewrite your strategy — use one **only** if you already have a bot on that library;
+  otherwise stick with `PolySimClient` above.
+
+  | You already use… | Import | How to port |
+  | --- | --- | --- |
+  | [`py-clob-client`](https://github.com/Polymarket/py-clob-client) **v1** | `polysim_clob_client` | Drop-in mirror — change the import path, host, and auth call. See the [CLOB migration map](/concepts/clob-compatibility). |
+  | Polymarket's unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`polymarket-client`) | `polysim_polymarket` | Paper-mode mirror of `PublicClient` / `SecureClient` — swap the import prefix + host + auth. See the [py-sdk Mirror overview](/sdk-polymarket) + [compatibility](/concepts/py-sdk-compatibility). |
 </Note>
 
 Because PolySimulator is paper trading, there is **no on-chain anything** — no private
