@@ -14,6 +14,36 @@ Streams real-time price updates for subscribed markets. All numeric values are s
 
 ---
 
+## Stream prices with the SDK
+
+The native client handles the token mint, connect, subscribe, and auto-reconnect
+for you — [`prices_stream`](/sdk) just yields live price events as they arrive:
+
+```python
+from polysim_sdk import PolySimClient
+from polysim_sdk.ws import prices_stream
+
+prev = {}
+with PolySimClient() as client:                  # POLYSIM_API_KEY from env
+    cids = [m["condition_id"] for m in client.list_markets(limit=2)]
+    for ev in prices_stream(client, condition_ids=cids):
+        if ev.get("best_bid") is None:           # skip the subscribe ack
+            continue
+        mid, last = ev["market_id"], float(ev["last_trade"])
+        arrow = "▲" if last > prev.get(mid, last) else "▼" if last < prev.get(mid, last) else " "
+        prev[mid] = last
+        print(f'{mid[:10]}  bid {ev["best_bid"]}  ask {ev["best_ask"]}  {arrow}')
+```
+
+<Frame caption="Live prices over /v1/ws/prices — bid/ask updating in real time.">
+  <img src="/images/ws-price-stream.gif" alt="A terminal streaming live price ticks: market id, bid, ask, with green up / red down arrows as prices move." noZoom />
+</Frame>
+
+The raw `/v1/ws/prices` wire protocol — subscribe frames, the full event shape,
+and a from-scratch `asyncio` example — is documented below.
+
+---
+
 ## Subscribe
 
 After connecting, send a subscribe message:
