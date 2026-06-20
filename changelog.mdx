@@ -11,6 +11,17 @@ behaviors documented here and re-check after the dates listed. A formal versioni
 and deprecation policy will be published when the API leaves beta.
 </Note>
 
+## 2026-06-20 — Python SDK `0.4.2` (current)
+
+The [`polysimulator`](https://pypi.org/project/polysimulator/) SDK is now at **`0.4.2`** —
+`pip install polysimulator`. Hardening across the `0.4.x` beta line: **Python 3.10+
+support**, faithful market-order time-in-force (`FOK` / `FAK` preserved through the
+default post path), accurate batch-order result mapping, and Decimal-precise money
+handling — plus a `retry_on_market_warmup` helper and the `condition_id:UP` / `:DOWN`
+shorthand for the Up/Down drop-in. The three import surfaces are unchanged:
+`polysim_sdk` (native), `polysim_clob_client` (`py-clob-client` drop-in), and
+`polysim_polymarket` (py-sdk mirror). See the [SDK overview](/sdk-polymarket).
+
 ## 2026-06-18 — Python SDK `0.4.0`: Polymarket py-sdk mirror (`polysim_polymarket`)
 
 The [`polysimulator`](https://pypi.org/project/polysimulator/) package ships a
@@ -279,11 +290,12 @@ surfaces wrongly claimed zero. Now:
 
 ### Coming soon
 
-- Official Python SDK (PyPI). Until then the API is plain REST — see the
-  [Quickstart](/quickstart).
 - Matching-engine fidelity fast-follows: GTD auto-expiry, post-only, per-market
   minimum order size, FAK partial fills. *Update 2026-06-11: implemented and
   rolling out — see the entry above.*
+
+> The official Python SDK shipped — `pip install polysimulator` (see the
+> [SDK overview](/sdk-polymarket)).
 
 ## 2026-06-09 and earlier
 
