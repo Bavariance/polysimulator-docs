@@ -123,7 +123,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
   <Step title="Fetch Hot Markets">
     ```bash
     curl -H "X-API-Key: $POLYSIM_API_KEY" \
-         "$POLYSIM_BASE_URL/v1/markets?hot_only=true&limit=5"
+         "$POLYSIM_BASE_URL/v1/markets?limit=5"
     ```
 
     This returns actively traded markets with live prices from Polymarket.
@@ -139,7 +139,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
     from polysim_sdk import PolySimClient
 
     with PolySimClient() as client:                 # reads POLYSIM_API_KEY from env
-        market = client.list_markets(limit=1, hot_only=True)[0]   # an actively-traded market
+        market = client.list_markets(limit=1)[0]   # an actively-traded market
         fill = client.place_order(
             market_id=market["condition_id"],
             side="BUY",
@@ -169,7 +169,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       ```bash cURL
       # 1. grab a live market_id (jq)
       MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
-        "$POLYSIM_BASE_URL/v1/markets?hot_only=true&limit=1" | jq -r '.[0].condition_id')
+        "$POLYSIM_BASE_URL/v1/markets?limit=1" | jq -r '.[0].condition_id')
 
       # 2. place the trade
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
@@ -184,7 +184,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       h = {"X-API-Key": key, "Content-Type": "application/json"}
 
       # resolve a live market, then trade
-      market_id = requests.get(f"{base}/v1/markets?hot_only=true&limit=1", headers=h).json()[0]["condition_id"]
+      market_id = requests.get(f"{base}/v1/markets?limit=1", headers=h).json()[0]["condition_id"]
       resp = requests.post(f"{base}/v1/orders", headers=h, json={
           "market_id": market_id, "side": "BUY", "outcome": "Yes",
           "quantity": "10", "order_type": "market",
@@ -197,7 +197,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       const base = process.env.POLYSIM_BASE_URL, key = process.env.POLYSIM_API_KEY;
       const h = { "X-API-Key": key, "Content-Type": "application/json" };
 
-      const markets = await (await fetch(`${base}/v1/markets?hot_only=true&limit=1`, { headers: h })).json();
+      const markets = await (await fetch(`${base}/v1/markets?limit=1`, { headers: h })).json();
       const resp = await fetch(`${base}/v1/orders`, {
         method: "POST", headers: h,
         body: JSON.stringify({

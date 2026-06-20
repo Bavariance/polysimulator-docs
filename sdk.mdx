@@ -20,7 +20,7 @@ most developers want; jump to [Install](#install) below.
 from polysim_sdk import PolySimClient   # pip install polysimulator
 
 with PolySimClient() as client:                              # POLYSIM_API_KEY from env
-    market = client.list_markets(limit=1, hot_only=True)[0]  # an actively-traded market
+    market = client.list_markets(limit=1)[0]  # an actively-traded market
     fill = client.place_order(market_id=market["condition_id"], side="BUY",
                               outcome="Yes", quantity=10, order_type="market", price="0.99")
     print(fill["status"])                                    # FILLED
@@ -83,7 +83,7 @@ with PolySimClient() as client:            # POLYSIM_API_KEY from env
     me = client.me()
     print(me["balance"])                   # your trading balance
 
-    market = client.list_markets(limit=1, hot_only=True)[0]
+    market = client.list_markets(limit=1)[0]
     cid = market["condition_id"]
 
     fill = client.place_order(
