@@ -14657,7 +14657,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Market By Token",
-        "description": "Polymarket-compat ``GET /markets-by-token/{token_id}``.\n\nReverse-resolve a CLOB token id to its parent ``condition_id``\n+ the canonical outcome label.",
+        "description": "Polymarket-compat ``GET /markets-by-token/{token_id}``.\n\nReverse-resolve a CLOB token id to its parent ``condition_id``\n+ the canonical outcome label.\n\nWhen ``MARKETS_BY_TOKEN_CLOB_FALLBACK_ENABLED`` is on, checks the\noutcome-validated positive cache first. It then resolves through the\nJSONB-indexed ``markets.clob_token_ids`` column and Redis poller cache;\na local miss falls back to Polymarket's authoritative endpoints and is\ncached for 24 hours. Definitive upstream 400/404 remains a 404;\nretryable upstream failures return 503 with ``Retry-After``.",
         "operationId": "getMarketByToken",
         "parameters": [
           {
@@ -14713,6 +14713,36 @@
               },
               "X-Polysim-RateLimit-Reset": {
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Token resolution is temporarily unavailable; retry after the advertised interval.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-Code": {
+                "description": "Stable error code (UPSTREAM_UNAVAILABLE).",
                 "schema": {
                   "type": "string"
                 }
