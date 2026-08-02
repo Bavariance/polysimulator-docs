@@ -21,8 +21,7 @@ relate.
 
 This endpoint accepts **either** an API key (`X-API-Key: <key>`, or the
 PM-compat `POLY_API_KEY` / `Authorization: Bearer ps_live_...` aliases) **or**
-a Supabase Bearer JWT (`Authorization: Bearer <jwt>`), so the website's
-API-keys dashboard can render the card via the cookie session. The balance
+a Supabase Bearer JWT (`Authorization: Bearer <jwt>`). The balance
 returned is always the **API wallet** regardless of which scheme you use.
 (Most account endpoints — positions, portfolio, history, equity — are API-key
 only; balance and `reset-api-balance` are the exceptions that also accept the
@@ -79,10 +78,9 @@ A **Pro+** key sees its $25,000 baseline instead:
 <Note>
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
   wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
-  open API positions. Resets are **free and currently uncapped** — the
-  cooldown is gated by `API_RESET_COOLDOWN_DAYS` (0 during the beta period,
-  through 2026-08-31). See [Wallets](/account/wallets) for the full reset
-  semantics.
+  open API positions. Resets are **free and currently uncapped** — there is
+  no cooldown during the beta period (through 2026-08-31). See
+  [Wallets](/account/wallets) for the full reset semantics.
 </Note>
 
 ---

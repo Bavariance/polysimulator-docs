@@ -86,7 +86,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       | `201` | Key created — save `raw_key` |
       | `400` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` instead |
       | `401` | Invalid or expired Supabase JWT |
-      | `403` | `CLOSED_BETA` — key issuance is in closed beta (the default for every non-admitted caller, including paying Pro / Pro+). The `API_PRO_COMING_SOON` variant appears only once self-serve issuance is enabled. Branch on the `X-Polysim-Code` header; apply via the waitlist (see the callout above). |
+      | `403` | Key issuance is closed-beta gated — branch on the `X-Polysim-Code` header. See [Authentication → Closed Beta](/authentication#closed-beta). |
       | `429` | Bootstrap rate limit hit — wait and retry |
 
       `Authorization: Bearer` is accepted on the dashboard surface
@@ -123,70 +123,87 @@ description: "Get your API key and place your first trade in under 2 minutes."
   <Step title="Fetch Hot Markets">
     ```bash
     curl -H "X-API-Key: $POLYSIM_API_KEY" \
-         "$POLYSIM_BASE_URL/v1/markets?hot_only=true&limit=5"
+         "$POLYSIM_BASE_URL/v1/markets?limit=5"
     ```
 
     This returns actively traded markets with live prices from Polymarket.
   </Step>
 
   <Step title="Place Your First Trade">
-    <CodeGroup>
-      <Info>
-        **Market orders require `price` as a worst-price limit** —
-        Polymarket-faithful slippage protection. BUY won't fill above
-        this price; SELL won't fill below it. Use the current best
-        ask + a small buffer (e.g. ask × 1.05) to allow normal fills.
-      </Info>
+    The fastest path is the **Python SDK** — it picks a live market and places
+    a trade in a few lines. This snippet is **complete and runnable as-is**
+    (it resolves a real market for you — no IDs to fill in):
 
+    ```python Python SDK
+    # pip install polysimulator
+    from polysim_sdk import PolySimClient
+
+    with PolySimClient() as client:                 # reads POLYSIM_API_KEY from env
+        market = client.list_markets(limit=1)[0]   # an actively-traded market
+        fill = client.place_order(
+            market_id=market["condition_id"],
+            side="BUY",
+            outcome="Yes",
+            quantity=10,
+            order_type="market",
+            price="0.99",            # worst-price cap; "0.99" on a YES = accept any fill
+        )
+        print(f"filled {fill['status']} @ {fill.get('price')} — order {fill['order_id']}")
+    ```
+
+    <Frame caption="Install, run, filled — your first trade in seconds.">
+      <img src="/images/first-trade.gif" alt="A terminal: pip install polysimulator, then python first_trade.py prints 'filled FILLED @ 0.23 — order 102973'." noZoom />
+    </Frame>
+
+    <Info>
+      **Market orders require `price` as a worst-price limit** — Polymarket-faithful
+      slippage protection. A BUY won't fill above it; a SELL won't fill below it.
+      `"0.99"` on a YES means "accept any fill" (great for your first trade); for
+      tighter control use the current best ask × 1.05.
+    </Info>
+
+    Prefer raw HTTP? Resolve a live `market_id` from the markets endpoint first,
+    then POST — these are runnable too:
+
+    <CodeGroup>
       ```bash cURL
+      # 1. grab a live market_id (jq)
+      MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
+        "$POLYSIM_BASE_URL/v1/markets?limit=1" | jq -r '.[0].condition_id')
+
+      # 2. place the trade
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
-        -H "X-API-Key: $POLYSIM_API_KEY" \
-        -H "Content-Type: application/json" \
-        -d '{
-          "market_id": "0xabc123...",
-          "side": "BUY",
-          "outcome": "Yes",
-          "quantity": "10",
-          "order_type": "market",
-          "price": "0.70"
-        }'
+        -H "X-API-Key: $POLYSIM_API_KEY" -H "Content-Type: application/json" \
+        -d "{\"market_id\":\"$MARKET_ID\",\"side\":\"BUY\",\"outcome\":\"Yes\",\"quantity\":\"10\",\"order_type\":\"market\",\"price\":\"0.99\"}"
       ```
 
-      ```python Python
+      ```python Python (requests)
       import requests, os
 
-      resp = requests.post(
-          f"{os.environ['POLYSIM_BASE_URL']}/v1/orders",
-          headers={
-              "X-API-Key": os.environ["POLYSIM_API_KEY"],
-              "Content-Type": "application/json",
-          },
-          json={
-              "market_id": "0xabc123...",
-              "side": "BUY",
-              "outcome": "Yes",
-              "quantity": "10",
-              "order_type": "market",
-              "price": "0.70",  # worst-price limit (slippage cap)
-          },
-      )
+      base, key = os.environ["POLYSIM_BASE_URL"], os.environ["POLYSIM_API_KEY"]
+      h = {"X-API-Key": key, "Content-Type": "application/json"}
+
+      # resolve a live market, then trade
+      market_id = requests.get(f"{base}/v1/markets?limit=1", headers=h).json()[0]["condition_id"]
+      resp = requests.post(f"{base}/v1/orders", headers=h, json={
+          "market_id": market_id, "side": "BUY", "outcome": "Yes",
+          "quantity": "10", "order_type": "market",
+          "price": "0.99",  # worst-price limit (slippage cap)
+      })
       print(resp.json())
       ```
 
       ```javascript JavaScript
-      const resp = await fetch(`${process.env.POLYSIM_BASE_URL}/v1/orders`, {
-        method: "POST",
-        headers: {
-          "X-API-Key": process.env.POLYSIM_API_KEY,
-          "Content-Type": "application/json",
-        },
+      const base = process.env.POLYSIM_BASE_URL, key = process.env.POLYSIM_API_KEY;
+      const h = { "X-API-Key": key, "Content-Type": "application/json" };
+
+      const markets = await (await fetch(`${base}/v1/markets?limit=1`, { headers: h })).json();
+      const resp = await fetch(`${base}/v1/orders`, {
+        method: "POST", headers: h,
         body: JSON.stringify({
-          market_id: "0xabc123...",
-          side: "BUY",
-          outcome: "Yes",
-          quantity: "10",
-          order_type: "market",
-          price: "0.70",  // worst-price limit (slippage cap)
+          market_id: markets[0].condition_id, side: "BUY", outcome: "Yes",
+          quantity: "10", order_type: "market",
+          price: "0.99",  // worst-price limit (slippage cap)
         }),
       });
       console.log(await resp.json());

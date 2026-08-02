@@ -75,7 +75,7 @@ Both accept the same body and emit the same response.
 
 The `expires_at_ms` value is `last_heartbeat_at_ms + interval_ms + grace`, where:
 
-- `grace = max(1000ms, 0.25 × interval_ms)` — absorbs network jitter and the 1-second sweeper tick so bots pinging at exact intervals don't trigger spurious cancels.
+- `grace = max(1000ms, 0.25 × interval_ms)` — absorbs network jitter and the ~1-second evaluation cadence so bots pinging at exact intervals don't trigger spurious cancels.
 
 ---
 
@@ -151,15 +151,13 @@ setInterval(async () => {
 
 ## What happens when a heartbeat is missed?
 
-A background sweeper runs every ~1 second. When it finds a registration
-whose `expires_at_ms` is in the past, it:
+Once your deadline lapses without a fresh heartbeat — typically within
+about a second of the `expires_at_ms` you were given — the server:
 
-1. Removes the registration from the Redis registry.
+1. Retires the lapsed registration.
 2. Cancels **all** pending limit orders for the API key's account (same
    logic as `POST /v1/cancel-all` — refunds BUY notional, returns SELL
    shares to position).
-3. Logs a structured warning: `heartbeat: dead-man's-switch triggered for user_id=... tier=... — cancelled N orders`.
-4. Increments `polysim_heartbeat_dead_mans_switch_triggered_total{tier=...}` once per registration that fired (the metric counts registrations, not individual orders).
 
 To resume, the bot just calls `POST /v1/heartbeats` again — a new
 registration is created from scratch.
@@ -190,51 +188,19 @@ The `[1000, 60000]` bound is deliberate:
 
 ---
 
-## Storage
+## Durability guarantee
 
-Heartbeat registrations live in **Redis**:
+Heartbeat registrations are persisted, not held only in process memory:
 
-- A sorted set `heartbeats:expiry` indexes every registration by its
-  `expires_at_ms`. The sweeper scans this set every second with
-  `ZRANGEBYSCORE 0 now` to find expired registrations.
-- A per-registration hash `heartbeats:reg:{api_key_id}:{client_label}`
-  holds the metadata (`user_id`, `interval_ms`, `last_heartbeat_at_ms`,
-  `tier`) needed by the sweeper to invoke cancel-all.
-
-Both writes happen atomically in a single pipeline so a sweep can't see
-half-written state.
-
-### Durability across api-worker restarts
-
-State is in Redis, so restarting the api process (deploy, OOM,
-graceful reload) preserves every active heartbeat. A bot's next
-refresh after the restart simply bumps the expiry forward — no need
-to re-register from scratch.
-
-### Multi-worker correctness
-
-In a multi-worker deployment (the production topology), a refresh
-landing on worker A and a sweep running on worker B are coordinated
-via Redis:
-
-- The sweeper acquires a 60-second leader lock; only one worker sweeps
-  at any time. A crash on the leader promotes a follower within at
-  most 60 s without manual intervention.
-- The sweep itself uses `WATCH` / `MULTI` around `ZREM` so a refresh
-  that lands between the candidate scan and the claim aborts the
-  transaction and keeps the bot alive — no false dead-man fires from
-  race conditions across workers.
-
----
-
-## Observability
-
-| Metric | Type | Labels | Notes |
-|---|---|---|---|
-| `polysim_heartbeat_dead_mans_switch_triggered_total` | Counter | `tier` | Incremented once per timed-out registration (NOT once per cancelled order). |
-
-There's also a structured warning log on every fire — search for
-`heartbeat: dead-man's-switch triggered` in your logs.
+- **Server restarts don't drop your protection.** A deploy or graceful
+  reload preserves every active heartbeat. Your bot's next refresh
+  after the restart simply bumps the expiry forward — no need to
+  re-register from scratch.
+- **Refreshes and the expiry sweep never race.** A heartbeat that
+  lands at the same instant the deadline is being evaluated keeps your
+  orders alive — the switch never fires spuriously from a timing race.
+  It fires only on a genuine, sustained absence of heartbeats past your
+  deadline.
 
 ---
 

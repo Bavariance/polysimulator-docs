@@ -19,7 +19,7 @@ without rewriting their event handlers.
 | **Price Feed** | `WS /v1/ws/prices` | Real-time price updates for subscribed markets |
 | **Execution Feed** | `WS /v1/ws/executions` | Limit order fill notifications |
 
-### Polymarket-compatible feeds (AF-14)
+### Polymarket-compatible feeds
 
 | Feed | Endpoint | Description |
 |------|----------|-------------|
@@ -29,7 +29,7 @@ without rewriting their event handlers.
 The PM-compat routes:
 
 - Accept PM's subscribe message — `{"type": "market", "assets_ids": ["TOKEN_ID", ...]}`
-- Emit PM-shape events — `book` / `price_change` / `last_trade_price` / `best_bid_ask`, plus PM-shape `trade` fill frames on `/ws/user` (since 2026-06-11)
+- Emit PM-shape events — `book` / `price_change` / `last_trade_price` / `best_bid_ask`, plus PM-shape `trade` fill frames on `/ws/user`
 - Field names match PM verbatim (`asset_id`, `market`, `hash`, `tick_size`, `timestamp`, stringified prices)
 - Accept inline auth via the subscribe message — `"auth": {"apiKey": "ps_live_..."}` (PM's L2 `secret`/`passphrase` fields are accepted but ignored — polysim is single-secret)
 - Also accept `?token=<jwt>` for back-compat with the polysim-native auth model

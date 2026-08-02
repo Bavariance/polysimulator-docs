@@ -1,25 +1,25 @@
 ---
 title: "API Reference"
 sidebarTitle: "Overview"
-description: "Complete reference for the PolySimulator REST + WebSocket API — generated from a curated in-repo openapi.json snapshot."
+description: "Complete reference for the PolySimulator REST + WebSocket API — generated from a curated, stable OpenAPI spec."
 ---
 
 # API Reference
 
 The PolySimulator API is a **REST + WebSocket** surface. Every endpoint
-below is generated from a **curated in-repo snapshot** of the OpenAPI
-spec ([`docs-site/openapi.json`](https://github.com/Bavariance/polysimulator/blob/staging/docs-site/openapi.json))
+below is generated from a **curated, stable OpenAPI spec**
+([`/openapi.json`](https://docs.polysimulator.com/openapi.json))
 and ships with an interactive playground — paste your `ps_live_…` key
 into the **Authorization** widget and you can fire requests against the
 live production environment from this browser tab.
 
 <Note>
-  The published reference is generated from the in-repo curated snapshot,
-  not from the live [`api.polysimulator.com/openapi.json`](https://api.polysimulator.com/openapi.json)
-  served by the backend. The live spec may include additional legacy
-  routes (v0 endpoints, internal helpers) that aren't part of the
-  stable public surface — only the endpoints documented here are
-  considered supported.
+  The published reference is generated from a curated, stable OpenAPI
+  spec. The live backend at
+  [`api.polysimulator.com/openapi.json`](https://api.polysimulator.com/openapi.json)
+  may expose additional unstable / legacy routes (v0 endpoints,
+  internal helpers) that aren't shown here — only the endpoints
+  documented here are part of the supported public surface.
 </Note>
 
 <Tip>
@@ -151,5 +151,4 @@ If you're driving this API from an AI coding assistant, point it at
 [`/llms.txt`](/llms.txt) — a single ~50 KB markdown blob with every
 endpoint, schema, and Polymarket parity note in a model-friendly
 format. Cursor / Claude Code / Continue / Windsurf can also ingest the
-docs via [Mintlify MCP](/introduction#mintlify-mcp) or
-[Context7](/introduction#context7).
+docs via the hosted [MCP server or Context7](/ai-assistants).

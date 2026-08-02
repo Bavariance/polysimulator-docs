@@ -6,7 +6,7 @@ description: "Real-time limit order fill notifications via WebSocket."
 
 # Execution Feed
 
-```
+```http
 WS /v1/ws/executions?token=<jwt>
 ```
 
@@ -54,6 +54,15 @@ wscat -c "wss://api.polysimulator.com/v1/ws/executions?token=$TOKEN"
 | `price` | Fill price |
 | `quantity` | Filled quantity |
 | `filled_at` | ISO-8601 timestamp of the fill |
+
+<Note>
+  This is the **polysim-native** fill frame. If you run a Polymarket-ported
+  bot, the same fills also surface as PM-shape `trade` frames on the
+  `/ws/user` channel — see
+  [PM-compat WebSocket](/websockets/pm-compat-market#whats-not-in-the-pm-compat-layer-yet).
+  Use whichever matches your existing event handlers; don't subscribe to both
+  for the same fills.
+</Note>
 
 ---
 

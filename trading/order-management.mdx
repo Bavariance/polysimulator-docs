@@ -16,8 +16,8 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 
 | Endpoint | Best For | Time-in-force Field | Supported Values |
 |----------|----------|-----------------------|------------------|
-| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default), `FOK`, `IOC`, `FAK` (normalised to `IOC`) |
-| `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC`, `FOK`, `GTD` |
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `FOK` (default for market), `IOC`, `FAK` (normalised to `IOC`); `GTD` rolling out |
+| `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC` (default), `FOK`, `GTD` (rolling out — treated as `GTC` until activation). `IOC`/`FAK` are **not** accepted here |
 
 <Info>
   **Key difference**: The native `/v1/orders` endpoint uses `order_type` for
@@ -61,9 +61,9 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 GET /v1/orders
 ```
 
-Returns orders from two internal data sources merged into a single stream:
-- **Pending limit orders** — unfilled GTC orders stored in the `pending_orders` table.
-- **Filled / cancelled orders** — executed trades from the `orders` table.
+Returns your full order stream — both kinds merged into one list:
+- **Pending limit orders** — unfilled GTC orders still resting on the book.
+- **Filled / cancelled orders** — executed or terminated trades.
 
 Both types share the same `OrderItem` response shape. Supports offset and cursor-based pagination.
 
@@ -106,8 +106,8 @@ curl -H "X-API-Key: $API_KEY" \
 ```
 
 ```bash Cursor Pagination
-# Use next_cursor from the previous response — since 2026-06-11 it is
-# urlsafe-base64 (URL-safe by construction; no percent-encoding needed)
+# Use next_cursor from the previous response — it is urlsafe-base64
+# (URL-safe by construction; no percent-encoding needed)
 curl -H "X-API-Key: $API_KEY" \
   "https://api.polysimulator.com/v1/orders?limit=20&cursor=MjAyNi0wMi0wNlQxMjowMDowMCswMDowMA"
 ```
@@ -172,10 +172,10 @@ iterate.
 
 <Tip>
   **Use cursor-based pagination for bots.** Treat the cursor as **opaque**
-  (since 2026-06-11 it is urlsafe-base64 wrapping the last item's
-  `created_at` — every character is URL-safe, so naive string
-  interpolation round-trips correctly; the legacy raw-ISO form is still
-  accepted on the way in). Cursoring avoids page drift when new orders
+  (it is urlsafe-base64 wrapping the last item's `created_at` — every
+  character is URL-safe, so naive string interpolation round-trips
+  correctly; a raw-ISO cursor is also accepted on the way in). Cursoring
+  avoids page drift when new orders
   arrive between requests. Pass the `next_cursor` value from the previous
   response back as the `cursor` (or `next_cursor`) parameter.
 </Tip>
