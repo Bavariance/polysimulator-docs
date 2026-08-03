@@ -185,17 +185,36 @@ Then:
 
 This handles partial closes and settlement-style closes consistently.
 
+Positions with an **unknown outcome** — a `NULL` exit price while shares
+remain unsold (`remaining_qty > 0`) — are excluded from `realized_pnl`
+entirely: the unsold remainder has no settlement price, and defaulting it to
+zero would mis-score a held-to-settlement position as a total loss. Positions
+fully flattened by BUY/SELL orders keep their order-derived PnL even without
+an exit price (the settlement leg is zero).
+
 ### Win Rate and Win/Loss Counts
 
-Win/loss is based on **realized PnL sign**, not on price comparison alone:
+`win_rate`, `total_wins`, and `total_losses` come from the canonical
+closed-position win-rate used across all account surfaces
+(`/v1/account/portfolio`, this endpoint, and the profile analytics panel), so
+the same account shows the same Win Rate everywhere. Classification is
+**price-based** over closed positions with a *known* outcome:
 
-- Win: `position_realized_pnl > 0`
-- Loss: `position_realized_pnl < 0`
-- Break-even: `position_realized_pnl == 0` (excluded from win/loss counts)
+- Win: `exit_price > avg_entry_price`
+- Loss: `exit_price < avg_entry_price`
+- Break-even: `exit_price == avg_entry_price` (in the denominator, but neither win nor loss)
+- Unknown outcome (`NULL` exit price or `NULL` entry price): excluded from
+  both the counts and the denominator — never silently counted as a loss
 
-`win_rate` uses closed position count as denominator:
+`win_rate` uses the count of classifiable closed positions as denominator:
 
-- **win_rate** = `wins / total_closed_positions * 100`
+- **win_rate** = `wins / classifiable_closed_positions * 100`
+- `win_rate` is `null` when no closed position has a classifiable outcome
+  (unknown is not the same as 0%)
+
+The trade-PnL magnitude stats below (`best_trade_pnl`, `avg_win_pnl`,
+`profit_factor`, …) remain **realized-PnL-based** — they describe the size of
+realized wins and losses, not their count.
 
 ### Profit Factor and Trade PnL Stats
 
