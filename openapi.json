@@ -77,7 +77,7 @@
           "error"
         ],
         "title": "ApiError",
-        "description": "Structured error response for all API v1 endpoints.\n\n* ``error`` carries the human-readable message in the default body\n and the machine code in the verbose body. The machine code is\n ALWAYS exposed via the ``X-Polysim-Code`` response header so SDK\n consumers can switch on a stable identifier without parsing the\n body.\n* ``request_id`` \u2192 exposed as the ``X-Request-Id`` response header\n on every response (success and error).\n\nAll non-required fields are ``Optional`` so generated SDK code can\ndeserialize *either* shape (PM-default or polysim-verbose) without\nchoking on missing keys. Pre-PR ``message`` was required, which\nbroke SDK deserialization of the new PM-shape body."
+        "description": "Structured error response for all API v1 endpoints.\n\nPM-parity: the *default* 4xx body is the PM-shape\nsingle-field ``{\"error\": \"<human message>\"}``. The full structured\nbody documented by this model is only returned when the caller opts\nin via the ``X-Polysim-Verbose: true`` request header. Every field\nbelow maps to a response header on the default path:\n\n* ``error`` carries the human-readable message in the default body\n  and the machine code in the verbose body. The machine code is\n  ALWAYS exposed via the ``X-Polysim-Code`` response header so SDK\n  consumers can switch on a stable identifier without parsing the\n  body.\n* ``request_id`` \u2192 exposed as the ``X-Request-Id`` response header\n  on every response (success and error).\n\nAll non-required fields are ``Optional`` so generated SDK code can\ndeserialize *either* shape (PM-default or polysim-verbose) without\nchoking on missing keys. Pre-PR ``message`` was required, which\nbroke SDK deserialization of the new PM-shape body."
       },
       "ApiFootballInjury": {
         "properties": {
@@ -2265,7 +2265,7 @@
           "condition_id"
         ],
         "title": "MarketSummary",
-        "description": "Tolerant of NULL bool flags from the DB."
+        "description": "Tolerant of NULL bool flags from the DB.\n\nMarkets backfilled by older sync paths (or via the markets-by-slug\narchive fallback) can have ``is_hot=NULL``, ``active=NULL``, or\n``closed=NULL``. Pydantic 2 rejects ``None`` for ``bool`` fields by\ndefault, which 500'd ``GET /v1/markets`` for any list that included\na NULL-flag row. Each field uses a ``before`` validator that coerces\nNone \u2192 its documented default."
       },
       "MarketToken": {
         "properties": {
@@ -2294,7 +2294,7 @@
           "outcome"
         ],
         "title": "MarketToken",
-        "description": "Polymarket-shape per-outcome token entry on ``MarketDetail``.\n\nThe PM ``py-clob-client`` SDK reads ``market.tokens[i].outcome`` to\nlabel the YES/NO sides of a market when rendering bot output. A\n``List[str]`` payload (legacy polysim shape) breaks the SDK on the\nfirst detail call; this shape is the documented PM contract."
+        "description": "Polymarket-shape per-outcome token entry on ``MarketDetail``.\n\nComposed from ``live_price.outcomes[]`` + ``Market.clob_token_ids[]`` +\n``Market.outcomes[]``. ``price`` is the YES/NO probability for that\noutcome at the moment the response was assembled; ``winner`` is\n``True`` only when the market is resolved AND this outcome is the\nsettled winner (NEVER derived from ``price >= 0.99``).\n\nThe PM ``py-clob-client`` SDK reads ``market.tokens[i].outcome`` to\nlabel the YES/NO sides of a market when rendering bot output. A\n``List[str]`` payload (legacy polysim shape) breaks the SDK on the\nfirst detail call; this shape is the documented PM contract."
       },
       "MarketsEnvelope": {
         "properties": {
@@ -2318,7 +2318,7 @@
           "next_cursor"
         ],
         "title": "MarketsEnvelope",
-        "description": "PM-shape envelope for ``GET /v1/markets?envelope=true``."
+        "description": "PM-shape envelope for ``GET /v1/markets?envelope=true``.\n\n``py-clob-client`` (and forks like ``clob-rust``) expect a\n``{data, next_cursor}`` envelope on the markets-list endpoint, while\nthe bare-array response would break those SDKs at parse time.\n\nTo avoid breaking existing consumers that DO depend on the bare\narray (the polysim frontend + first-party SDK), the envelope is\nopt-in via the ``envelope=true`` query parameter; the bare-array\npath remains the default to preserve back-compat.\n\n``next_cursor`` is PM's exact cursor format \u2014 a BASE64-ENCODED\nOFFSET (e.g. ``\"NTA=\"`` = offset 50; live PM /markets emits\n``\"MTAwMA==\"`` = 1000) with the terminal ``\"LTE=\"`` sentinel\n(base64 of -1) on the last page. Pass it back via the\n``next_cursor`` (or ``cursor``) query param \u2014 exactly what\nPM-ported paginators do. Pre-fix the field was a raw int string\nthat NO query param accepted (both ``?cursor=`` and\n``?next_cursor=`` were silently ignored \u2014 paginators looped on\npage 1 forever); raw int strings are still accepted on the way in\nfor back-compat."
       },
       "MatchDetail": {
         "properties": {
@@ -2655,7 +2655,7 @@
           "accepted_at"
         ],
         "title": "OrderAck",
-        "description": "Response body for the V2 ack path.\n\nIntentionally minimal \u2014 fill data lives on the eventually\nreconciled order, not in the ack. Clients poll\n``GET /v1/orders/{order_id}`` for the post-reconcile fields\n(price, fee, position)."
+        "description": "Response body for the V2 ack path.\n\nIntentionally minimal \u2014 fill data lives on the eventually-\nreconciled order, not in the ack. Clients poll\n``GET /v1/orders/{order_id}`` for the post-reconcile fields\n(price, fee, position).\n\nDecimal fields are JSON strings (not floats) to match the rest of\nthe API surface and avoid IEEE-754 ambiguity on the wire \u2014\nPolymarket-CLOB-port bots already expect the string convention."
       },
       "OrderBookSnapshot": {
         "properties": {
@@ -3469,7 +3469,7 @@
           "conditional"
         ],
         "title": "PmBalanceAllowanceResponse",
-        "description": "``GET /v1/balance-allowance`` response \u2014 PM keys + legacy extras."
+        "description": "``GET /v1/balance-allowance`` response \u2014 PM keys + legacy extras.\n\nPM's wire contract (py-clob-client ``get_balance_allowance`` /\nclob-client-v2 ``BalanceAllowanceResponse``) keys the payload as\n``{\"balance\": \"...\", \"allowance\": \"...\"}`` \u2014 base-unit strings\n(USDC 6-decimal fixed point). The original polysim emission used\n``{collateral, conditional}``, so SDK/user code reading\n``resp[\"balance\"]`` KeyError'd. PM keys are now primary; the legacy\nkeys stay as polysim extras for older callers."
       },
       "PmBatchPriceItem": {
         "properties": {
@@ -3525,7 +3525,7 @@
           "fee_rate_bps"
         ],
         "title": "PmFeeRateResponse",
-        "description": "``GET /v1/fee-rate`` \u2014 two-field fee contract.\n\n``base_fee`` mirrors Polymarket's legacy base-fee parameter\n(observed live 2026-06-10: ``1000`` on fee-charging markets, ``0``\non fee-free ones) so ported bots see byte-compatible PM behavior on\nthe PM field. It is NOT the rate you are charged. The effective\nper-category taker rate actually charged is ``fee_rate_bps`` \u2014 a\npolysim extra field (300/400/500/700, or 0 for zero-rate markets)."
+        "description": "``GET /v1/fee-rate`` \u2014 two-field fee contract.\n\n``base_fee`` mirrors Polymarket's legacy base-fee parameter\n(``1000`` on fee-charging markets, ``0`` on fee-free ones) so\nported bots see byte-compatible PM behavior on the PM field. It\nis NOT the rate you are charged. The effective\nper-category taker rate actually charged is ``fee_rate_bps`` \u2014 a\npolysim extra field (300/400/500/700, or 0 for zero-rate markets)."
       },
       "PmOpenOrder": {
         "properties": {
@@ -4133,7 +4133,7 @@
           "status"
         ],
         "title": "PmTradeRow",
-        "description": "One row in the PM ``GET /data/trades`` response.\n\nSubset of PM's full ``Trade`` shape \u2014 fields polysim doesn't model\n(``maker_orders``, ``transaction_hash``, ``trader_side``, on-chain\nhashes) are emitted as None. ``fee_rate_bps`` carries the category\ntaker rate in bps actually applied to the fill (0 for fee-free\nfills \u2014 makers / geopolitics / emergency-exit) since the 2026-06-10\nfee fix."
+        "description": "One row in the PM ``GET /data/trades`` response.\n\nSubset of PM's full ``Trade`` shape \u2014 fields polysim doesn't model\n(``maker_orders``, ``transaction_hash``, ``trader_side``, on-chain\nhashes) are emitted as None. ``fee_rate_bps`` carries the category\ntaker rate in bps actually applied to the fill (0 for fee-free\nfills \u2014 makers / geopolitics / emergency-exit)."
       },
       "PmTradesEnvelope": {
         "properties": {
@@ -6326,7 +6326,7 @@
           "Health"
         ],
         "summary": "Liveness Check",
-        "description": "Liveness probe \u2014 process + asyncio loop responsiveness check only.\n\nReturns 200 + ``{\"status\": \"alive\", ...}`` if the FastAPI worker is\nreachable and the event loop is not wedged. **Does NOT touch the\ndatabase. Does NOT touch Redis.**\n\nIntended as the Traefik routing probe so that a sick database\n(pool drain, replica lag, query storm) does NOT cause Traefik to\nde-register the backend. When the DB is sick:\n\n  \u2022 ``/v1/health/live`` \u2192 200 \u2192 Traefik keeps routing\n  \u2022 ``/v1/health/ready`` \u2192 503 \u2192 docker marks unhealthy,\n    monitoring alerts fire, operator intervenes\n\nThe cached / static / Redis-only paths can still serve while the\nDB recovers, instead of the whole service 404'ing at the edge \u2014\nwhich is exactly what bit prod in the 2026-05-17 outage (memory\n``prod_outage_2026_05_17_entitlements_pool_drain``).\n\nThe ``await asyncio.sleep(0)`` is intentional: it yields control\nback to the event loop for a single tick, so if a sync handler is\npegging the loop the probe will still time out (correctly surfacing\nthe wedge). Without it a wedged loop could in theory complete this\ncoroutine synchronously between handlers.",
+        "description": "Liveness probe \u2014 process + asyncio loop responsiveness check only.\n\nReturns 200 + ``{\"status\": \"alive\", ...}`` if the FastAPI worker is\nreachable and the event loop is not wedged. **Does NOT touch the\ndatabase. Does NOT touch Redis.**\n\nIntended as the Traefik routing probe so that a sick database\n(pool drain, replica lag, query storm) does NOT cause Traefik to\nde-register the backend. When the DB is sick:\n\n  \u2022 ``/v1/health/live`` \u2192 200 \u2192 Traefik keeps routing\n  \u2022 ``/v1/health/ready`` \u2192 503 \u2192 docker marks unhealthy,\n    monitoring alerts fire, operator intervenes\n\nThe cached / static / Redis-only paths can still serve while the\nDB recovers, instead of the whole service 404'ing at the edge.\n\nThe ``await asyncio.sleep(0)`` is intentional: it yields control\nback to the event loop for a single tick, so if a sync handler is\npegging the loop the probe will still time out (correctly surfacing\nthe wedge). Without it a wedged loop could in theory complete this\ncoroutine synchronously between handlers.",
         "operationId": "livenessCheck",
         "responses": {
           "200": {
@@ -6524,7 +6524,7 @@
           "Health"
         ],
         "summary": "Readiness Check",
-        "description": "Readiness probe \u2014 checks that database and Redis are reachable.\n\nReturns 200 with status \"ok\" if all dependencies are healthy.\n\nWhen ``HEALTH_READY_TOLERANCE_ENABLED`` is set (opt-in; default OFF), a\nsingle transient failure (e.g. a slow DB-ping during the bulk-poller\nburst) returns 200 with status \"tolerating\" \u2014 the endpoint only flips to\n**503** with status \"degraded\" after ``HEALTH_READY_FAIL_THRESHOLD``\nconsecutive failed probes (see the tolerance block above for the WHY).\nWith the flag OFF (the default) the endpoint is strict fail-fast: any\nfailed probe returns 503 immediately, exactly as it did pre-#1850.",
+        "description": "Readiness probe \u2014 checks that database and Redis are reachable.\n\nReturns 200 with status \"ok\" if all dependencies are healthy.\n\nWhen ``HEALTH_READY_TOLERANCE_ENABLED`` is set (opt-in; default OFF), a\nsingle transient failure (e.g. a slow DB-ping during the bulk-poller\nburst) returns 200 with status \"tolerating\" \u2014 the endpoint only flips to\n**503** with status \"degraded\" after ``HEALTH_READY_FAIL_THRESHOLD``\nconsecutive failed probes (see the tolerance block above for the WHY).\nWith the flag OFF (the default) the endpoint is strict fail-fast: any\nfailed probe returns 503 immediately.\n\nThis handler is ``async``: the cache fast-path returns on the event loop\nneeding no worker thread, and a cache MISS offloads the blocking DB+Redis\nprobe to a worker thread so a stampede can't starve this monitoring probe.\n\nUse this for docker HEALTHCHECK, monitoring (Prometheus blackbox),\nand alerting. **Do NOT use this as the Traefik routing probe** \u2014 when\nthe DB is sustained-unhealthy this endpoint returns 503, which would\ncause Traefik to de-register the backend and 404 every request at the\nedge. For routing, use ``/v1/health/live``, which proves the process\nis alive without touching DB/Redis.",
         "operationId": "readinessCheck",
         "responses": {
           "200": {
@@ -6920,7 +6920,7 @@
           "Health"
         ],
         "summary": "Get Api Me",
-        "description": "Get the authenticated user's profile and account balance.\n\nAccepts both ``X-API-Key`` and ``Authorization: Bearer <jwt>`` authentication.\nUseful as a quick connectivity test and to retrieve balance without\nhitting the full /v1/account/balance endpoint.\n\nThe ``permissions`` field reflects the scope of the AUTHENTICATING key\n(e.g. ``[\"read\", \"trade\"]`` or ``[\"read\"]`` for a free-tier / read-only\nkey), so a developer can inspect what their key can do without parsing\nthe keys endpoint. For Bearer-JWT (dashboard) auth there is no API key,\nso the documented default scope is returned.",
+        "description": "Get the authenticated user's profile and account balance.\n\nAccepts both ``X-API-Key`` and ``Authorization: Bearer <jwt>`` authentication.\nUseful as a quick connectivity test and to retrieve balance without\nhitting the full /v1/account/balance endpoint.\n\nThe ``permissions`` field reflects the scope of the AUTHENTICATING key\n(e.g. ``[\"read\", \"trade\"]`` or ``[\"read\"]`` for a free-tier / read-only\nkey), so a developer can inspect what their key can do without parsing\nthe keys endpoint. For Bearer-JWT (dashboard) auth there is no API key,\nso the documented default scope is returned.\n\nPer-user 5s Redis cache (override via ``ME_CACHE_TTL_S`` env). Set\nTTL to 0 to disable. The cache de-amplifies the per-request DB\nqueries so the connection pool stays healthy under load.",
         "operationId": "getMe",
         "parameters": [
           {
@@ -7469,7 +7469,7 @@
           "Market Data"
         ],
         "summary": "List markets (bare array; opt-in PM-shape envelope).",
-        "description": "List markets with live prices from cache.\n\nMarkets are sourced from the Redis market-list cache filled by the\nbackground poller. Each market is enriched with its latest cached\nprice data.\n\n``active_only`` is a post-filter pass over the (already cached and\npaginated) market list \u2014 cheap and safe because the cache slice is\nalready volume-ordered and the filter only drops a few closed rows.",
+        "description": "List markets with live prices from cache.\n\nPublic read \u2014 no authentication required. Consistent with the\nother public CLOB-read endpoints (``/v1/book``, ``/v1/price``,\n``/v1/midpoint``, \u2026) so the keyless quickstart works. The single-\nmarket sub-routes (``/v1/markets/{cid}`` and its ``/book`` /\n``/candles`` children) keep their ``get_api_user`` gate. Per-IP /\nper-key rate limiting is applied by the middleware via\n``_V1_PUBLIC_CLOB_READ_PATHS`` since no ``get_api_user`` runs here.\n\nMarkets are sourced from the Redis market-list cache filled by the\nbackground poller.  Each market is enriched with its latest cached\nprice data.\n\nWrapped in a 30 s endpoint-level Redis cache (override via\n``MARKETS_LIST_CACHE_TTL_S``). The wrapper de-amplifies the\nmulti-MB ``markets:list:poller`` JSON parse path. The in-memory\n``_parsed_market_cache`` already shaves the JSON parse cost per\nworker but is per-pid \u2014 the Redis wrapper makes the same response\nshareable across all replicas.\n\n``active_only`` is a post-filter pass over the (already cached and\npaginated) market list \u2014 cheap and safe because the cache slice is\nalready volume-ordered and the filter only drops a few closed rows.\n\n``category`` and ``q`` are search-class filters: with a fixed\n``offset/limit`` page the post-filter would only ever see the first\nN volume-ordered markets, so ``?q=trump&limit=50`` would correctly\nfind zero matches in the first 50 rows even when thousands of\n\"trump\" markets exist deeper in the catalog.\nFor those filters we therefore fetch a wider window\n(``SEARCH_FILTER_SCAN_WINDOW``, default 500) from offset=0,\napply the substring match, THEN paginate the FILTERED result. The\nresponse-cache wrapper still de-amplifies the underlying poller-\nblob parse cost; we just key it on the wider window for search-\nqualified requests so different ``q`` values share one warmed scan.",
         "operationId": "listMarkets",
         "parameters": [
           {
@@ -7571,9 +7571,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
+              "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers \u2014 ``py-clob-client`` and other PM-ported SDKs should set this to ``true``.",
               "default": false,
               "title": "Envelope"
-            }
+            },
+            "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers \u2014 ``py-clob-client`` and other PM-ported SDKs should set this to ``true``."
           },
           {
             "name": "next_cursor",
@@ -8186,7 +8188,7 @@
           "Market Data"
         ],
         "summary": "Get Market",
-        "description": "Fetch a single market's detail with live price.\n\nIf ``include_book`` is true, the response also includes\na ``book`` key with the CLOB order-book snapshot (async, best-effort).\n(``include_book=true`` bypasses the SSR cache wrapper since each\nbook snapshot is volatile and would dirty the cached payload.)",
+        "description": "Fetch a single market's detail with live price.\n\nIf ``include_book`` is true, the response also includes\na ``book`` key with the CLOB order-book snapshot (async, best-effort).\n(``include_book=true`` bypasses the response cache since each\nbook snapshot is volatile and would dirty the cached payload.)\n\nResponses are cached and coalesced per condition_id for a short\nwindow, so a burst of concurrent reads for the same market is\nserved from a single computation.",
         "operationId": "getMarket",
         "parameters": [
           {
@@ -8259,8 +8261,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -8707,7 +8711,7 @@
           "Market Data"
         ],
         "summary": "Get Market By Slug",
-        "description": "Resolve a market by its slug for short-URL / SDK lookups.\n\nTries Redis ``MARKET_SLUG_INDEX_PREFIX`` first, then the\n``markets`` table, then the R2 archive \u2014 same chain the root\n``/markets/by-slug`` handler uses, but typed and gated by\n``X-API-Key`` on the v1 surface.\n\nWrapped in a 60 s endpoint-level Redis cache (override via\n``MARKET_BY_SLUG_CACHE_TTL_S``). Slug \u2192 condition_id mapping is\nstable; even closed markets stay reachable for the full TTL.",
+        "description": "Resolve a market by its slug for short-URL / SDK lookups.\n\nTries Redis ``MARKET_SLUG_INDEX_PREFIX`` first, then the\n``markets`` table, then the R2 archive \u2014 same chain the root\n``/markets/by-slug`` handler uses, but typed and gated by\n``X-API-Key`` on the v1 surface.\n\nWrapped in a 60 s endpoint-level Redis cache (override via\n``MARKET_BY_SLUG_CACHE_TTL_S``). Slug \u2192 condition_id mapping is\nstable; even closed markets stay reachable for the full TTL.\n\nNegative-404 caching: gated on ``MARKET_DETAIL_NEG_CACHE_TTL_S``\n(default 0 = off; operator opt-in commonly 15 s). Trade-off when\nenabled: a brand-new on-chain market surfaces up to the configured\nTTL late on this endpoint until the negative-cache entry expires.",
         "operationId": "getMarketBySlug",
         "parameters": [
           {
@@ -8768,8 +8772,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -9315,8 +9321,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -9815,8 +9823,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -10277,7 +10287,7 @@
           "Market Data"
         ],
         "summary": "Get Candles",
-        "description": "Fetch OHLCV candles from the Polymarket CLOB /prices-history endpoint.\n\nThe CLOB returns price history keyed by token_id, not condition_id.\nThis endpoint resolves the token_id from the cached price data.\nIf `outcome` is omitted, the first available outcome is used automatically\n(supports binary Yes/No and categorical Up/Down markets).",
+        "description": "Fetch OHLCV candles from the Polymarket CLOB /prices-history endpoint.\n\nThe CLOB returns price history keyed by token_id, not condition_id.\nThis endpoint resolves the token_id from the cached price data.\nIf `outcome` is omitted, the first available outcome is used automatically\n(supports binary Yes/No and categorical Up/Down markets).\n\nSub-hour intervals (``1m``/``5m``/``15m``) are not supported because\nPolymarket's CLOB ``/prices-history`` upstream is hourly-granular \u2014\nwe can't reconstruct 5-minute buckets from 1-hour samples. These\nintervals 400 explicitly so SDK porters fail loudly instead of\nrendering empty charts.",
         "operationId": "getMarketCandles",
         "parameters": [
           {
@@ -10368,8 +10378,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -10820,7 +10832,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Price",
-        "description": "Get a price for a single token.\n\nPublic endpoint \u2014 no authentication required.\nMirrors Polymarket's ``GET /price?token_id=...&side=BUY|SELL``.",
+        "description": "Get a price for a single token.\n\nPublic endpoint \u2014 no authentication required.\nMirrors Polymarket's ``GET /price?token_id=...&side=BUY|SELL``.\n\n``side=BUY`` returns the best BID; ``side=SELL`` returns the best\nASK \u2014 matching Polymarket's LIVE CLOB wire behaviour and its API\nreference (\"Returns the best bid price for BUY side or best ask\nprice for SELL side\" \u2014 docs.polymarket.com/api-reference/\nmarket-data/get-market-price). NOTE: PM's own docs are\nself-contradictory here \u2014 the orderbook *guide*\n(trading/orderbook#prices) claims \"getPrice BUY \u2192 Best ask\", which\ncontradicts PM's actual wire. The wire is the authority; this\nendpoint mirrors it. ``side`` is treated as REQUIRED at the handler\nlevel \u2014 both missing and invalid values return 400 ``{\"error\":\n\"Invalid side\"}`` matching Polymarket's CLOB contract.\n\nImplementation note: ``side`` is declared ``Optional`` in the\nFastAPI signature (not ``Query(...)``) precisely so the missing-side\ncase lands in this handler \u2014 not in ``api_validation_error_handler``\nas a 422 \u2014 and yields the PM-style 400 uniformly. PM SDK porters\nbranching on ``{\"error\": \"Invalid side\"}`` would otherwise hit two\ndifferent envelopes for the same logical error.",
         "operationId": "getPrice",
         "parameters": [
           {
@@ -11186,7 +11198,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Prices Batch",
-        "description": "Get prices for multiple tokens in one request.\n\nPublic endpoint \u2014 no authentication required.\n\n1. PolySim ``{\"token_ids\": [\"TOKEN_A\", \"TOKEN_B\"]}`` \u2192\n returns ``{\"TOKEN_A\": \"0.52\", \"TOKEN_B\": \"0.74\"}``.\n2. Polymarket ``[{\"token_id\": \"TOKEN_A\", \"side\": \"BUY\"},...]``\n (py-clob-client / clob-rust shape) \u2192 returns\n ``{\"TOKEN_A\": {\"BUY\": \"0.52\"}, \"TOKEN_B\": {\"BUY\": \"0.74\"}}``.\n\nThe PM-shape response shape mirrors PM exactly (per\n``docs.polymarket.com/trading/orderbook`` \u00a7Batch Requests). The\nsimulator returns the cached outcome price for both ``BUY`` and\n``SELL`` \u2014 separate bid/ask aren't held in the price cache, so\nPM porters get the correct response *shape* (no more 422) but\nthe BUY/SELL values are the same midpoint. Use single-token\n``GET /v1/price?token_id=...&side=...`` when you need a true\nbest-bid / best-ask off the live book.",
+        "description": "Get prices for multiple tokens in one request.\n\nPublic endpoint \u2014 no authentication required.\n\nTwo body shapes are accepted:\n\n1. PolySim ``{\"token_ids\": [\"TOKEN_A\", \"TOKEN_B\"]}`` \u2192\n   returns ``{\"TOKEN_A\": \"0.52\", \"TOKEN_B\": \"0.74\"}``.\n2. Polymarket ``[{\"token_id\": \"TOKEN_A\", \"side\": \"BUY\"}, ...]``\n   (py-clob-client / clob-rust shape) \u2192 returns\n   ``{\"TOKEN_A\": {\"BUY\": \"0.52\"}, \"TOKEN_B\": {\"BUY\": \"0.74\"}}``.\n\nThe PM-shape response shape mirrors PM exactly (per\n``docs.polymarket.com/trading/orderbook`` \u00a7Batch Requests). The\nsimulator returns the cached outcome price for both ``BUY`` and\n``SELL`` \u2014 separate bid/ask aren't held in the price cache, so\nPM porters get the correct response *shape* (no more 422) but\nthe BUY/SELL values are the same midpoint. Use single-token\n``GET /v1/price?token_id=...&side=...`` when you need a true\nbest-bid / best-ask off the live book.",
         "operationId": "getPrices",
         "requestBody": {
           "content": {
@@ -12041,7 +12053,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Book By Token",
-        "description": "Get the order book for a single token.\n\n**Level ordering is byte-identical to Polymarket's LIVE ``/book``\nwire** (verified against ``clob.polymarket.com/book`` 2026-06-10):\n``bids`` are ASCENDING by price (best/highest bid = ``bids[-1]``) and\n``asks`` are DESCENDING by price (best/lowest ask = ``asks[-1]``)\nthe best level is at the TAIL on BOTH sides, exactly as PM's live\nCLOB returns it. Note this is the *wire* ordering; PM's published\ndocs describe the opposite, but the live wire does not match the\ndocs and wire-parity is the contract here. ``mid`` and ``spread`` are\ncomputed from the FULL book (true top-of-book), not from the\ntruncated slice \u2014 see ``_book_levels_and_summary``.\n\n**RECOMMENDED \u2014 read order-independently**: do NOT index a fixed\nposition. Compute best bid as ``max(float(b[\"price\"]) for b in\nbids)`` and best ask as ``min(float(a[\"price\"]) for a in asks)``.\nThis stays correct regardless of array order and survives any future\nwire-format change on either side.\n\n**MIGRATION NOTE (2026-06-10)**: book level ordering changed to PM\nlive-wire parity. History (3 changes in 24h): pre-2026-05-19 bids\nwere ASCENDING (best = ``bids[-1]``); the 2026-06-10 AM change flipped\nto bids DESCENDING / asks ASCENDING (best = ``[0]``) to match PM's\n*docs*; this change re-sorts to PM's *live wire* \u2014 bids ASCENDING /\nasks DESCENDING (best = ``[-1]``). A bot that read ``bids[0]`` for the\nbest bid during the brief docs-aligned window now gets the WORST bid;\nswitch to the order-independent ``max``/``min`` reads above.",
+        "description": "Get the order book for a single token.\n\nPublic endpoint \u2014 no authentication required.\nMirrors Polymarket's `GET /book?token_id=...` shape (``market``,\n``asset_id``, ``timestamp``, ``hash``, ``tick_size``, ``neg_risk``,\n``last_trade_price``, ``min_order_size``).\n\n**Level ordering is byte-identical to Polymarket's LIVE ``/book``\nwire** (verified against ``clob.polymarket.com/book`` 2026-06-10):\n``bids`` are ASCENDING by price (best/highest bid = ``bids[-1]``) and\n``asks`` are DESCENDING by price (best/lowest ask = ``asks[-1]``) \u2014\nthe best level is at the TAIL on BOTH sides, exactly as PM's live\nCLOB returns it. Note this is the *wire* ordering; PM's published\ndocs describe the opposite, but the live wire does not match the\ndocs and wire-parity is the contract here. ``mid`` and ``spread`` are\ncomputed from the FULL book (true top-of-book), not from the\ntruncated slice \u2014 see ``_book_levels_and_summary``.\n\n**RECOMMENDED \u2014 read order-independently**: do NOT index a fixed\nposition. Compute best bid as ``max(float(b[\"price\"]) for b in\nbids)`` and best ask as ``min(float(a[\"price\"]) for a in asks)``.\nThis stays correct regardless of array order and survives any future\nwire-format change on either side.\n\n**MIGRATION NOTE (2026-06-10)**: book level ordering changed to PM\nlive-wire parity. History (3 changes in 24h): pre-2026-05-19 bids\nwere ASCENDING (best = ``bids[-1]``); the 2026-06-10 AM change flipped\nto bids DESCENDING / asks ASCENDING (best = ``[0]``) to match PM's\n*docs*; this change re-sorts to PM's *live wire* \u2014 bids ASCENDING /\nasks DESCENDING (best = ``[-1]``). A bot that read ``bids[0]`` for the\nbest bid during the brief docs-aligned window now gets the WORST bid;\nswitch to the order-independent ``max``/``min`` reads above.",
         "operationId": "getOrderBook",
         "parameters": [
           {
@@ -12631,7 +12643,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Price history (PM wire shape \u2014 {history: [{t, p}]}).",
-        "description": "Price history for a single token \u2014 PM wire parity.\n\nPublic endpoint \u2014 no authentication required.",
+        "description": "Price history for a single token \u2014 PM wire parity.\n\nMirrors Polymarket's ``GET /prices-history?market=...``: accepts\nPM's REQUIRED ``market=`` param (previously 422'd as \"missing\ntoken_id\"), returns PM's exact\n``{\"history\": [{\"t\": int, \"p\": float}]}`` envelope by default\n(previously a bare OHLCV array that KeyError'd ``resp[\"history\"]``\non ported code), supports ``startTs``/``endTs``/``fidelity``, and\n400s (not 422s) on the missing-param case with PM's live error\nmessage verbatim.\n\nPublic endpoint \u2014 no authentication required.",
         "operationId": "getPricesHistory",
         "parameters": [
           {
@@ -13086,7 +13098,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Server Time",
-        "description": "Return the current server time as a bare Unix-seconds integer.",
+        "description": "Return the current server time as a bare Unix-seconds integer.\n\nPM-CLOB canonical: Polymarket emits ``GET /time`` as a bare JSON\ninteger (``1779147906``), NOT as an object\n(``{\"server_time\":1779147906}``). py-clob-client does\n``int(response.text)`` on this surface; the object form TypeErrors\non every startup health check.\n\nRead the value with ``int(resp.text)`` (what py-clob-client does) or\n``resp.json()`` (which returns the int directly because the body\nparses as a JSON integer).",
         "operationId": "getServerTime",
         "responses": {
           "200": {
@@ -13561,7 +13573,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Tick Size Query",
-        "description": "PM-compat query-string alias for ``GET /v1/tick-size/{token_id}``.\n\nSame response shape, same resolution chain, same error envelopes\nas the path form. Added to satisfy py-clob-client's hardcoded\nquery URL pattern (audit AF-5).",
+        "description": "PM-compat query-string alias for ``GET /v1/tick-size/{token_id}``.\n\nSame response shape, same resolution chain, same error envelopes\nas the path form. Provided to satisfy py-clob-client's hardcoded\nquery URL pattern.",
         "operationId": "getTickSizeByQuery",
         "parameters": [
           {
@@ -13570,8 +13582,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "PM-compat alias: py-clob-client builds the tick-size URL as ``{host}/tick-size?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/tick-size/{token_id}``.",
               "title": "Token Id"
-            }
+            },
+            "description": "PM-compat alias: py-clob-client builds the tick-size URL as ``{host}/tick-size?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/tick-size/{token_id}``."
           }
         ],
         "responses": {
@@ -13835,7 +13849,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Tick Size",
-        "description": "Polymarket-compat ``GET /tick-size/{token_id}``.\n\nResolution order (freshest source wins):\n\n - **Grow (0.001 \u2192 0.01)**: previously-valid 0.001-step\n quotes are no longer multiples of the new tick. PM rejects\n with ``INVALID_ORDER_MIN_TICK_SIZE``. This is the case\n where missing the change silently breaks the bot.\n - **Shrink (0.01 \u2192 0.001)**: 0.01-step quotes are still\n valid multiples of 0.001, so orders aren't rejected \u2014 but\n the bot is leaving precision on the table and quoting\n less competitively than the rest of the book. SDK\n porters reading PM docs expect tick refresh in both\n directions.\n\nOn transient upstream failure (DB/Redis unavailable) the handler\nreturns ``503`` with ``Retry-After: 2``, NOT a silent default tick.",
+        "description": "Polymarket-compat ``GET /tick-size/{token_id}``.\n\nResolution order (freshest source wins):\n\n  1. **CLOB WS overlay**: if a recent ``tick_size_change`` event has\n     been observed for this token, emit the post-change value. PM\n     shrinks the tick from 0.01 \u2192 0.001 when a book moves past 0.96\n     or below 0.04 (and grows back when the book pulls away). The two\n     directions have asymmetric correctness consequences:\n\n       - **Grow (0.001 \u2192 0.01)**: previously-valid 0.001-step\n         quotes are no longer multiples of the new tick. PM rejects\n         with ``INVALID_ORDER_MIN_TICK_SIZE``. This is the case\n         where missing the change silently breaks the bot.\n       - **Shrink (0.01 \u2192 0.001)**: 0.01-step quotes are still\n         valid multiples of 0.001, so orders aren't rejected \u2014 but\n         the bot is leaving precision on the table and quoting\n         less competitively than the rest of the book. SDK\n         porters reading PM docs expect tick refresh in both\n         directions.\n\n  2. **``markets.minimum_tick_size`` column** (populated by the\n     Gamma sync from ``orderPriceMinTickSize``).\n  3. **404 ``TOKEN_NOT_FOUND``** when the token doesn't resolve to\n     any market. A missing token returns 404 rather than a default\n     0.01 fallback \u2014 quoting on the wrong tick is a real-money risk\n     for py-clob-client porters.\n\nOn transient upstream failure (DB/Redis unavailable) the handler\nreturns ``503`` with ``Retry-After: 2``, NOT a silent default tick.\n\n**Value consistency:** the tick VALUE is resolved\nthrough :func:`resolve_canonical_tick`, the single source shared with\n``GET /book`` and order validation, so all three surfaces agree. The\ntick-value chain remains network-free (``allow_live_book=False``):\noverlay \u2192 DB column \u2192 default, with NO per-read ``GET /book`` fetch.\nWhen the authoritative fallback flag is enabled, the preceding\ntoken-existence gate may consult the CLOB only after a local miss.\n``/book`` reads keep seeding the overlay so this surface stays fresh\nwithout paying a book fetch on every read. This handler keeps\nthe **JSON-number** wire shape (``minimum_tick_size: 0.01``) \u2014 PM emits\n``/tick-size`` as a number, distinct from ``/book``'s string\n``tick_size``; we change the value source, not the type. The\ntoken-existence (404) and upstream-failure (503) envelopes below are\nunchanged.",
         "operationId": "getTickSize",
         "parameters": [
           {
@@ -14118,8 +14132,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``.",
               "title": "Token Id"
-            }
+            },
+            "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``."
           }
         ],
         "responses": {
@@ -14383,7 +14399,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Neg Risk",
-        "description": "Polymarket-compat ``GET /neg-risk/{token_id}``.\n\nReturns whether the market routes through Polymarket's\nnegative-risk contract \u2014 the REAL upstream flag, not a stub.\n\nResolution cascade:\n 1. Live CLOB ``/book`` payload's ``neg_risk`` bool (same source\n ``GET /v1/book`` serializes).\n 2. Last-known cached book (``orderbook:`` / ``clob:book:`` Redis\n layers) when the live fetch blips.\n 3. Catalog classification off the market row's tags/category\n (``_classify_neg_risk``) when no book is available at all.\n 4. ``404 {\"error\": \"market not found\"}`` \u2014 PM's live message\n verbatim (probed 2026-06-11) \u2014 when the token resolves to no\n known market.\n\nNote: sim EXECUTION semantics don't change for neg-risk markets\nwe report the real flag so routing/branching code behaves like it\nwould against PM, but fills still settle per the standard binary\nflow (documented divergence).",
+        "description": "Polymarket-compat ``GET /neg-risk/{token_id}``.\n\nReturns whether the market routes through Polymarket's\nnegative-risk contract \u2014 the REAL upstream flag, not a stub. The\nvalue comes from the upstream CLOB book payload (the same source\n``GET /v1/book`` serializes), so an SDK port branching on\n``get_neg_risk()`` \u2014 e.g. to pick the neg-risk exchange adapter or\nfilter mutually-exclusive event groups \u2014 agrees with the book.\n\nResolution cascade:\n  1. Live CLOB ``/book`` payload's ``neg_risk`` bool (same source\n     ``GET /v1/book`` serializes).\n  2. Last-known cached book (``orderbook:`` / ``clob:book:`` Redis\n     layers) when the live fetch blips.\n  3. Catalog classification off the market row's tags/category\n     (``_classify_neg_risk``) when no book is available at all.\n  4. ``404 {\"error\": \"market not found\"}`` \u2014 PM's live message\n     verbatim \u2014 when the token resolves to no known market.\n\nNote: sim EXECUTION semantics don't change for neg-risk markets \u2014\nwe report the real flag so routing/branching code behaves like it\nwould against PM, but fills still settle per the standard binary\nflow (documented divergence).",
         "operationId": "getNegRisk",
         "parameters": [
           {
@@ -15976,8 +15992,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -16492,8 +16510,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -17094,6 +17114,7 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter orders by status. Canonical values: `PENDING` (open), `FILLED` (matched), `CANCELLED`, `EXPIRED`. Accepts the synonyms `open` / `live` (\u2192 PENDING), `matched` (\u2192 FILLED), `canceled` / `unmatched` (\u2192 CANCELLED), and the Polymarket-shape `ORDER_STATUS_*` values (e.g. `ORDER_STATUS_LIVE` \u2192 PENDING). Unrecognised values are silently treated as 'no filter' for back-compat \u2014 bots that want a strict mode should validate against the canonical set client-side.",
               "examples": [
                 "PENDING",
                 "open",
@@ -17101,7 +17122,8 @@
                 "CANCELLED"
               ],
               "title": "Status"
-            }
+            },
+            "description": "Filter orders by status. Canonical values: `PENDING` (open), `FILLED` (matched), `CANCELLED`, `EXPIRED`. Accepts the synonyms `open` / `live` (\u2192 PENDING), `matched` (\u2192 FILLED), `canceled` / `unmatched` (\u2192 CANCELLED), and the Polymarket-shape `ORDER_STATUS_*` values (e.g. `ORDER_STATUS_LIVE` \u2192 PENDING). Unrecognised values are silently treated as 'no filter' for back-compat \u2014 bots that want a strict mode should validate against the canonical set client-side."
           },
           {
             "name": "market_id",
@@ -17254,8 +17276,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -17752,8 +17776,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -18214,7 +18240,7 @@
           "Trading"
         ],
         "summary": "Batch Orders",
-        "description": "Place multiple orders in one request.\n\nEach order is processed independently \u2014 individual failures don't\nblock the rest. The batch size is limited by your API tier.\n\n**HFT optimisation:** CLOB midpoint prices are pre-fetched in parallel\nfor all unique markets in the batch before orders are processed.\nThis collapses N sequential HTTP round-trips into one parallel burst,\nwarming the Redis midpoint cache so each order hits the sub-ms HFT\nfast-path during execution.",
+        "description": "Place multiple orders in one request.\n\nEach order is processed independently \u2014 individual failures don't\nblock the rest.  The batch size is limited by your API tier.\n\n**HFT optimisation:** CLOB midpoint prices are pre-fetched in parallel\nfor all unique markets in the batch before orders are processed.\nThis collapses N sequential HTTP round-trips into one parallel burst,\nwarming the Redis midpoint cache so each order hits the sub-ms HFT\nfast-path during execution.",
         "operationId": "placeBatch",
         "parameters": [
           {
@@ -18266,8 +18292,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -18749,8 +18777,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Disambiguate the table lookup: ``pending`` forces the PendingOrder table (limit orders), ``filled`` forces the Order table (pure-market fills). Default ``None`` tries PendingOrder first, falls back to Order on miss (same precedence as ``list_orders``).",
               "title": "Source"
-            }
+            },
+            "description": "Disambiguate the table lookup: ``pending`` forces the PendingOrder table (limit orders), ``filled`` forces the Order table (pure-market fills). Default ``None`` tries PendingOrder first, falls back to Order on miss (same precedence as ``list_orders``)."
           },
           {
             "name": "wallet_id",
@@ -18765,8 +18795,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Optional wallet scope \u2014 when supplied, only returns the row if it belongs to this wallet. Mirrors the ``list_orders`` ``wallet_id`` pattern so per-wallet pollers stay consistent.",
               "title": "Wallet Id"
-            }
+            },
+            "description": "Optional wallet scope \u2014 when supplied, only returns the row if it belongs to this wallet. Mirrors the ``list_orders`` ``wallet_id`` pattern so per-wallet pollers stay consistent."
           },
           {
             "name": "X-API-Key",
@@ -18817,8 +18849,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -19324,8 +19358,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -19862,7 +19898,7 @@
           "Trading"
         ],
         "summary": "Clob Order",
-        "description": "CLOB-compatible order endpoint.\n\nAccepts orders using the same schema as Polymarket's real CLOB API\n(token_id + price + size), enabling one-URL-swap migration to live.\n\nThe ``order_type`` field follows PM-CLOB semantics:\n\n * ``GTC``/``GTD`` \u2014 rests on the book (resting limit order)\n * ``FOK`` \u2014 fill-or-kill (immediate, all-or-nothing)\n * ``IOC`` \u2014 NOT YET SUPPORTED. The matching engine only has FOK\n worst-price enforcement; routing IOC through ``_execute_market_order``\n would silently behave like FOK. Until proper partial-fill +\n cancel-remainder semantics land, requests with ``order_type=IOC``\n get a clean ``400 UNSUPPORTED_ORDER_TYPE`` response.",
+        "description": "CLOB-compatible order endpoint.\n\nAccepts orders using the same schema as Polymarket's real CLOB API\n(token_id + price + size), enabling one-URL-swap migration to live.\n\nThe ``order_type`` field follows PM-CLOB semantics:\n\n  * ``GTC``/``GTD`` \u2014 rests on the book (resting limit order)\n  * ``FOK`` \u2014 fill-or-kill (immediate, all-or-nothing)\n  * ``IOC`` \u2014 NOT YET SUPPORTED. The matching engine only has FOK\n    worst-price enforcement; routing IOC through ``_execute_market_order``\n    would silently behave like FOK. Until proper partial-fill +\n    cancel-remainder semantics land, requests with ``order_type=IOC``\n    get a clean ``400 UNSUPPORTED_ORDER_TYPE`` response.\n\nResolves DB-first (markets.clob_token_ids JSONB) then falls back\nto the Redis poller cache, so this endpoint and ``/v1/midpoint``\naccept the same token-id surface.",
         "operationId": "placeClobOrder",
         "parameters": [
           {
@@ -19914,8 +19950,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -20372,6 +20410,7 @@
           "Trading"
         ],
         "summary": "Cancel all pending limit orders (canonical verb).",
+        "description": "Polymarket's CLOB and our public docs use POST for this action; DELETE is preserved as a back-compat alias for SDKs that adopted the prior shape, but POST is canonical going forward. **Requires confirmation**: pass ``?confirm=true`` query parameter OR ``X-Confirm-Cancel-All: true`` header to prevent accidental order wipeouts.",
         "operationId": "cancelAll",
         "parameters": [
           {
@@ -20459,8 +20498,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -20905,6 +20946,7 @@
           "Trading"
         ],
         "summary": "Cancel all pending limit orders (legacy DELETE alias).",
+        "description": "**Deprecated** \u2014 use POST /v1/cancel-all going forward. The DELETE verb stays live until 2026-08-01 to avoid breaking older SDKs that shipped against it. Responses include ``X-Deprecation`` and ``Sunset`` headers. **Requires confirmation**: pass ``?confirm=true`` query parameter OR ``X-Confirm-Cancel-All: true`` header.",
         "operationId": "cancelAllDeleteLegacy",
         "deprecated": true,
         "parameters": [
@@ -20993,8 +21035,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -21441,7 +21485,7 @@
           "Trading"
         ],
         "summary": "Cancel Market Orders",
-        "description": "Cancel all pending limit orders for a specific market.\n\nAccepts either ``market`` (condition_id) or ``asset_id`` (token_id)\nas a query parameter. At least one must be provided.",
+        "description": "Cancel all pending limit orders for a specific market.\n\nAccepts either ``market`` (condition_id) or ``asset_id`` (token_id)\nas a query parameter.  At least one must be provided.",
         "operationId": "cancelMarketOrders",
         "parameters": [
           {
@@ -21525,8 +21569,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -22512,9 +22558,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
+              "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers. PM-ported SDKs should set this to ``true``. ``next_cursor`` is always an empty string here because positions are unpaginated.",
               "default": false,
               "title": "Envelope"
-            }
+            },
+            "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers. PM-ported SDKs should set this to ``true``. ``next_cursor`` is always an empty string here because positions are unpaginated."
           },
           {
             "name": "X-API-Key",
@@ -22565,8 +22613,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -23024,7 +23074,7 @@
           "Account"
         ],
         "summary": "Get Portfolio",
-        "description": "Get a combined portfolio overview: balance, positions, and win rate.",
+        "description": "Get a combined portfolio overview: balance, positions, and win rate.\n\nWallet scoping: ``wallet_id`` accepts an integer wallet id\n(ownership-checked, 404 otherwise), ``all`` (cross-wallet rows with\nAPI-wallet cash basis \u2014 the same blended view as\n/profile-analysis?wallet_id=all) or ``api``. The default (param\nomitted) is the **API wallet**. For the int form: MAIN/API-kind ids\nfold in legacy NULL rows; other kinds are strict equality.",
         "operationId": "getPortfolio",
         "parameters": [
           {
@@ -23094,8 +23144,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -23628,9 +23680,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
+              "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers. PM-ported SDKs should set this to ``true``. ``next_cursor`` carries the next ``offset`` value as a string (PM convention) when more rows likely exist (full page returned), else ``\"\"``.",
               "default": false,
               "title": "Envelope"
-            }
+            },
+            "description": "When ``true``, wrap the response in a PM-shape ``{data, next_cursor}`` envelope. Default ``false`` returns the bare array for back-compat with existing polysim SDK consumers. PM-ported SDKs should set this to ``true``. ``next_cursor`` carries the next ``offset`` value as a string (PM convention) when more rows likely exist (full page returned), else ``\"\"``."
           },
           {
             "name": "X-API-Key",
@@ -23681,8 +23735,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -24140,7 +24196,7 @@
           "Account"
         ],
         "summary": "Get Equity Curve",
-        "description": "Get the equity curve from hourly portfolio snapshots.",
+        "description": "Get the equity curve from hourly portfolio snapshots.\n\nWallet scoping: ``wallet_id`` accepts an integer wallet id\n(ownership-checked, 404 otherwise), ``all`` (cross-wallet) or\n``api`` \u2014 the same family contract as /positions, /history,\n/portfolio and /profile-analysis. The default (param omitted) is the\n**API wallet**, with legacy ``wallet_id IS NULL`` snapshots folded\nin so pre-Phase-2c history stays continuous. A caller with no ACTIVE\nAPI wallet sees the legacy NULL-wallet bucket only. UI callers that\nwant MAIN should pass an explicit wallet_id or use\n``GET /portfolio/history`` (cookie-auth path).",
         "operationId": "getEquityCurve",
         "parameters": [
           {
@@ -24224,8 +24280,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -24676,7 +24734,7 @@
           "Account"
         ],
         "summary": "Reset Api Balance",
-        "description": "Reset the user's API wallet to their tier baseline and close all\nopen API positions.\n\nResolution uses ``app.api_access._tier_api_baseline`` which reads\n``FEATURE_MATRIX[\"wallets.api_baseline\"]`` so a ``plans.py`` edit\npropagates here automatically.\n\nAccepts both ``X-API-Key`` and ``Authorization: Bearer <jwt>`` auth so\nthe website's API-keys dashboard can trigger a reset via the cookie\nsession, AND an API client can self-reset programmatically (the bot\nuse case \u2014 \"give me a clean wallet so the next strategy backtest\nstarts fresh\"). The wallet that gets reset is always the **API\nwallet** regardless of auth source \u2014 JWT-auth from the UI does NOT\ntouch the MAIN wallet.\n\nEnforces a cooldown period defined by the ``API_RESET_COOLDOWN_DAYS``\nenvironment variable (default 0 = no cooldown during beta).",
+        "description": "Reset the user's API wallet to their tier baseline and close all\nopen API positions.\n\nTier-aware reset:\n- Pro grant   \u2192 $10,000\n- Pro+ grant  \u2192 $25,000\n- Enterprise  \u2192 $10,000 (admin-only tier, Pro-equivalent baseline)\n- No grant / Free / unknown tier \u2192 $10,000 fallback (preserves the\n  legacy behaviour for users with a key but no active grant \u2014 e.g.,\n  lapsed beta members)\n\nThe baseline is resolved from the plan's feature matrix, so a plan\nconfig edit propagates here automatically.\n\nAccepts both ``X-API-Key`` and ``Authorization: Bearer <jwt>`` auth so\nthe website's API-keys dashboard can trigger a reset via the cookie\nsession, AND an API client can self-reset programmatically (the bot\nuse case \u2014 \"give me a clean wallet so the next strategy backtest\nstarts fresh\"). The wallet that gets reset is always the **API\nwallet** regardless of auth source \u2014 JWT-auth from the UI does NOT\ntouch the MAIN wallet.\n\nEnforces a cooldown period defined by the ``API_RESET_COOLDOWN_DAYS``\nenvironment variable (default 0 = no cooldown during beta).",
         "operationId": "resetApiBalance",
         "parameters": [
           {
@@ -25201,7 +25259,7 @@
           "Account"
         ],
         "summary": "Get Entitlements",
-        "description": "Return the flat entitlement map for the current user.\n\nFrontend EntitlementsProvider calls this once at app mount. The values\ncome from Redis cache (60s TTL) keyed by user.id.\n\nProgrammatic SDK consumers that need their own entitlements should\nintrospect via ``/v1/keys/me`` or the key-bootstrap payload \u2014 those\npaths already pass the API-access gate they legitimately need to.\nstate) without needing a browser session.",
+        "description": "Return the flat entitlement map for the current user.\n\nFrontend EntitlementsProvider calls this once at app mount. The values\ncome from Redis cache (60s TTL) keyed by user.id.\n\nAuth: Supabase Bearer JWT only. Reading your own plan's feature\nmatrix is allowed for every signed-in user regardless of\nprogrammatic-API-access status.\n\nProgrammatic SDK consumers that need their own entitlements should\nintrospect via ``/v1/keys/me`` or the key-bootstrap payload \u2014 those\npaths already pass the API-access gate they legitimately need to.\n\nThe handler acquires a DB session lazily \u2014 only on a Redis cache\nmiss that requires recomputing the entitlements snapshot \u2014 so the\ncommon cache-hit path consumes zero DB connections.",
         "operationId": "getEntitlements",
         "parameters": [
           {
@@ -25748,8 +25806,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -29416,8 +29476,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -30356,7 +30418,7 @@
           "Wallets"
         ],
         "summary": "Create Wallet",
-        "description": "Create a new SANDBOX wallet, gated by per-plan caps.\n\nRejects MAIN (auto-seeded), COMPETITION (runner-spawned), and\ncurrently API as well \u2014 extra API wallets need per-API-key routing\nto receive trades, which is a separate follow-up PR. The body of\nthis handler still contains the API code path so flipping the\nrejection on becomes a one-line removal once routing lands.",
+        "description": "Create a new SANDBOX wallet, gated by per-plan caps.\n\nRejects MAIN (auto-seeded), COMPETITION (runner-spawned), and\ncurrently API as well \u2014 extra API wallets need per-API-key routing\nto receive trades, which is not yet supported.",
         "operationId": "createWallet",
         "parameters": [
           {
@@ -31361,7 +31423,7 @@
           "Wallets"
         ],
         "summary": "Patch Wallet",
-        "description": "Allowed on any kind/status (including ARCHIVED \u2014 historical labels\ncan be tidied for trophy-case display). Empty strings reset to None.",
+        "description": "Rename a wallet's label. Other fields are immutable.\n\nAllowed on any kind/status (including ARCHIVED \u2014 historical labels\ncan be tidied for trophy-case display). Empty strings reset to None.",
         "operationId": "patchWallet",
         "parameters": [
           {
@@ -32375,7 +32437,7 @@
           "Wallets"
         ],
         "summary": "Reset Wallet",
-        "description": "Archive the current wallet and spawn the next-generation copy.\n\nBehaviour:\n- Old wallet: status=ARCHIVED, archived_at=NOW; LedgerEntry(RESET)\n emitted on the user's accounts row as a forensic boundary marker\n (reference_id=`wallet:{old_id}:reset`).\n- New wallet: same kind, generation=N+1, parent_wallet_id=old_id,\n balance=baseline (from FEATURE_MATRIX), status=ACTIVE; LedgerEntry\n (DEPOSIT, baseline) emitted with reference_id=`wallet:{new_id}:init`.",
+        "description": "Archive the current wallet and spawn the next-generation copy.\n\nBehaviour:\n- Old wallet: status=ARCHIVED, archived_at=NOW(); LedgerEntry(RESET)\n  emitted on the user's accounts row as a forensic boundary marker\n  (reference_id=`wallet:{old_id}:reset`).\n- New wallet: same kind, generation=N+1, parent_wallet_id=old_id,\n  balance=baseline (from FEATURE_MATRIX), status=ACTIVE; LedgerEntry\n  (DEPOSIT, baseline) emitted with reference_id=`wallet:{new_id}:init`.\n\nSupported on SANDBOX wallets. MAIN reset uses the cooldown-gated\n/reset-account flow; API reset uses /v1/account/reset-api-balance;\nCOMPETITION wallets are runner-managed.",
         "operationId": "resetWallet",
         "parameters": [
           {
@@ -34243,7 +34305,7 @@
           "CLOB Compat"
         ],
         "summary": "List user orders (Polymarket-shape \u2014 recommended for SDK clients).",
-        "description": "**Recommended endpoint for SDK clients ported from Polymarket.** Mirrors Polymarket's exact ``GET /data/orders`` envelope: ``{limit, count, next_cursor, data}`` with PM-shape rows (``id`` hex string, ``market``, ``asset_id``, ``original_size``, ``size_matched``, ``price``, ``ORDER_STATUS_*`` enum, unix-int ``created_at``).\n\n**Default scope matches PM: OPEN (resting) orders only.** Pass the polysim-extension ``status`` param (``ORDER_STATUS_MATCHED``, ``ORDER_STATUS_CANCELED``, ``ALL``, \u2026) to read history.\n\nFilters: ``id``, ``market``, ``asset_id`` (token id), ``status``, ``before`` / ``after`` (unix-seconds timestamps). Paginate by passing the response's ``next_cursor`` back as the ``next_cursor`` query param (PM's request param \u2014 what py-clob-client sends); ``cursor`` is accepted as an alias. End of list is signalled by ``next_cursor == \"LTE=\"``.",
+        "description": "**Recommended endpoint for SDK clients ported from Polymarket.** Mirrors Polymarket's exact ``GET /data/orders`` envelope: ``{limit, count, next_cursor, data}`` with PM-shape rows (``id`` hex string, ``market``, ``asset_id``, ``original_size``, ``size_matched``, ``price``, ``ORDER_STATUS_*`` enum, unix-int ``created_at``).\n\n**Default scope matches PM: OPEN (resting) orders only.** Pass the polysim-extension ``status`` param (``ORDER_STATUS_MATCHED``, ``ORDER_STATUS_CANCELED``, ``ALL``, \u2026) to read history.\n\nFilters: ``id``, ``market``, ``asset_id`` (token id), ``status``, ``before`` / ``after`` (unix-seconds timestamps). Paginate by passing the response's ``next_cursor`` back as the ``next_cursor`` query param (PM's request param \u2014 what py-clob-client sends); ``cursor`` is accepted as an alias. End of list is signalled by ``next_cursor == \"LTE=\"``.\n\nThe polysim-native ``GET /v1/orders`` endpoint reads from the same underlying table but emits the legacy ``{orders, has_more, ...}`` envelope with snake_case row fields. Use that one for back-compat with pre-PM-parity polysim SDKs; use this one (``/v1/data/orders``) for new integrations and anything ported from Polymarket.",
         "operationId": "listOrdersPmShape",
         "parameters": [
           {
@@ -34437,8 +34499,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -34885,7 +34949,7 @@
           "CLOB Compat"
         ],
         "summary": "Polymarket-compat single-order lookup (legacy top-level path).",
-        "description": "Lookup a single order by id (legacy top-level path).\n\nPolysim-extension path \u2014 current Polymarket exposes this as\n``GET /data/order/{orderID}`` (nested under ``/data/``, sibling to\n``/data/orders`` and ``/data/trades``). The legacy top-level\n``GET /order/{id}`` shape PM used to expose was retired in mid-2025\nand is no longer documented at ``docs.polymarket.com``.\n\nBoth routes are kept live: this top-level path stays for back-compat\nwith hand-coded clients that pre-date the PM move. New code should\nprefer ``GET /v1/data/order/{order_id}`` (the PR-#1121 follow-up\nalias added to match the current PM surface). Both paths funnel\nthrough ``_lookup_pm_order_by_id`` so behaviour is identical.",
+        "description": "Lookup a single order by id (legacy top-level path).\n\nPolysim-extension path \u2014 current Polymarket exposes this as\n``GET /data/order/{orderID}`` (nested under ``/data/``, sibling to\n``/data/orders`` and ``/data/trades``). The legacy top-level\n``GET /order/{id}`` shape PM used to expose was retired in mid-2025\nand is no longer documented at ``docs.polymarket.com``.\n\nBoth routes are kept live: this top-level path stays for back-compat\nwith hand-coded clients that pre-date the PM move. New code should\nprefer ``GET /v1/data/order/{order_id}`` (the alias that matches the\ncurrent PM surface). Both paths funnel through\n``_lookup_pm_order_by_id`` so behaviour is identical.",
         "operationId": "getOrder",
         "parameters": [
           {
@@ -34946,8 +35010,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -35455,8 +35521,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -35955,8 +36023,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -36463,8 +36533,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -37381,8 +37453,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -37989,8 +38063,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
@@ -38436,7 +38512,7 @@
           "Status"
         ],
         "summary": "Status Uptime",
-        "description": "Daily uptime ribbon for the public status page.\n\nReturns ``days`` per-day status cells per service, oldest-first.\nEach cell is one of ``operational | degraded | outage | no_data``\nwith an optional ``summary`` describing the incident span.\n\nSource is always ``redis`` (the daily-rollup cache); cells without\na cached entry default to ``no_data``. The\n``app.tasks.status_aggregator`` background loop keeps the cache\nfresh every 5 min and backfills 90 days on startup.\n\nPerformance: single Redis MGET regardless of ``days`` value.\nSub-millisecond at p99 even with the 90-day window \u2014 the old\nper-request path took ~18 s on cache miss.\n\nAll services in ``SERVICES`` currently share the same daily roll-\nup \u2014 we don't (yet) compute per-service status separately.\nPer-service granularity is a documented follow-up; for now the\nUI shows the same row for each service which still surfaces\nactual outages.",
+        "description": "Daily uptime ribbon for the public status page.\n\nReturns ``days`` per-day status cells per service, oldest-first.\nEach cell is one of ``operational | degraded | outage | no_data``\nwith an optional ``summary`` describing the incident span.\n\nSource is always ``redis`` (the daily-rollup cache); cells without\na cached entry default to ``no_data``. The\n``app.tasks.status_aggregator`` background loop keeps the cache\nfresh every 5 min and backfills 90 days on startup.\n\nPerformance: single Redis MGET regardless of ``days`` value.\nSub-millisecond at p99 even with the 90-day window \u2014 the old\nper-request path took ~18 s on cache miss.\n\nAll services in ``SERVICES`` currently share the same daily roll-\nup \u2014 per-service status is not computed separately yet, so the\nUI shows the same row for each service, which still surfaces\nactual outages.",
         "operationId": "statusUptime",
         "parameters": [
           {
@@ -38765,8 +38841,10 @@
                   "type": "null"
                 }
               ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            }
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
           },
           {
             "name": "authorization",
