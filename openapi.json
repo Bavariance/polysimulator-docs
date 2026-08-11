@@ -1964,6 +1964,18 @@
             ],
             "title": "Category"
           },
+          "display_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label",
+            "description": "What this market is called inside its event group (e.g. ``\"Bernadette Wilson\"`` for \"Will Bernadette Wilson win the 2026 Alaska governor election?\"). ``null`` when the market sync has not computed one yet \u2014 fall back to ``question``."
+          },
           "clob_token_ids": {
             "anyOf": [
               {
@@ -2209,6 +2221,18 @@
               }
             ],
             "title": "Category"
+          },
+          "display_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Label",
+            "description": "What this market is called inside its event group (e.g. ``\"Bernadette Wilson\"`` for \"Will Bernadette Wilson win the 2026 Alaska governor election?\"). ``null`` when the market sync has not computed one yet \u2014 fall back to ``question``."
           },
           "clob_token_ids": {
             "anyOf": [
