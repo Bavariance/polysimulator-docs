@@ -1775,7 +1775,8 @@
                 "type": "null"
               }
             ],
-            "title": "Volume"
+            "title": "Volume",
+            "description": "Headline volume the upstream feed sent with this quote (USD, stringified). **The time window is not guaranteed** \u2014 it is usually all-time but can be a 24-hour figure when no cumulative one was reported. When the window matters, read ``volume_24h`` or ``volume_total`` on the market instead; those two are each sourced from one field and one only."
           },
           "updated_at": {
             "anyOf": [
@@ -2001,7 +2002,19 @@
               }
             ],
             "title": "Volume 24H",
-            "description": "Rolling 24-hour volume from the poller cache (USD). Stringified for floating-point precision safety. ``null`` when the poller has not yet observed this market \u2014 distinct from ``\"0\"`` which means zero trades."
+            "description": "Rolling 24-hour volume in USD \u2014 the volume traded on this market over the trailing 24 hours, and nothing else. Stringified for floating-point precision safety. ``null`` when no 24-hour figure has been reported for this market yet \u2014 distinct from ``\"0\"``, which means the market traded zero volume in the last 24 hours. For the all-time figure use ``volume_total``."
+          },
+          "volume_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Total",
+            "description": "Cumulative all-time volume in USD for this market, since it opened. Stringified for floating-point precision safety. ``null`` when no cumulative figure has been reported yet \u2014 distinct from ``\"0\"``, which means the market has never traded. This is a much larger number than ``volume_24h`` for any market older than a day."
           },
           "last_price": {
             "anyOf": [
@@ -2259,7 +2272,19 @@
               }
             ],
             "title": "Volume 24H",
-            "description": "Rolling 24-hour volume from the poller cache (USD). Stringified for floating-point precision safety. ``null`` when the poller has not yet observed this market \u2014 distinct from ``\"0\"`` which means zero trades."
+            "description": "Rolling 24-hour volume in USD \u2014 the volume traded on this market over the trailing 24 hours, and nothing else. Stringified for floating-point precision safety. ``null`` when no 24-hour figure has been reported for this market yet \u2014 distinct from ``\"0\"``, which means the market traded zero volume in the last 24 hours. For the all-time figure use ``volume_total``."
+          },
+          "volume_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Total",
+            "description": "Cumulative all-time volume in USD for this market, since it opened. Stringified for floating-point precision safety. ``null`` when no cumulative figure has been reported yet \u2014 distinct from ``\"0\"``, which means the market has never traded. This is a much larger number than ``volume_24h`` for any market older than a day."
           },
           "last_price": {
             "anyOf": [

@@ -11,6 +11,37 @@ behaviors documented here and re-check after the dates listed. A formal versioni
 and deprecation policy will be published when the API leaves beta.
 </Note>
 
+## 2026-08-12 — Breaking: `volume_24h` is now genuinely 24-hour; new `volume_total`
+
+**`volume_24h` on `/v1/markets` and `/v1/markets/{condition_id}` was returning
+cumulative all-time volume, not a 24-hour figure.** The upstream feed publishes both
+numbers and our poller resolved the cumulative one first, so on essentially every
+market the field carried a lifetime total under a rolling-24h name. It was wrong by
+19x on `strait-of-hormuz-traffic-returns-to-normal-b…` (12,149,389 served vs 643,698
+actual) and by 91x on `will-adanech-abiebie-be-the-next-prime-minis…` (77,573,355 vs
+850,899). Only brand-new markets, where the two figures coincide, were accurate.
+
+- **`volume_24h` now means what it says** — volume traded in the trailing 24 hours.
+  Expect the values you read to drop sharply for any market older than a day. This is
+  the correction, not a data loss.
+- **`volume_total` is new** and carries the cumulative all-time figure. **If you were
+  reading `volume_24h` and wanted lifetime volume, change the field name.** On every
+  market where a cumulative figure is reported — which is nearly all of them — this
+  returns exactly the number `volume_24h` used to return. The exception is the small
+  set of markets for which only a 24-hour figure is reported upstream: the old
+  `volume_24h` passed that rolling value through, whereas `volume_total` is `null`
+  there, because no cumulative number exists to give you. Both fields appear on the
+  list and detail responses, and both are strings, as before.
+- **Neither field substitutes for the other.** Where a figure has not been reported,
+  you get `null` rather than a number from the wrong window. As before, `null` means
+  "no data" and `"0"` means a real zero — a market that traded nothing in 24 hours
+  reports `volume_24h: "0"`, not `null`.
+- **`is_hot` is unchanged.** Its $5,000 threshold reads the cumulative figure and
+  always did, so no market changes hotness because of this release, and `hot_only=true`
+  returns the same set it did yesterday.
+- **`live_price.volume` is unchanged** and is an all-time figure — it now says so in
+  the schema.
+
 ## 2026-06-20 — Python SDK `0.4.2` (current)
 
 The [`polysimulator`](https://pypi.org/project/polysimulator/) SDK is now at **`0.4.2`** —

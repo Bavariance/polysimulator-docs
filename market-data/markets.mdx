@@ -71,11 +71,12 @@ curl -H "X-API-Key: $API_KEY" \
       "71321234567890123456789012345678901234567891"
     ],
     "volume_24h": "125000.50",
+    "volume_total": "8420115.75",
     "last_price": "0.65",
     "live_price": {
       "buy": "0.65",
       "sell": "0.35",
-      "volume": "125000.50",
+      "volume": "8420115.75",
       "outcomes": [
         {"label": "Yes", "price": "0.65", "token_id": "71321..."},
         {"label": "No", "price": "0.35", "token_id": "71322..."}
@@ -96,16 +97,31 @@ curl -H "X-API-Key: $API_KEY" \
 | `outcomes` | `string[] \| null` | Outcome labels — typically `["Yes", "No"]`; categorical markets may list more. |
 | `category` | `string \| null` | Canonical category slug (`crypto`, `sports`, `politics`, `general`, ...). Use `?category=X` to filter. |
 | `clob_token_ids` | `string[] \| null` | CLOB asset ids ordered `[yes_id, no_id]`. Pass either to `GET /v1/clob/book/{token_id}` for the L2 order book. `null` for archived markets with no tracked outcomes. |
-| `volume_24h` | `string \| null` | Rolling 24-hour volume in USD (stringified for precision). **`null` means "no data yet"** (this market has not been observed yet); `"0"` means real zero. |
+| `volume_24h` | `string \| null` | **Rolling 24-hour** volume in USD (stringified for precision) — what traded on this market in the trailing 24 hours, and nothing else. **`null` means "no 24-hour figure reported"**; `"0"` means the market genuinely traded nothing in the last 24 hours. |
+| `volume_total` | `string \| null` | **Cumulative all-time** volume in USD since the market opened (stringified for precision). `null` means "no cumulative figure reported"; `"0"` means the market has never traded. For any market older than a day this is far larger than `volume_24h`. |
 | `last_price` | `string \| null` | Last trade price for the YES token (0.0–1.0 implied probability, stringified). `null` until data is available for a newly-listed market. |
-| `live_price` | `LivePrice \| null` | Real-time best-bid / best-ask snapshot — see [String Numerics](/concepts/string-numerics). |
+| `live_price` | `LivePrice \| null` | Real-time best-bid / best-ask snapshot — see [String Numerics](/concepts/string-numerics). `live_price.volume` is the upstream feed's headline volume and its **window is not guaranteed** (usually all-time, occasionally 24-hour) — read `volume_24h` / `volume_total` when the window matters. |
+
+<Warning>
+  **Changed 2026-08-12 — `volume_24h` used to return all-time volume.**
+  Through 2026-08-11 this field was populated from the upstream cumulative
+  volume, so it reported a market's lifetime total under a 24-hour name —
+  overstating the real rolling figure by up to 91x on long-running markets.
+  It now carries the genuine trailing-24-hour number. **If your integration
+  was reading `volume_24h` and wanted the lifetime total, switch it to
+  `volume_total`** — on every market that reports a cumulative figure, which
+  is nearly all of them, that is the same number the old field returned.
+  See the [changelog](/changelog) for the full note.
+</Warning>
 
 <Note>
-  **Data freshness**: `volume_24h`, `last_price`, and `category` are
-  cached display values refreshed periodically. Newly-listed markets
-  surface immediately with these fields as `null` and gain real values
-  once data becomes available. Treat `null` as "data pending" rather
-  than "missing market".
+  **Data freshness**: `volume_24h`, `volume_total`, `last_price`, and
+  `category` are cached display values refreshed periodically. Newly-listed
+  markets surface immediately with these fields as `null` and gain real
+  values once data becomes available. Treat `null` as "data pending" rather
+  than "missing market". Neither volume field ever falls back to the
+  other's source — where the figure is unknown you get `null`, never a
+  substitute from a different time window.
 </Note>
 
 <Note>
@@ -120,8 +136,8 @@ curl -H "X-API-Key: $API_KEY" \
 
 <Info>
   All numeric values (`buy`, `sell`, `price`, `volume`, `volume_24h`,
-  `last_price`) are **strings** for floating-point precision safety.
-  See [String Numerics](/concepts/string-numerics).
+  `volume_total`, `last_price`) are **strings** for floating-point
+  precision safety. See [String Numerics](/concepts/string-numerics).
 </Info>
 
 ---
@@ -210,6 +226,14 @@ Each `tokens[]` entry (a `MarketToken`) carries:
 ## Hot Markets
 
 Markets with trading volume exceeding $5,000 are flagged as `is_hot: true`. Use `hot_only=true` to filter for actively traded markets — recommended for bots to ensure sufficient liquidity.
+
+<Note>
+  The `is_hot` threshold reads **cumulative** volume — the same figure
+  `volume_total` carries, not `volume_24h`. A long-running market that has
+  gone quiet can still be `is_hot: true` with a small `volume_24h`. This
+  behaviour is unchanged by the 2026-08-12 `volume_24h` correction; filter
+  on `volume_24h` yourself if you want recent activity specifically.
+</Note>
 
 ```bash
 # Only hot markets
