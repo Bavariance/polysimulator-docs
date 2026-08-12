@@ -1807,6 +1807,17 @@
             "type": "array",
             "title": "Outcomes",
             "default": []
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
           }
         },
         "type": "object",
