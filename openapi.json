@@ -7942,7 +7942,7 @@
     "/v1/markets/updown/intervals": {
       "get": {
         "summary": "List Updown Intervals",
-        "description": "Get updown markets organized by interval with rotation timing metadata.\n\nDesigned for trading bots that need to:\n1. Know which markets are currently active per interval\n2. See how much time remains before the current interval expires\n3. Discover the next interval's markets to rotate into\n\nReturns a dict keyed by interval (1H, 4H, daily, etc.) with:\n- current: list of active markets for this interval (end_date in the future)\n- seconds_until_rotation: seconds until the soonest market in this interval expires\n- next_rotation_at: ISO timestamp of when the soonest market expires\n- asset_markets: nested {asset: [markets]} for quick lookup",
+        "description": "Get updown markets organized by interval with rotation timing metadata.\n\nDesigned for trading bots that need to:\n1. Know which markets are currently active per interval\n2. See how much time remains before the current interval expires\n3. Discover the next interval's markets to rotate into\n\nReturns a dict keyed by interval with:\n- current: list of active markets for this interval (end_date in the future)\n- seconds_until_rotation: seconds until the soonest market in this interval expires\n- next_rotation_at: ISO timestamp of when the soonest market expires\n- asset_markets: nested {asset: [markets]} for quick lookup\n- crypto_prices: reference spot prices for the assets in the response\n\nCrypto Up/Down markets exist at three intervals only \u2014 **5m, 15m and 4h**.\n(An earlier version of this description advertised \"1H, 4H, daily\"; a census\nof the full 2.09M-market universe found zero markets at a 1h or daily\ncrypto interval, and none have ever existed.)\n\n**`crypto_prices` is a SPOT price and is not the settlement reference.**\nFrom 2026-08-07 Polymarket resolves crypto Up/Down markets on a Chainlink\ntime-weighted average price \u2014 a 30-second window for 5m markets, 60 seconds\nfor 15m and 4h. Measured against our own archived Chainlink series, the spot\nprice implies a different outcome than the TWAP in roughly 5% of 5-minute\nrounds, concentrated almost entirely in markets finishing within a couple of\nbasis points of the price-to-beat. Do not derive a settlement expectation\nfrom this field; read the resolved outcome instead.",
         "operationId": "listUpdownIntervals",
         "parameters": [
           {
@@ -7958,10 +7958,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by asset: BTC, ETH, SOL, XRP, SPX, NDX",
+              "description": "Filter by asset symbol, e.g. BTC, ETH, SOL, XRP, BNB, DOGE, HYPE for the crypto intervals. Case-insensitive.",
               "title": "Asset"
             },
-            "description": "Filter by asset: BTC, ETH, SOL, XRP, SPX, NDX"
+            "description": "Filter by asset symbol, e.g. BTC, ETH, SOL, XRP, BNB, DOGE, HYPE for the crypto intervals. Case-insensitive."
           }
         ],
         "responses": {
