@@ -117,6 +117,12 @@ SSE underlying-spot firehose (`polysim_sdk.sse`), Up/Down helpers (`polysim_sdk.
 and pagination iterators (`polysim_sdk.pagination`). The
 [full README on PyPI](https://pypi.org/project/polysimulator/) documents every surface.
 
+The native client also exposes `client.simulation` for the dark
+`/v1/simulation` surface (`fill`, `coverage`, `book`,
+`create_backtest` / `wait`, list/get/cancel). Methods exist so typed
+clients can generate; the live router stays 404 until
+`FEATURE_SIMULATION_API_ENABLED` is on. See [Simulation](/simulation).
+
 ## Migrating a `py-clob-client` bot
 
 Change **three things** and delete the on-chain prelude — method names, argument shapes,

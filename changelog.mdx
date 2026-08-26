@@ -11,6 +11,25 @@ behaviors documented here and re-check after the dates listed. A formal versioni
 and deprecation policy will be published when the API leaves beta.
 </Note>
 
+## 2026-08-22 — Simulation API v1 public contract (feature-dark)
+
+`/v1/simulation` is now declared in the public OpenAPI document: fill,
+coverage, fill-models, book, backtests (create/list/get/trades/equity/cancel),
+and exports. The router stays **404** until an operator flips
+`FEATURE_SIMULATION_API_ENABLED`. This is not a commercial activation and
+does not claim a Telonex-validated SKU.
+
+- Fill and book responses echo resolved `token_id` / `comp_token_id`.
+- Backtests accept an optional `token_ids` map and return the resolved map.
+- Equity is keyset-paginated (`data`, `next_cursor`) like trades.
+- OpenAPI advertises `503` plus the runtime `X-Polysim-Code` values
+  (`INVALID_REQUEST`, `BACKTEST_*`, `SIMULATION_HOURS_EXCEEDED`,
+  `METERING_UNAVAILABLE`, `CONDITION_HOUR_NOT_COVERED`, `ARCHIVE_*`, …).
+- Adjacent v4 capture sidecars are fail-closed; producer reason tiers
+  (`frames_spilled` valid, `frames_dropped` degraded) are honored.
+
+See [Simulation](/simulation).
+
 ## 2026-08-12 — Breaking: `volume_24h` is now genuinely 24-hour; new `volume_total`
 
 **`volume_24h` on `/v1/markets` and `/v1/markets/{condition_id}` was returning

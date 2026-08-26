@@ -88,6 +88,13 @@
             ]
           },
           {
+            "group": "Simulation",
+            "icon": "flask",
+            "pages": [
+              "simulation"
+            ]
+          },
+          {
             "group": "Account & Portfolio",
             "icon": "wallet",
             "pages": [
