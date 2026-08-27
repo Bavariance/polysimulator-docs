@@ -1857,6 +1857,33 @@
         ],
         "title": "DayCell"
       },
+      "DiscordLinkRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "DiscordLinkRequest"
+      },
       "EquityPoint": {
         "properties": {
           "timestamp": {
@@ -7540,6 +7567,10 @@
     {
       "name": "Simulation",
       "description": "Historical fill simulation, archive coverage, and curated backtests. Dark until FEATURE_SIMULATION_API_ENABLED is on."
+    },
+    {
+      "name": "Integrations",
+      "description": "Outbound alert delivery integrations (Discord) \u2014 per-user subscriptions managed under /v1/integrations/*. Mirrors the /me/webhook + /me/push routes for the older channels."
     }
   ],
   "security": [
@@ -13750,13 +13781,20 @@
           {
             "name": "token_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "description": "CLOB outcome token ID",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required (handler-validated) \u2014 CLOB outcome token ID. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak). Same handler-validation pattern as ``GET /v1/price`` and ``GET /v1/book``.",
               "title": "Token Id"
             },
-            "description": "CLOB outcome token ID"
+            "description": "Required (handler-validated) \u2014 CLOB outcome token ID. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak). Same handler-validation pattern as ``GET /v1/price`` and ``GET /v1/book``."
           }
         ],
         "responses": {
@@ -13804,6 +13842,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or blank ``token_id`` \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -14074,13 +14193,20 @@
           {
             "name": "token_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "description": "CLOB outcome token ID",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Required (handler-validated) \u2014 CLOB outcome token ID. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak). Same handler-validation pattern as ``GET /v1/price`` and ``GET /v1/book``.",
               "title": "Token Id"
             },
-            "description": "CLOB outcome token ID"
+            "description": "Required (handler-validated) \u2014 CLOB outcome token ID. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak). Same handler-validation pattern as ``GET /v1/price`` and ``GET /v1/book``."
           }
         ],
         "responses": {
@@ -14128,6 +14254,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or blank ``token_id`` \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -16892,13 +17099,20 @@
           {
             "name": "token_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``.",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak).",
               "title": "Token Id"
             },
-            "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``."
+            "description": "PM-compat alias: py-clob-client builds the neg-risk URL as ``{host}/neg-risk?token_id=X`` (hardcoded query form). This route delegates to the same resolver as the path form ``/v1/neg-risk/{token_id}``. Missing OR empty returns 400 ``{\"error\": \"Invalid token id\"}`` uniformly (no 422 leak)."
           }
         ],
         "responses": {
@@ -16946,6 +17160,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or blank ``token_id`` \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -17268,6 +17563,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Blank ``token_id`` path segment \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -17884,7 +18260,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Post Midpoints Batch",
-        "description": "Polymarket-compat ``POST /midpoints``.\n\nBody: ``[{token_id}, {token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns\n``{token_id: midpoint_string}``. Bounded to 50 tokens per\nrequest to match PM's documented cap.",
+        "description": "Polymarket-compat ``POST /midpoints``.\n\nBody: ``[{token_id}, {token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns\n``{token_id: midpoint_string}``. Bounded to 50 tokens per\nrequest to match PM's documented cap.\n\nA single blank/whitespace ``token_id`` among otherwise valid ids\nrejects the whole batch with 400 ``INVALID_TOKEN_ID`` \u2014 same\ncontract as the scalar endpoints. Dropping the blank and 200-ing\nthe rest would silently return fewer results than requested.",
         "operationId": "getMidpoints",
         "requestBody": {
           "content": {
@@ -17956,6 +18332,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Any blank ``token_id`` in the batch \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID). The whole request is rejected; remaining ids are not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -18220,7 +18677,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Post Spreads Batch",
-        "description": "Polymarket-compat ``POST /spreads``.\n\nBody: ``[{token_id}, {token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns\n``{token_id: spread_string}``.",
+        "description": "Polymarket-compat ``POST /spreads``.\n\nBody: ``[{token_id}, {token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns\n``{token_id: spread_string}``.\n\nA single blank/whitespace ``token_id`` among otherwise valid ids\nrejects the whole batch with 400 ``INVALID_TOKEN_ID``.",
         "operationId": "getSpreads",
         "requestBody": {
           "content": {
@@ -18292,6 +18749,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Any blank ``token_id`` in the batch \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID). The whole request is rejected; remaining ids are not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -18556,7 +19094,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Post Books Batch",
-        "description": "Polymarket-compat ``POST /books``.\n\nBody: ``[{token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns one\nfull ``OrderBookSnapshot`` per token (PM-compat shape including\n``market``, ``asset_id``, ``hash``, ``tick_size``, ``neg_risk``,\n``last_trade_price``). Tokens with no book are omitted from the\nresponse (rather than returning empty snapshots \u2014 saves SDK-side\nfiltering).",
+        "description": "Polymarket-compat ``POST /books``.\n\nBody: ``[{token_id}, ...]`` (PM-compat) **or**\n``{items: [{token_id}, ...]}`` (legacy wrapped form). Returns one\nfull ``OrderBookSnapshot`` per token (PM-compat shape including\n``market``, ``asset_id``, ``hash``, ``tick_size``, ``neg_risk``,\n``last_trade_price``). Tokens with no book are omitted from the\nresponse (rather than returning empty snapshots \u2014 saves SDK-side\nfiltering).\n\nA single blank/whitespace ``token_id`` among otherwise valid ids\nrejects the whole batch with 400 ``INVALID_TOKEN_ID``.",
         "operationId": "getBooks",
         "requestBody": {
           "content": {
@@ -18628,6 +19166,87 @@
                 "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
                 "schema": {
                   "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Any blank ``token_id`` in the batch \u2014 ``{\"error\": \"Invalid token id\"}`` (PM's message verbatim; X-Polysim-Code: INVALID_TOKEN_ID). The whole request is rejected; remaining ids are not processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
                 }
               },
               "X-Request-Id": {
@@ -61792,6 +62411,2156 @@
                 "schema": {
                   "$ref": "#/components/schemas/UrlResponse"
                 }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/discord": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Discord Create",
+        "description": "Validate a Discord webhook URL and create a subscription.\n\nPerforms URL shape + SSRF validation but does NOT send a verification\nPOST \u2014 Discord rate-limits hard on incoming webhooks (5 req / 2s per\nchannel), and the dedicated ``/test`` endpoint exists for that. The\nsubscription is marked ``verified=true`` because Discord URLs include\nthe auth token; if the URL is wrong, the first real delivery surfaces\nthe failure into the delivery log.",
+        "operationId": "discord_create_v1_integrations_discord_post",
+        "parameters": [
+          {
+            "name": "db",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "title": "Db"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscordLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Discord List",
+        "description": "List the current user's Discord subscriptions.\n\nNOT entitlement-gated \u2014 a user who downgraded should still be able to\ninspect and remove existing configurations.",
+        "operationId": "discord_list_v1_integrations_discord_get",
+        "parameters": [
+          {
+            "name": "db",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "title": "Db"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/discord/{subscription_id}": {
+      "delete": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Discord Delete",
+        "description": "Remove a Discord subscription. CASCADE drops any in-flight delivery\nrows in ``alert_discord_deliveries``.\n\nNOT entitlement-gated \u2014 disconnects must always work.",
+        "operationId": "discord_delete_v1_integrations_discord__subscription_id__delete",
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscription Id"
+            }
+          },
+          {
+            "name": "db",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "title": "Db"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permission or access restricted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found (market / order / token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/discord/{subscription_id}/test": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Discord Test",
+        "description": "Send a synthetic ``system_notice`` event to the configured URL.\n\nSynchronous, bypasses the queue + dispatcher for immediate feedback.\nMirrors ``/me/webhook/test``.",
+        "operationId": "discord_test_v1_integrations_discord__subscription_id__test_post",
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Subscription Id"
+            }
+          },
+          {
+            "name": "db",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "title": "Db"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             },
             "headers": {
