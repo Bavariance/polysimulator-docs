@@ -56,7 +56,7 @@ curl -H "X-API-Key: $API_KEY" \
   "last_trade_price": "0.65",
   "mid": "0.65",
   "spread": "0.02",
-  "timestamp": "2026-02-06T12:00:45Z"
+  "timestamp": "1778995283697"
 }
 ```
 
@@ -69,23 +69,24 @@ order-independently — see the warning below.
 
 ## Understanding the Book
 
-| Field | Description |
-|-------|-------------|
-| `token_id` | The CLOB outcome token (asset) the book is for. |
-| `market` | The market's `condition_id`. PM-compat alias — the SDK reads this to associate the book with a market. |
-| `asset_id` | Same value as `token_id`. PM uses `asset_id` as the canonical book key, so `py-clob-client`-ported code reads this name. |
-| `hash` | Order-book hash for change detection (PM convention). Compare across snapshots to detect whether the book moved without diffing every level. |
-| `bids` | Buy orders sorted by price **ascending** — **best (highest) bid is `bids[-1]`** (the last element), worst bid first. This is byte-identical to what the real Polymarket CLOB `/book` returns on the wire, so SDKs ported from `py-clob-client` read the same index. |
-| `asks` | Sell orders sorted by price **descending** — **best (lowest) ask is `asks[-1]`** (the last element), worst ask first. |
-| `min_order_size` | Minimum orderable shares for this market (string). |
-| `tick_size` | Price quantum as a **string** (e.g. `"0.01"`). `py-clob-client` reads this to quantize limit prices client-side. (Note: the standalone [`GET /v1/tick-size/{token_id}`](/concepts/pm-raw-http) endpoint returns the tick as a JSON **number**; here, inside the book, it is a string — see [String Numerics](/concepts/string-numerics).) |
-| `neg_risk` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
-| `last_trade_price` | The most recent trade price for this token (string), or `null` if no trades yet. |
-| `mid` | Average of best bid and best ask |
-| `spread` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
-| `stale` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
-| `price` | Price level (inside a `bids`/`asks` entry) |
-| `size` | Total shares available at that price |
+| Field | Type | Description |
+|-------|------|-------------|
+| `token_id` | `string` | The CLOB outcome token (asset) the book is for. |
+| `market` | `string \| null` | The market's `condition_id`. PM-compat alias — the SDK reads this to associate the book with a market condition ID. |
+| `asset_id` | `string \| null` | Same value as `token_id`. Polymarket CLOB uses `asset_id` as the canonical book key, so `py-clob-client`-ported code reads this name. |
+| `hash` | `string \| null` | Order-book hash for change detection (PM convention). Compare across snapshots to detect whether the book moved without diffing every level. |
+| `timestamp` | `string \| null` | Snapshot timestamp as a **Unix epoch milliseconds string** (e.g. `"1778995283697"`), matching Polymarket's live CLOB wire contract. Parse with `datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)` in Python or `new Date(Number(ts))` in JavaScript. **Do not** parse as ISO 8601. |
+| `bids` | `BookLevel[]` | Buy orders sorted by price **ascending** — **best (highest) bid is `bids[-1]`** (the last element), worst bid first. This is byte-identical to what the real Polymarket CLOB `/book` returns on the wire, so SDKs ported from `py-clob-client` read the same index. |
+| `asks` | `BookLevel[]` | Sell orders sorted by price **descending** — **best (lowest) ask is `asks[-1]`** (the last element), worst ask first. |
+| `min_order_size` | `string \| null` | Minimum orderable shares for this market (string, e.g. `"5"`). |
+| `tick_size` | `string \| null` | Price quantum as a **string** (e.g. `"0.01"`). `py-clob-client` reads this to quantize limit prices client-side. (Note: the standalone [`GET /v1/tick-size/{token_id}`](/concepts/pm-raw-http) endpoint returns the tick as a JSON **number**; here, inside the book, it is a string — see [String Numerics](/concepts/string-numerics).) |
+| `neg_risk` | `boolean \| null` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
+| `last_trade_price` | `string \| null` | The most recent trade price for this token (string, e.g. `"0.65"`), or `null` if no trades yet. |
+| `mid` | `string \| null` | Average of best bid and best ask (Polysimulator extension, stringified). |
+| `spread` | `string \| null` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
+| `stale` | `boolean \| null` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent (`null`) on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
+| `price` | `string` | Price level (inside a `bids`/`asks` entry; 0.00–1.00 implied probability, stringified). |
+| `size` | `string` | Total shares available at that price level (stringified).
 
 <Warning>
   **Recommended: read the inside market order-independently, not by index.**
@@ -111,6 +112,30 @@ order-independently — see the warning below.
   order-independent `max`/`min` reads above rather than hard-coding `bids[0]` /
   `asks[0]`, so your integration survives any future wire-format change.
 </Note>
+
+### Timestamp Parsing
+
+The `timestamp` field is returned as a **Unix epoch milliseconds string** (e.g. `"1778995283697"`), matching Polymarket's CLOB wire format. It is not an ISO 8601 string.
+
+<CodeGroup>
+```python Python
+import datetime
+
+# timestamp is a Unix epoch milliseconds string, e.g. "1778995283697"
+ts_ms = int(book["timestamp"])
+snapshot_time = datetime.datetime.fromtimestamp(
+    ts_ms / 1000, tz=datetime.timezone.utc
+)
+print(f"Snapshot UTC: {snapshot_time.isoformat()}")
+```
+
+```javascript JavaScript
+// timestamp is a Unix epoch milliseconds string, e.g. "1778995283697"
+const tsMs = Number(book.timestamp);
+const snapshotTime = new Date(tsMs);
+console.log(`Snapshot UTC: ${snapshotTime.toISOString()}`);
+```
+</CodeGroup>
 
 ### Liquidity Assessment
 
