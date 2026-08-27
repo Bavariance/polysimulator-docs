@@ -1143,7 +1143,9 @@
             "type": "string",
             "enum": [
               "pro",
-              "pro_plus"
+              "pro_plus",
+              "backtesting_starter",
+              "backtesting_pro"
             ],
             "title": "Plan"
           },
