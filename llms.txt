@@ -1,6 +1,6 @@
 # PolySimulator API
 
-Tooling note: an official Python SDK is coming soon; until then the API is plain REST (any HTTP client works — see /quickstart).
+Tooling note: official Python SDK is `pip install polysimulator` (`polysim_sdk`, `polysim_clob_client`, `polysim_polymarket`). REST works with any HTTP client — see /quickstart.
 
 
 > Virtual trading environment for Polymarket prediction markets.
@@ -23,15 +23,13 @@ PolySimulator provides a complete algorithmic trading API for trading bots to pr
 All endpoints (except bootstrap) require an API key via `X-API-Key` header.
 Key format: `ps_live_` prefix + 64 hex characters (total 72 chars).
 
-### First-time setup (Bootstrap)
-New users have no key yet. To create your first key without a chicken-and-egg problem:
-1. Sign in at polysimulator.com to get a Supabase access_token.
-2. Call `POST /v1/keys/bootstrap` with `Authorization: Bearer <access_token>`.
-   Body: `{"name": "my-bot"}` — `name` is optional (defaults to null if omitted). Send `{}` for defaults.
-3. Store the returned `raw_key` — it is shown only once.
-4. All subsequent requests use `X-API-Key: <raw_key>`.
-
-Bootstrap response (201 Created). NOTE: a free-tier key is READ-ONLY — free + ["read","trade"] is unrealizable (free + trade is 403-rejected as TIER_REQUIRES_UPGRADE). A free bootstrap returns ["read"]; ["read","trade"] needs a paid tier (pro/pro_plus/enterprise):
+### First-time setup (Bootstrap) — open beta
+Anyone who can sign in can mint a key. Default path:
+1. Sign in at polysimulator.com (dashboard at /api-keys) OR call `POST /v1/keys/bootstrap` with `Authorization: Bearer <supabase access_token>`.
+   Body: `{"name": "my-bot"}` — `name` is optional. Send `{}` for defaults.
+2. Store the returned `raw_key` — it is shown only once.
+3. All subsequent requests use `X-API-Key: <raw_key>`.
+Free-tier bootstrap is READ-ONLY (`["read"]`); free + ["read","trade"] is 403 TIER_REQUIRES_UPGRADE. Paid Pro/Pro+ bootstrap returns ["read","trade"] and an isolated API wallet. CLOSED_BETA / API_PRO_COMING_SOON are residual emergency/cohort codes, not the default.
 ```json
 {
   "id": 1,
@@ -66,8 +64,19 @@ Authoritative source: GET /v1/keys/tiers (if a value here disagrees, the endpoin
 - Pro: 10 req/sec / 600 req/min, 3 WebSocket connections, batch size 5
 - Pro+ (pro_plus): 30 req/sec / 1,800 req/min, 10 WebSocket connections, batch size 10
 - Enterprise: 100 req/sec / 6,000 req/min, 50 WebSocket connections, batch size 25
-Closed-beta cohort keys (`api_keys.beta_until` set) run at the enterprise tier until the cutoff (default 2026-08-31T23:59:59Z), then auto-downgrade to free + read-only.
+Legacy cohort keys (`api_keys.beta_until` set), if any remain, run at the enterprise tier until the cutoff, then auto-downgrade to free + read-only.
 Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier
+
+### Safe Order Polling Contract & WebSocket Fill Tracking
+- **Authoritative REST polling:** REST polling (`GET /v1/data/orders` or `GET /v1/orders?status=PENDING`) is the authoritative source for order state, fills, and cancellations. Do not poll in unthrottled tight loops. Enforce a minimum 1–2s interval per resting order, apply randomized jitter (e.g. 1.0s + random(0.1s, 0.5s)), and honor `Retry-After` on 429. Use batch/list endpoints rather than per-order loops.
+- **WebSocket execution streams (Fill-Only & Process-Local):** `WS /v1/ws/executions?token=<jwt>` (PolySim-native) and `WS /v1/ws/user` (PM-compat) provide opportunistic low-latency push notifications for order fills (`TRADE` / `MATCHED`). They do not emit order cancellation events and are process-local in daemon deployments, so they complement but do not replace authoritative REST polling.
+
+## Simulation Boundaries & Honest Limits
+- **Matching Loop:** ~1-second background matching cycle. Resting limit orders match on loop ticks when the live venue price crosses the limit. Sub-second latency-arbitrage bots will see optimistic fills vs live venue colocation queues.
+- **Price Sources:** Fills execute against live Polymarket CLOB venue depth (order book VWAP, top of book, and midpoint cache).
+- **Queue Depth:** No FIFO queue-position simulation in paper trading (fills occur on price crossing without queue depletion ahead of your resting order).
+- **Market Impact:** No self-impact on external Polymarket order books.
+- **Exact Accounting:** Polymarket V2 taker fees charged per category (crypto 7%, economics/culture/weather/other 5%, finance/politics/mentions/tech 4%, sports 3%, geopolitics 0%, unknown/missing category 5% / 500 bps fallback), exact Decimal string numerics, and dual-wallet isolation (API sandbox vs UI MAIN).
 
 ## Polymarket compatibility — what's identical, what's documented deviation
 
@@ -234,10 +243,10 @@ Three paths to the same engine, pick by integration shape:
 All three call the same matching engine. Response status enum: {"live", "matched", "unmatched"}.
 Cancel paths: DELETE /v1/order (body), DELETE /v1/orders (array body), DELETE /v1/orders/{id} (path), POST /v1/cancel-all.
 
-### Closed-beta cohort (ongoing)
-- API key issuance is cohort-gated. POST /v1/keys and POST /v1/keys/bootstrap return 403 CLOSED_BETA — the default for every non-admitted caller while the beta is closed (free, waitlisted, OR paying Pro/Pro+). 403 API_PRO_COMING_SOON is a conditional variant for paying Pro/Pro+ without a cohort grant, reached only once self-serve issuance is enabled. For all /v1/* errors the machine code is in the X-Polysim-Code response header (always present) and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses, not these 403s. A separate runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account isn't on the admin allowlist.
-- GET /api/beta/cohort-status — Public, no auth. Returns {cohort_label, available, active, cap, cutoff, reopens_at}. Pricing page uses this to swap the Pro card's API bullet to "currently full" with the reopen hint (the configured cutoff date) when cap is hit.
-- Beta-issued keys carry an X-API-Beta-Cutoff response header on every request when the cutoff is in the past — SDKs can pivot to read-only mode without an explicit "what's my cohort cutoff" round-trip.
+### Open beta (default)
+- Key issuance is self-serve. POST /v1/keys and POST /v1/keys/bootstrap mint a free read-only key or a paid trade-capable key. Free + trade is 403 TIER_REQUIRES_UPGRADE. Paying Pro/Pro+ are not waitlisted. CLOSED_BETA / API_PRO_COMING_SOON remain valid residual X-Polysim-Code values for an emergency close or leftover cohort grant — they are NOT the default. For all /v1/* errors the machine code is in the X-Polysim-Code response header and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses. A residual runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account is flagged / under review.
+- GET /api/beta/cohort-status — Public, no auth. Returns {cohort_label, available, active, cap, cutoff, reopens_at}. Pricing page uses residual cohort inventory; not required for self-serve signup.
+- Legacy beta-issued keys carry an X-API-Beta-Cutoff response header on every request when the cutoff is in the past — SDKs can pivot to read-only mode without an explicit "what's my cohort cutoff" round-trip.
 
 ## Order Types & Time-in-Force
 - POST /v1/orders uses two fields:

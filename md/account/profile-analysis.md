@@ -1,7 +1,6 @@
----
-title: "Profile Analysis"
-description: "Transparent formulas and definitions for profile performance, PnL, and risk analytics"
----
+# Profile Analysis
+
+Source: /account/profile-analysis
 
 ## Overview
 
@@ -9,28 +8,19 @@ The Profile Analysis endpoint aggregates user profile + portfolio data into a si
 
 This page documents the **exact calculation logic** used by the API so users can verify every metric.
 
-<Note>
 This endpoint is designed for MCP (Model Context Protocol) tools and AI agents.
 Values are rounded for display in the API response, but formulas below describe the source calculations.
-</Note>
 
 ## Endpoint
 
-<ParamField path="GET" type="/v1/account/profile-analysis">
   Full profile analysis with all metrics
-</ParamField>
 
 ### Query Parameters
 
-<ParamField query="recent_trades" type="integer" default="20">
   Number of recent trades to include (1-100)
-</ParamField>
 
-<ParamField query="equity_days" type="integer" default="90">
   Days of equity history to analyze (1-365)
-</ParamField>
 
-<ParamField query="wallet_id" type="integer | 'all' | 'api'" default="api">
   Wallet scope for the whole analysis — positions, trading stats, risk
   metrics, snapshots, recent trades, cash basis and PnL baseline alike. An
   integer scopes to a single wallet you own (404 `WALLET_NOT_FOUND`
@@ -38,20 +28,17 @@ Values are rounded for display in the API response, but formulas below describe 
   before per-wallet attribution); `all` restores the cross-wallet blended
   view. Keywords are case-insensitive; any other value returns 422
   `VALIDATION_FAILED`. **Omitted = `api`.**
-</ParamField>
 
-<Warning>
   **Default changed on 2026-06-10.** Before 2026-06-10 this endpoint always
   blended API-wallet cash with **all** wallets' position values, so `api_pnl`
   could report large gains on a flat API wallet. The analysis is now scoped
   to the **API wallet** by default and `api_pnl` reconciles with
   [Balance](/account/balance). Pass `wallet_id=all` if you depended on the
   old blended view.
-</Warning>
 
 ### Authentication
 
-API key only — `X-API-Key: <key>` (or the PM-compat `POLY_API_KEY` /
+API key only — `X-API-Key: ` (or the PM-compat `POLY_API_KEY` /
 `Authorization: Bearer ps_live_...` aliases). A Supabase Bearer JWT is **not**
 accepted here.
 
@@ -62,7 +49,7 @@ curl -H "X-API-Key: $POLYSIM_API_KEY" \
 
 ### Errors
 
-All errors return `{"error": "<CODE>", "message": "<human-readable>"}`.
+All errors return `{"error": "<CODE>", "message": ""}`.
 
 | Status | `error` code | When |
 |--------|--------------|------|
@@ -150,7 +137,7 @@ string, alongside these sections:
 
 `starting_api_balance` is the scoped wallet's **actual** `starting_balance`
 (tier-aware: Pro $10,000 / Pro+ $25,000 for the API wallet; a specific
-wallet's own baseline when `wallet_id=<id>`), so `api_pnl` here agrees with
+wallet's own baseline when `wallet_id=`), so `api_pnl` here agrees with
 `GET /v1/account/balance` and `GET /v1/account/portfolio` for the same
 wallet. Before 2026-06-10 this endpoint used a fixed $10,000 baseline
 regardless of tier — that caveat no longer applies.

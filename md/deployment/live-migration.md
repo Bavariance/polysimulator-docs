@@ -1,0 +1,226 @@
+# Live Migration
+
+Source: /deployment/live-migration
+
+# Virtual → Live Migration
+
+PolySimulator is designed so your entire bot codebase works unchanged when switching from virtual (paper) trading to live (real-money) trading on Polymarket.
+
+---
+
+## Comparison
+
+| Aspect | Virtual Mode | Live Mode |
+|--------|-------------|-----------|
+| Money at risk | None (simulated API wallet — $10,000 Pro / $25,000 Pro+) | Real funds |
+| Order execution | Local ledger | Polymarket CLOB |
+| Market data | Real prices from Polymarket | Real prices from Polymarket |
+| API surface | Full HFT API v1 | CLOB trading API (different endpoint paths) |
+| Settlement | Automatic on resolution | Polymarket blockchain |
+
+  Live mode executes real trades with real money on Polymarket. Ensure your strategy is thoroughly tested in virtual mode before migrating.
+
+---
+
+## Migration Steps
+
+  
+    Run your bot through multiple market cycles. Verify:
+    - Order placement works correctly
+    - Error handling covers all edge cases
+    - P&L tracking is accurate
+    - WebSocket reconnection is stable
+  
+
+  
+    Polymarket uses **two-layer authentication** — both are required for live trading:
+
+    **L1 (wallet-level):** Your Polygon wallet's private key signs an EIP-712 message to derive L2 credentials. Each order also requires an EIP-712 signature from this key.
+
+    **L2 (API-level):** HMAC credentials derived from L1 — used to authenticate all CLOB requests:
+    - API Key (`POLY_API_KEY`)
+    - API Secret (used to generate `POLY_SIGNATURE`)
+    - API Passphrase (`POLY_PASSPHRASE`)
+
+    **Prerequisites:**
+    - A Polygon wallet (MetaMask, Rabby, etc.) with a funded private key
+    - USDC.e tokens on Polygon for trading capital
+    - Token approval on the Polymarket Exchange contract
+
+    Use the Polymarket SDK to derive credentials automatically:
+    ```python
+    from py_clob_client.client import ClobClient
+
+    client = ClobClient("https://clob.polymarket.com", key=PRIVATE_KEY, chain_id=137)
+    api_creds = client.create_or_derive_api_key()
+    ```
+
+    See [Polymarket's authentication docs](https://docs.polymarket.com/api-reference/authentication) for full details.
+  
+
+  
+    Change your credentials and client configuration for live mode. Order payload
+    structure stays highly portable, but endpoint paths/auth handling differ:
+
+    ```bash
+    # Virtual mode (PolySimulator) — your current config
+    POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
+    POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
+
+    # Live mode (Polymarket) — swap these values
+    POLYMARKET_BASE_URL="https://clob.polymarket.com"
+    POLY_API_KEY="your_polymarket_api_key"
+    POLY_API_SECRET="your_polymarket_api_secret"
+    POLY_PASSPHRASE="your_polymarket_api_passphrase"
+    ```
+
+    
+      There is no single `TRADING_MODE` flag. Migration is achieved by switching
+      to Polymarket credentials/client setup and routing order placement through
+      Polymarket's CLOB API flow.
+    
+  
+
+  
+    The CLOB-compatible endpoint mirrors Polymarket's real CLOB API schema.
+    Your bot code stays identical — only the base URL and auth header change:
+
+    
+    ```python Virtual (PolySimulator)
+    import requests, os
+
+    BASE_URL = os.environ["POLYSIM_BASE_URL"]  # https://api.polysimulator.com/v1
+    headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+    order = requests.post(f"{BASE_URL}/clob/order", headers=headers, json={
+        "token_id": "71321045679252...",
+        "side": "BUY",
+        "price": "0.65",
+        "size": "10",
+        "order_type": "GTC",
+    })
+    order.raise_for_status()
+    print(order.json())
+    ```
+
+    ```python Live (Polymarket)
+    from py_clob_client.client import ClobClient
+    from py_clob_client.clob_types import ApiCreds
+
+    # Client setup + submission method changes; order field semantics stay close:
+    api_creds = ApiCreds(
+      api_key=os.getenv("POLY_API_KEY"),
+      api_secret=os.getenv("POLY_API_SECRET"),
+        api_passphrase=os.getenv("POLY_PASSPHRASE"),
+    )
+    client = ClobClient(
+        "https://clob.polymarket.com", chain_id=137,
+        key=os.getenv("PRIVATE_KEY"), creds=api_creds,
+    )
+
+    # Same trading intent, submitted via Polymarket SDK order flow:
+    from py_clob_client.clob_types import OrderArgs, OrderType
+    from py_clob_client.order_builder.constants import BUY
+
+    signed_order = client.create_order(
+      OrderArgs(
+        token_id="71321045679252...",
+        side=BUY,
+        price=0.65,
+        size=10,
+      )
+    )
+    result = client.post_order(signed_order, OrderType.GTC)
+    print(result)
+    ```
+    
+
+    
+      **Auth difference**: PolySimulator uses `X-API-Key` header.
+      Polymarket uses **L2 HMAC headers** (`POLY_ADDRESS`, `POLY_SIGNATURE`,
+      `POLY_TIMESTAMP`, `POLY_API_KEY`, `POLY_PASSPHRASE`) plus **EIP-712
+      signing** for each order. The Polymarket SDK handles the complexity —
+      only the client initialisation changes, not the order fields.
+    
+  
+
+  
+    Start with minimal order sizes to verify live execution:
+
+    ```python
+    import os
+    from py_clob_client.client import ClobClient
+    from py_clob_client.clob_types import ApiCreds, OrderArgs, OrderType
+    from py_clob_client.order_builder.constants import BUY
+
+    creds = ApiCreds(
+      api_key=os.getenv("POLY_API_KEY"),
+      api_secret=os.getenv("POLY_API_SECRET"),
+      api_passphrase=os.getenv("POLY_PASSPHRASE"),
+    )
+    client = ClobClient(
+      "https://clob.polymarket.com",
+      chain_id=137,
+      key=os.getenv("PRIVATE_KEY"),
+      creds=creds,
+    )
+
+    # 1. Place a small test limit order
+    signed = client.create_order(
+      OrderArgs(token_id="71321045679252...", side=BUY, price=0.10, size=1)
+    )
+    posted = client.post_order(signed, OrderType.GTC)
+    print("Posted order:", posted)
+
+    # 2. Verify open orders
+    open_orders = client.get_orders()
+    print("Open orders:", len(open_orders))
+    ```
+  
+
+---
+
+## CLOB Compatibility Layer
+
+The `POST /v1/clob/order` endpoint accepts the same request body as Polymarket's `POST /order`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `token_id` | string | CLOB outcome token ID |
+| `side` | string | `BUY` or `SELL` (uppercase) |
+| `price` | string | Limit price as decimal string ("0.01"–"0.99") |
+| `size` | string | Number of shares as decimal string |
+| `order_type` | string | `GTC` (default), `FOK`, or `GTD` |
+
+  All numeric fields (`price`, `size`) must be **strings** (e.g., `"0.65"` not `0.65`).
+  `side` must be **uppercase** (`"BUY"` not `"buy"`).
+  `order_type` must be a CLOB type (`"GTC"`, `"FOK"`, or `"GTD"`) — not `"market"`.
+  `POST /v1/clob/order` does **not** accept `IOC`/`FAK`; for fill-and-kill
+  semantics use the native `POST /v1/order` endpoint instead.
+
+See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details and response format.
+
+---
+
+## Rollback
+
+To return to virtual mode, change your bot's environment variables back:
+
+```bash
+POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
+POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
+# Remove or comment out Polymarket credentials
+```
+
+Restart your bot and it resumes paper trading with the simulated balance.
+
+---
+
+## Checklist
+
+- [ ] Bot tested across multiple market scenarios in virtual mode
+- [ ] Error handling verified (network errors, rate limits, slippage)
+- [ ] Polymarket API credentials obtained and secured
+- [ ] Environment variables updated
+- [ ] Initial live test with minimal order size
+- [ ] Monitoring and alerting configured for live trading

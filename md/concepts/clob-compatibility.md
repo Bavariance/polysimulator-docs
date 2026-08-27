@@ -1,0 +1,287 @@
+# CLOB Compatibility
+
+Source: /concepts/clob-compatibility
+
+# CLOB Compatibility
+
+PolySimulator mirrors **Polymarket's real execution model**:
+
+- **All orders are limit orders** — market orders are just limit orders with FOK time-in-force at marketable prices
+- **BUY fills at best ask, SELL fills at best bid** — not the midpoint. (Don't confuse fills with quotes: `GET /v1/price?side=BUY` returns the best *bid* — your side of the book — while executions cross the spread. Same convention as live Polymarket.)
+- **The `price` field is the worst-price limit** — slippage protection built into the order, not a separate parameter
+- **FOK (Fill-or-Kill)** is the immediate-execution order type on this endpoint. Polymarket's real CLOB also supports **FAK (Fill-and-Kill)**; on PolySimulator, FAK lives on the PM-raw [`POST /v1/order`](/concepts/pm-raw-http) path, and `POST /v1/clob/order` accepts `GTC`/`FOK`/`GTD` only (see below)
+
+The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, enabling one-URL-swap migration from paper trading to live trading.
+
+---
+
+## The Migration Promise
+
+  **Change only the base URL and credentials to go live** — the request and
+  response schemas are identical.
+
+| Mode | `/clob/order` endpoint |
+|------|------------------------|
+| **Virtual** (PolySimulator) | `https://api.polysimulator.com/v1/clob/order` |
+| **Live** (Polymarket) | `https://clob.polymarket.com/order` |
+
+```python Virtual Mode (PolySimulator)
+import requests
+
+BASE = "https://api.polysimulator.com/v1"
+headers = {"X-API-Key": "ps_live_kJ9mNx2p..."}
+
+order = requests.post(f"{BASE}/clob/order", headers=headers, json={
+    "token_id": "71321045679252...",
+    "side": "BUY",
+    "price": "0.65",
+    "size": "10",
+    "order_type": "GTC",
+}).json()
+```
+
+```python Live Mode (Polymarket)
+from py_clob_client.client import ClobClient
+
+client = ClobClient("https://clob.polymarket.com", key=PRIVATE_KEY, chain_id=137)
+client.set_api_creds(client.create_or_derive_api_key())
+
+# Same order payload — only auth + client changes
+order = client.create_and_post_order(OrderArgs(
+    token_id="71321045679252...",
+    side="BUY",
+    price=0.65,
+    size=10,
+    order_type="GTC",
+))
+```
+
+  **Authentication difference**: PolySimulator uses the `X-API-Key` header.
+  Polymarket's live CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
+  derived from your wallet's private key via `py_clob_client`. See the
+  [Live Migration Guide](/deployment/live-migration) for full credential setup.
+
+---
+
+## Request Schema
+
+```json
+{
+  "token_id": "71321045679252212594626385532706912750332728571942532289631379312455583992563",
+  "side": "BUY",
+  "price": "0.65",
+  "size": "10",
+  "order_type": "GTC",
+  "fee_rate_bps": 0,
+  "nonce": "optional-nonce",
+  "client_order_id": "my-order-001"
+}
+```
+
+  **All numeric fields (`price`, `size`) must be strings.** Both PolySimulator
+  and Polymarket's real CLOB API expect string-encoded decimals, e.g. `"0.65"`
+  not `0.65`. Using floats will be rejected.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token_id` | string | Yes | CLOB outcome token ID |
+| `side` | string | Yes | `BUY` or `SELL` |
+| `price` | string | Yes | Limit price as decimal string (`"0.01"`–`"1.00"`) |
+| `size` | string | Yes | Number of shares as decimal string (> 0) |
+| `order_type` | string | No | `GTC` (default), `FOK`, `GTD`. `GTD` is coerced to `GTC` (no native expiry). `IOC` is **rejected** on this endpoint with `400 UNSUPPORTED_ORDER_TYPE` — use the PM-raw [`POST /v1/order`](/concepts/pm-raw-http) path, which accepts `FAK`/`IOC`. |
+| `fee_rate_bps` | int | No | Accepted for shape parity; the engine charges the market's own category taker rate regardless (see [Trading Fees](/trading/fees)) |
+| `nonce` | string | No | Accepted but ignored in virtual mode |
+| `taker` | string | No | Accepted but ignored in virtual mode |
+| `client_order_id` | string | No | Idempotency key |
+
+  `order_type=IOC` returns `400 {"error": "VALIDATION_FAILED", "code":
+  "UNSUPPORTED_ORDER_TYPE", "message": "order_type=IOC not yet
+  supported; use GTC or FOK"}` on `POST /v1/clob/order`. The two trading
+  paths have genuinely different time-in-force support: this CLOB path
+  accepts `GTC`/`FOK`/`GTD`, while the PM-raw `POST /v1/order` path
+  accepts PM's full `GTC`/`FOK`/`FAK`/`GTD` set. Polymarket's own CLOB
+  enum is `GTC`/`FOK`/`GTD`/`FAK` — there is no `IOC` on Polymarket.
+
+---
+
+## Response Schema
+
+This is the **PolySimulator** CLOB-compat response. It is close to
+Polymarket's real insert-order response but **not byte-identical** —
+the differences are spelled out below so a migrating bot doesn't
+string-match on the wrong field.
+
+```json
+{
+  "success": true,
+  "orderID": "42",
+  "status": "matched",
+  "transactID": "42",
+  "errorMsg": null,
+  "price": "0.65",
+  "size": "10.0",
+  "side": "BUY",
+  "takingAmount": "6.50",
+  "makingAmount": "10.0"
+}
+```
+
+| Status Value | Meaning |
+|---|---|
+| `matched` | Order fully filled |
+| `live` | Order pending (limit order resting) |
+| `unmatched` | Order cancelled or rejected |
+
+  **Differences from Polymarket's real `POST /order` response** — port
+  defensively:
+
+  - **`transactID` (single string) vs PM's `transactionsHashes` /
+    `tradeIDs` (arrays).** PolySimulator returns `transactID` set to the
+    order ID; Polymarket has no `transactID` field — it returns
+    `transactionsHashes: []` and `tradeIDs: []`. The PM-raw
+    [`POST /v1/order`](/concepts/pm-raw-http) path returns the
+    PM-shape arrays.
+  - **`takingAmount` / `makingAmount` are human decimals here** (e.g.
+    `"6.50"`, `"10.0"`); Polymarket returns 6-decimal fixed-point
+    integer strings (e.g. `"500000"` for 0.50). Don't divide ours by
+    1e6.
+  - **`status` enum** here is `matched` / `live` / `unmatched`.
+    Polymarket's insert-order statuses are `live` / `matched` /
+    `delayed` — PolySimulator never emits `delayed`, and uses
+    `unmatched` (not a PM insert status) for cancelled/rejected orders.
+
+---
+
+## Field Mapping
+
+| Polymarket CLOB | PolySimulator `/v1/clob/order` | Notes |
+|-----------------|-------------------------------|-------|
+| `tokenId` / `token_id` | `token_id` | Resolved to its condition_id server-side |
+| `side` (0=BUY, 1=SELL) | `side` ("BUY"/"SELL") | String enum |
+| `price` (string) | `price` (string) | Decimal string: `"0.65"` |
+| `size` (string) | `size` (string) | Decimal string: `"10"` |
+| `feeRateBps` | `fee_rate_bps` | Accepted for shape parity; real PM-V2 per-category taker fees ARE charged on fills (see [Trading Fees](/trading/fees)) |
+| `orderType` | `order_type` | Polymarket enum is `GTC`/`FOK`/`GTD`/`FAK`. On `POST /v1/clob/order`: `GTC`/`FOK`/`GTD` accepted (`GTD`→`GTC`), `IOC` rejected (400). `FAK`/`IOC` live on the PM-raw `POST /v1/order` path. |
+| `signature` | — | Not required (virtual mode) |
+| `salt` | — | Not required (virtual mode) |
+
+  Fields like `signature`, `salt`, `maker`, and `signer` that are required
+  for Polymarket's blockchain settlement are **accepted but ignored** in
+  virtual mode. This means you can develop your bot with (or without) these
+  fields — either way works.
+
+  **String vs Float numerics**: Both PolySimulator and Polymarket require `price` and `size`
+  as **strings** (e.g., `"0.65"` not `0.65`). Always pass strings to ensure compatibility.
+
+---
+
+## Public CLOB Read Endpoints
+
+These endpoints mirror Polymarket's public CLOB data API and **require no authentication**.
+They accept `token_id` (the CLOB outcome token) as query parameter.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/price?token_id=...&side=...` | Single token price for one side (`side` **required**) |
+| `POST` | `/v1/prices` | Batch prices for multiple token IDs (returns a **dict**, not a list) |
+| `GET` | `/v1/midpoint?token_id=...` | Best-bid/best-ask midpoint |
+| `GET` | `/v1/spread?token_id=...` | Spread (best bid, best ask, spread) |
+| `GET` | `/v1/book?token_id=...` | Full order book snapshot. **Level ordering is byte-identical to Polymarket's live `/book` wire: bids ascending (best = `bids[-1]`), asks descending (best = `asks[-1]`)** — best at the tail on both sides. Read order-independently (max bid price / min ask price). See [Order Book](/market-data/order-book). |
+| `GET` | `/v1/prices-history?market=...` | PM wire shape: `{"history": [{"t": int, "p": float}]}`. Accepts PM's `market=` param (token id), `startTs`/`endTs`/`fidelity`, and PM's full interval enum (`1h/6h/1d/1w/1m/max/all`). For bucketed OHLCV use [`GET /v1/markets/{condition_id}/candles`](/market-data/price-candles) or `?format=ohlcv`. |
+
+  **`/v1/prices-history` is PM wire-compatible.** It accepts PM's required
+  `?market=` (token id; the `?token_id=` alias also works), returns PM's exact
+  `{"history": [{"t", "p"}]}` envelope by default (`p` is a JSON **number**
+  here, mirroring PM), supports `startTs`/`endTs`/`fidelity`, and 400s with
+  PM's verbatim error message when `market` is missing. For a bucketed OHLCV
+  array of `{t, o, h, l, c}` points instead, pass `?format=ohlcv`.
+
+```python Single Price
+import requests
+# `side` is REQUIRED (BUY → best bid, SELL → best ask — matches
+# Polymarket's live /price wire). A missing or invalid side returns
+# 400 {"error": "Invalid side"}.
+price = requests.get(
+    "https://api.polysimulator.com/v1/price",
+    params={"token_id": "71321045679252...", "side": "BUY"}
+).json()
+# {"price": "0.65", "quote_at": "2026-02-06T12:00:45Z", "age_ms": 42}
+# Note: price is a STRING; there is no token_id / bid / ask field.
+```
+
+```python Batch Prices
+# PolySim shape: {"token_ids": [...]} → returns {token_id: price_str}
+prices = requests.post(
+    "https://api.polysimulator.com/v1/prices",
+    json={"token_ids": ["71321045...", "83294756..."]}
+).json()
+# {"71321045...": "0.65", "83294756...": "0.42"}
+
+# PM array shape: [{"token_id", "side"}, ...] → returns {token_id: {SIDE: price_str}}
+prices_pm = requests.post(
+    "https://api.polysimulator.com/v1/prices",
+    json=[{"token_id": "71321045...", "side": "BUY"}]
+).json()
+# {"71321045...": {"BUY": "0.65"}}
+```
+
+```python Midpoint
+mid = requests.get(
+    "https://api.polysimulator.com/v1/midpoint",
+    params={"token_id": "71321045679252..."}
+).json()
+# {"mid": "0.645", "mid_price": "0.645"}
+```
+
+  These endpoints serve the same cached prices as the authenticated API,
+  refreshed roughly every 30 seconds.
+
+---
+
+## Cancel Endpoints
+
+Bulk cancel endpoints match Polymarket's cancel response shape:
+`{canceled: [...], not_canceled: {...}}`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `DELETE` | `/v1/cancel-all` | Cancel all pending limit orders |
+| `DELETE` | `/v1/cancel-market-orders?market=...` | Cancel pending orders for a specific market |
+
+The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
+`asset_id` (token_id) as query parameters.
+
+```json
+// Response shape (both endpoints)
+{
+  "canceled": ["42", "43"],
+  "not_canceled": {"44": "Cannot cancel order with status: FILLED"}
+}
+```
+
+  The status word inside a `not_canceled` reason is the **internal
+  uppercase** order-status enum (`FILLED`, `CANCELLED`, `EXPIRED`),
+  which differs from the **lowercase** insert-order status the
+  `POST /v1/clob/order` response uses (`matched` / `live` / `unmatched`).
+  If you string-match on the status you saw at insert time, don't expect
+  the casing to line up here — match case-insensitively, or map
+  `FILLED → matched`, `CANCELLED → unmatched`.
+
+---
+
+## When to Use CLOB-Compat vs Native API
+
+| Use Case | Recommended Endpoint |
+|----------|---------------------|
+| New bot development | `POST /v1/orders` — richer features, string numerics |
+| Porting existing Polymarket bot | `POST /v1/clob/order` — minimal code changes |
+| Planning to go live on Polymarket | `POST /v1/clob/order` — URL-swap ready |
+| Advanced features (batch, limit, slippage) | `POST /v1/orders` — full feature set |
+
+---
+
+## Next Steps
+
+- [Placing Orders](/trading/placing-orders) — Full-featured native order API
+- [Live Migration](/deployment/live-migration) — Step-by-step migration guide
+- [Polymarket Perfect-Fit Delta](/concepts/polymarket-perfect-fit-delta) — Exact endpoint and schema gaps to close for full Polymarket parity

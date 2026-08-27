@@ -1,19 +1,16 @@
----
-title: "Quick Start"
-sidebarTitle: "Quick Start"
-description: "Get your API key and place your first trade in under 2 minutes."
----
+# Quick Start
+
+Source: /quickstart
 
 # Quick Start
 
-<Steps>
-  <Step title="Get an API Key">
+  
     1. Sign up at [polysimulator.com/signin](https://polysimulator.com/signin).
     2. Open [polysimulator.com/api-keys](https://polysimulator.com/api-keys).
     3. Click **Create your first API key**, give it a name, and copy
        the `ps_live_…` value shown once.
 
-    <Note>
+    
       **Open beta.** Anyone can mint a key from the dashboard or
       `POST /v1/keys/bootstrap`. A **free** key is **read-only**
       (`permissions: ["read"]`) — use it to explore markets, books, and
@@ -21,21 +18,21 @@ description: "Get your API key and place your first trade in under 2 minutes."
       (`["read", "trade"]`) against an isolated API wallet. See
       [API Keys](/concepts/api-keys) and
       [Authentication](/authentication#open-beta).
-    </Note>
+    
 
-    <Warning>
+    
       The full key is shown **only once**. Save it to your password
       manager or a secret store immediately — only the SHA-256 hash is
       retained server-side, so we can't show it again later.
-    </Warning>
+    
 
-    <Tip>
+    
       The dashboard handles the one-time bootstrap with your signed-in
       Supabase session — you never see or paste a JWT. From here on
       every API call uses `X-API-Key: ps_live_...`.
-    </Tip>
+    
 
-    <Accordion title="Headless / CI: bootstrap from a script (advanced)">
+    
       If you can't open a browser (CI runner, containerised dev env)
       and you have a Supabase access token in hand, the
       `POST /v1/keys/bootstrap` endpoint creates your first key directly:
@@ -84,17 +81,17 @@ description: "Get your API key and place your first trade in under 2 minutes."
       require `X-API-Key`** — Bearer is rejected on the trade surface.
       See the [Authentication](/authentication) page for the full
       scope table.
-    </Accordion>
-  </Step>
+    
+  
 
-  <Step title="Set Your Environment">
+  
     ```bash
     export POLYSIM_API_KEY="ps_live_abc123..."
     export POLYSIM_BASE_URL="https://api.polysimulator.com"
     ```
-  </Step>
+  
 
-  <Step title="Check Connectivity">
+  
     ```bash
     curl -H "X-API-Key: $POLYSIM_API_KEY" \
          $POLYSIM_BASE_URL/v1/health
@@ -104,18 +101,18 @@ description: "Get your API key and place your first trade in under 2 minutes."
     ```json
     {"status": "ok", "timestamp": "2026-03-02T12:00:00Z", "version": "1.0.0"}
     ```
-  </Step>
+  
 
-  <Step title="Fetch Hot Markets">
+  
     ```bash
     curl -H "X-API-Key: $POLYSIM_API_KEY" \
          "$POLYSIM_BASE_URL/v1/markets?limit=5"
     ```
 
     This returns actively traded markets with live prices from Polymarket.
-  </Step>
+  
 
-  <Step title="Place Your First Trade">
+  
     The fastest path is the **Python SDK** — it picks a live market and places
     a trade in a few lines. This snippet is **complete and runnable as-is**
     (it resolves a real market for you — no IDs to fill in):
@@ -137,21 +134,21 @@ description: "Get your API key and place your first trade in under 2 minutes."
         print(f"filled {fill['status']} @ {fill.get('price')} — order {fill['order_id']}")
     ```
 
-    <Frame caption="Install, run, filled — your first trade in seconds.">
-      <img src="/images/first-trade.gif" alt="A terminal: pip install polysimulator, then python first_trade.py prints 'filled FILLED @ 0.23 — order 102973'." noZoom />
-    </Frame>
+    
+      
+    
 
-    <Info>
+    
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
       tighter control use the current best ask × 1.05.
-    </Info>
+    
 
     Prefer raw HTTP? Resolve a live `market_id` from the markets endpoint first,
     then POST — these are runnable too:
 
-    <CodeGroup>
+    
       ```bash cURL
       # 1. grab a live market_id (jq)
       MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
@@ -194,7 +191,7 @@ description: "Get your API key and place your first trade in under 2 minutes."
       });
       console.log(await resp.json());
       ```
-    </CodeGroup>
+    
 
     Response:
     ```json
@@ -213,29 +210,26 @@ description: "Get your API key and place your first trade in under 2 minutes."
     }
     ```
 
-    <Note>
+    
       `account_balance` is your **API wallet** balance after the fill,
       not the dashboard MAIN wallet. API keys start at $10,000 (Pro) or
       $25,000 (Pro+); Free-tier keys are read-only with no API wallet.
       Here a $6.50 fill plus the $0.09 taker fee (PM-V2 per-category
       schedule — see [Trading Fees](/trading/fees)) against the $10,000
       Pro wallet leaves $9,993.41.
-    </Note>
-  </Step>
+    
+  
 
-  <Step title="Check Your Portfolio">
+  
     ```bash
     curl -H "X-API-Key: $POLYSIM_API_KEY" \
          $POLYSIM_BASE_URL/v1/account/portfolio
     ```
-  </Step>
-</Steps>
+  
 
-<Tip>
   **All numeric values are strings** (`"10"`, not `10`). This prevents
   floating-point precision loss — critical for financial applications.
   See [String Numerics](/concepts/string-numerics) for details.
-</Tip>
 
 ---
 
@@ -244,4 +238,3 @@ description: "Get your API key and place your first trade in under 2 minutes."
 - [Authentication deep dive](/authentication) — Key management, security, permissions
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
 - [Build a trading bot](/bots/example-trading-bot) — Complete Python example
-- [Simulation API](/simulation) — Historical fill / coverage (feature-dark; 404 until the operator flag is on)

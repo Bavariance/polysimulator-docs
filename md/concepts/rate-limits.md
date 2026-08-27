@@ -1,8 +1,6 @@
----
-title: "Rate Limits"
-sidebarTitle: "Rate Limits"
-description: "Per-key rate limiting tiers, headers, and best practices for staying within limits."
----
+# Rate Limits
+
+Source: /concepts/rate-limits
 
 # Rate Limits
 
@@ -19,18 +17,14 @@ Rate limits are enforced **per API key** using sliding-window counters with both
 | `pro_plus` | 30 | 1,800 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
-<Note>
   The `free` tier allows short bursts (up to 2 requests in any one
   second) but is also capped at 120 requests in any rolling one-minute
   window, so the per-minute bucket is the one you'll hit first under
   sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
   (which don't count against the REST limit) to stay well inside it.
-</Note>
 
-<Tip>
   The authoritative source for tier limits is `GET /v1/keys/tiers`. If a doc
   page ever disagrees with that endpoint, the endpoint wins.
-</Tip>
 
 ---
 
@@ -72,12 +66,10 @@ can **pre-throttle** instead of waiting for an actual 429:
 | `x-ratelimit-remaining-per-second` | int | Requests remaining in the current rolling-second window |
 | `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window rolls over |
 
-<Note>
   Every header above is **also** emitted under the PolySim-namespaced
   `x-polysim-ratelimit-*` prefix with identical values (e.g.
   `x-polysim-ratelimit-remaining`). Read whichever your SDK or proxy
   keys off — the unprefixed `x-ratelimit-*` form is canonical.
-</Note>
 
 ```python
 import time
@@ -145,47 +137,44 @@ REST endpoints are the authoritative source for order state, fills, and cancella
 ### WebSocket Fill Streams (Opportunistic & Fill-Only)
 
 For lower fill latency, clients may listen to WebSocket execution channels alongside authoritative REST reconciliation:
-* **PolySim Native:** `WS /v1/ws/executions?token=<jwt>` receives push notifications when limit orders fill in-process.
+* **PolySim Native:** `WS /v1/ws/executions?token=` receives push notifications when limit orders fill in-process.
 * **Polymarket Parity:** `WS /v1/ws/user` (with `auth.apiKey`) streams live `trade` frames with `status: "MATCHED"`.
 
-<Warning>
   **WebSocket Limitations (Fill-Only & Process-Local):**
   * **No Cancellation Events:** Execution WebSockets emit order fill events only; they do **not** emit order cancellation events. Cancellations must be monitored or confirmed via REST endpoints.
   * **Process-Local Scope:** In multi-process and daemon deployments, matching loops running in background daemon processes do not cross process boundaries to API-worker WebSocket registries. Bots **must retain periodic REST reconciliation** as the authoritative source of truth.
-</Warning>
+
 ---
 
 ## Best Practices
 
-<CardGroup cols={2}>
-  <Card title="Use Batch Endpoints" icon="layer-group">
+  
     `POST /v1/orders/batch` and `POST /v1/prices/batch` combine multiple
     operations into one request — and a batch call counts as **one** tick
     against your RPS/RPM. It's bounded by your tier's **Max Batch Size**
     (see the Tiers table above): `free=1` means no batching benefit on
     free, so this pays off most on `pro` (5) / `pro_plus` (10) /
     `enterprise` (25).
-  </Card>
+  
 
-  <Card title="Use WebSocket Feeds" icon="bolt">
+  
     Subscribe to `WS /v1/ws/prices` instead of polling `GET /v1/markets`.
     WebSocket connections don't count against your REST rate limit.
-  </Card>
+  
 
-  <Card title="Cache Market Metadata" icon="database">
+  
     Market metadata (slug, question, outcomes) changes infrequently.
     Cache it locally and only refresh periodically.
-  </Card>
+  
 
-  <Card title="Idempotency Keys" icon="key">
+  
     On order placement (`POST /v1/orders`, `POST /v1/order`,
     `POST /v1/clob/order`), send an `Idempotency-Key` header — a
     Stripe-style alias for the body's `client_order_id` — so a retried
     request can't double-fill. Reusing a key with a **different** payload
     returns `409 IDEMPOTENCY_KEY_REUSE`; reuse it only for the exact same
     order you're retrying.
-  </Card>
-</CardGroup>
+  
 
 ---
 

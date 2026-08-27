@@ -1,0 +1,134 @@
+# Equity Curve
+
+Source: /account/equity-curve
+
+# Equity Curve
+
+```
+GET /v1/account/equity
+```
+
+Returns hourly portfolio value snapshots for equity curve charting and performance analysis.
+
+---
+
+## Authentication
+
+API key only — `X-API-Key: ` (or the PM-compat `POLY_API_KEY` /
+`Authorization: Bearer ps_live_...` aliases). A Supabase Bearer JWT is **not**
+accepted here.
+
+---
+
+## Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `days` | int | 7 | Days of history (1–90) |
+| `wallet_id` | string | `api` | `all` (every wallet you own), `api` (your API wallet), or an integer wallet id you own (404 `WALLET_NOT_FOUND` otherwise) — see [Wallets → Scoping account reads](/account/wallets#scoping-account-reads-to-a-wallet). Omit to default to your API wallet (legacy `wallet_id IS NULL` snapshots are folded in so pre-multi-wallet history stays continuous; with no active API wallet only the legacy bucket is returned). |
+
+---
+
+## Request
+
+```bash
+# Last 7 days of hourly data (default)
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/equity"
+
+# Last 30 days
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/account/equity?days=30"
+```
+
+---
+
+## Response
+
+Snapshots are returned in **chronological (ascending) order** — oldest first,
+newest last — so you can plot the array as-is.
+
+```json
+[
+  {
+    "timestamp": "2026-02-06T10:00:00Z",
+    "cash_balance": "9993.50",
+    "position_value": "6.30",
+    "total_value": "9999.80",
+    "pnl": "-0.20"
+  },
+  {
+    "timestamp": "2026-02-06T11:00:00Z",
+    "cash_balance": "9993.50",
+    "position_value": "7.00",
+    "total_value": "10000.50",
+    "pnl": "0.50"
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | string | ISO-8601 UTC snapshot time (rounded to the hour) |
+| `cash_balance` | string | Cash balance at this timestamp |
+| `position_value` | string | Total market value of positions at this timestamp |
+| `total_value` | string | `cash_balance + position_value` at this timestamp |
+| `pnl` | string | Profit & loss relative to the wallet's starting balance (API wallet by default) |
+
+---
+
+## Charting Example
+
+```python
+import requests, os
+import matplotlib.pyplot as plt
+from datetime import datetime
+
+BASE_URL = os.environ["POLYSIM_BASE_URL"]
+headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+equity = requests.get(
+    f"{BASE_URL}/v1/account/equity",
+    headers=headers,
+    params={"days": 30},  # 30 days
+).json()
+
+# On Python < 3.11, datetime.fromisoformat() rejects the trailing "Z" —
+# swap it for "+00:00" so this parses on 3.10+ (the SDK's floor).
+times = [
+    datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
+    for e in equity
+]
+values = [float(e["total_value"]) for e in equity]
+
+plt.figure(figsize=(12, 6))
+plt.plot(times, values)
+# Starting balance = your API-wallet baseline, NOT the $1,000 UI MAIN
+# wallet: Pro = 10_000, Pro+ = 25_000 (Free keys are read-only). Set it
+# to your tier's baseline so the reference line is meaningful.
+API_WALLET_BASELINE = 10_000  # Pro; use 25_000 on Pro+
+plt.axhline(y=API_WALLET_BASELINE, color="gray", linestyle="--", label="Starting balance")
+plt.title("Portfolio Equity Curve")
+plt.ylabel("Portfolio Value ($)")
+plt.legend()
+plt.show()
+```
+
+---
+
+## Errors
+
+All errors return `{"error": "<CODE>", "message": ""}`.
+
+| Status | `error` code | When |
+|--------|--------------|------|
+| 401 | `MISSING_API_KEY` | No API key header supplied |
+| 401 | `INVALID_KEY` | API key is unknown, deactivated, or expired |
+| 404 | `WALLET_NOT_FOUND` | `wallet_id` is not owned by the caller |
+
+---
+
+## Next Steps
+
+- [Balance](/account/balance) — Current balance snapshot
+- [Portfolio](/account/portfolio) — Complete portfolio overview

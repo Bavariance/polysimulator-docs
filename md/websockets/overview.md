@@ -1,0 +1,219 @@
+# WebSocket Overview
+
+Source: /websockets/overview
+
+# WebSocket Feeds
+
+The PolySimulator API provides two **shape families** of WebSocket feeds for
+real-time data: a polysim-native shape (compact, condition-id keyed) and a
+**Polymarket-compatible shape** that mirrors Polymarket's CLOB WS contract
+field-for-field so existing py-clob-client / PM-port bots can drop in
+without rewriting their event handlers.
+
+### PolySim-native feeds
+
+| Feed | Endpoint | Description |
+|------|----------|-------------|
+| **Price Feed** | `WS /v1/ws/prices` | Real-time price updates for subscribed markets |
+| **Execution Feed** | `WS /v1/ws/executions` | Limit order fill notifications |
+
+### Polymarket-compatible feeds
+
+| Feed | Endpoint | Description |
+|------|----------|-------------|
+| **Market Channel** | `WS /v1/ws/market` | Per-token L2 book + delta events (PM `/ws/market` shape) |
+| **User Channel** | `WS /v1/ws/user` | Auth-gated user channel (PM `/ws/user` shape) |
+
+The PM-compat routes:
+
+- Accept PM's subscribe message — `{"type": "market", "assets_ids": ["TOKEN_ID", ...]}`
+- Emit PM-shape events — `book` / `price_change` / `last_trade_price` / `best_bid_ask`, plus PM-shape `trade` fill frames on `/ws/user`
+- Field names match PM verbatim (`asset_id`, `market`, `hash`, `tick_size`, `timestamp`, stringified prices)
+- Accept inline auth via the subscribe message — `"auth": {"apiKey": "ps_live_..."}` (PM's L2 `secret`/`passphrase` fields are accepted but ignored — polysim is single-secret)
+- Also accept `?token=` for back-compat with the polysim-native auth model
+
+See [PM-compat Market Channel](/websockets/pm-compat-market) for the full PM-shape protocol.
+
+---
+
+## Authentication
+
+WebSocket connections require a **short-lived JWT token** (60 seconds), separate from your API key.
+
+  
+    ```bash
+    TOKEN=$(curl -s -X POST \
+      -H "X-API-Key: $API_KEY" \
+      https://api.polysimulator.com/v1/keys/ws-token \
+      | jq -r '.token')
+    ```
+
+    Response:
+    ```json
+    {"token": "eyJhbGciOiJIUzI1NiIs...", "expires_in": 60}
+    ```
+  
+
+  
+    ```bash
+    wscat -c "wss://api.polysimulator.com/v1/ws/prices?token=$TOKEN"
+    ```
+
+    
+      The token expires in **60 seconds**. Connect immediately after minting.
+    
+  
+
+---
+
+## Protocol
+
+All messages are JSON. The protocol supports these client actions:
+
+| Action | Description |
+|--------|-------------|
+| `subscribe` | Subscribe to price updates for markets |
+| `unsubscribe` | Stop receiving updates for markets |
+| `ping` | Heartbeat check |
+
+### Ping/Pong
+
+```json
+// Client sends:
+{"action": "ping"}
+
+// Server responds:
+{"type": "pong", "ts": 1705312200000}
+```
+
+---
+
+## Connection Limits
+
+| Tier | Max WS Connections | Max Subscriptions/Connection |
+|------|:------------------:|:----------------------------:|
+| `free` | 1 | 50 markets |
+| `pro` | 3 | 50 markets |
+| `pro_plus` | 10 | 50 markets |
+| `enterprise` | 50 | 50 markets |
+
+The **Max WS Connections** column is authoritative on the wire via
+`GET /v1/keys/tiers` — the `max_ws_connections` field. The
+**Max Subscriptions/Connection** value is fixed at **50 per connection
+across all tiers** (a hardcoded server cap, not tier-configurable and
+not returned by `/v1/keys/tiers`).
+
+  See also [Rate Limits](/concepts/rate-limits) for the full tier matrix.
+
+---
+
+## Reconnection & Token Rotation
+
+WebSocket tokens are **short-lived** — they expire after **60 seconds**. They are *not* single-use: a token may be reused for multiple connections while it is still valid. The short TTL means most reconnect flows mint a fresh one anyway, so your bot must still implement automatic reconnection with token minting near expiry.
+
+### Recommended Pattern
+
+```python
+import asyncio
+import json
+import websockets
+import httpx
+
+API_KEY = "your-api-key"
+BASE_URL = "https://api.polysimulator.com"
+
+async def mint_ws_token() -> str:
+    """Mint a fresh 60-second WS token."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{BASE_URL}/v1/keys/ws-token",
+            headers={"X-API-Key": API_KEY},
+        )
+        return resp.json()["token"]
+
+async def connect_with_reconnect(subscriptions: list[str]):
+    backoff = 1
+    max_backoff = 30
+
+    while True:
+        try:
+            token = await mint_ws_token()
+            async with websockets.connect(
+                f"wss://api.polysimulator.com/v1/ws/prices?token={token}"
+            ) as ws:
+                backoff = 1  # Reset on successful connect
+
+                # Re-subscribe after reconnect
+                await ws.send(json.dumps({
+                    "action": "subscribe",
+                    "markets": subscriptions,
+                }))
+
+                async for message in ws:
+                    data = json.loads(message)
+                    if data.get("type") == "pong":
+                        continue
+                    # Process price update
+                    handle_price(data)
+
+        except websockets.ConnectionClosedError as e:
+            if e.code == 4001:
+                # Token expired — mint fresh and reconnect immediately
+                continue
+            if e.code == 4002:
+                # Connection limit — wait before retry
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
+        except Exception:
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, max_backoff)
+```
+
+### Key Rules
+
+1. **Mint a fresh token near expiry** — a token may be reused for multiple connections while still valid, but the 60-second TTL means most reconnect flows mint a new one anyway
+2. **Re-subscribe after reconnect** — the server does not remember your subscriptions
+3. **Exponential backoff** — start at 1s, cap at 30s, reset on successful connect
+4. **Handle close code `4001` immediately** — no backoff needed, just mint and reconnect
+
+---
+
+## Best Practices
+
+  
+    WS tokens expire in 60 seconds. Mint and connect in the same code block.
+  
+
+  
+    Use exponential backoff for reconnection. Mint a fresh token on each
+    reconnect attempt.
+  
+
+  
+    WebSocket subscriptions don't count against REST rate limits.
+    Use them instead of polling `GET /v1/markets`.
+  
+
+  
+    Subscribe to the execution feed for limit order fill confirmations
+    instead of polling `GET /v1/orders`.
+  
+
+---
+
+## Error Handling
+
+| WS Close Code | Meaning |
+|:--------------:|---------|
+| `4001` | Invalid or expired JWT token |
+| `4002` | Maximum WebSocket connections exceeded |
+
+When you receive close code `4001`, mint a fresh token and reconnect.
+When you receive close code `4002`, close idle connections before reconnecting.
+
+---
+
+## Next Steps
+
+- [Price Feed](/websockets/price-feed) — Subscribe to real-time prices
+- [Execution Feed](/websockets/execution-feed) — Get fill notifications

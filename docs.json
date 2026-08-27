@@ -56,6 +56,7 @@
             "pages": [
               "concepts/api-keys",
               "concepts/rate-limits",
+              "concepts/honest-limits",
               "concepts/string-numerics",
               "concepts/clob-compatibility",
               "concepts/py-sdk-compatibility",
@@ -84,7 +85,8 @@
               "market-data/updown-markets",
               "market-data/order-book",
               "market-data/price-candles",
-              "market-data/batch-prices"
+              "market-data/batch-prices",
+              "market-data/datalake-schema"
             ]
           },
           {
@@ -208,6 +210,10 @@
       "claude"
     ]
   },
+  "files": [
+    "llms.txt",
+    "llms-full.txt"
+  ],
   "mcp": {
     "enabled": true
   },

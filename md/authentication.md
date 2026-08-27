@@ -1,8 +1,6 @@
----
-title: "Authentication"
-sidebarTitle: "Authentication"
-description: "How API key authentication works, security model, and best practices."
----
+# Authentication
+
+Source: /authentication
 
 # Authentication
 
@@ -38,23 +36,20 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
 ```
 
-<Note>
   **These aliases are a deliberate PolySimulator simplification — not a
   literal match of Polymarket's request shape.** Real Polymarket L2 auth
   attaches **five** `POLY_*` headers per request — `POLY_ADDRESS`,
   `POLY_SIGNATURE` (an HMAC-SHA256 of the request), `POLY_TIMESTAMP`,
   `POLY_API_KEY`, `POLY_PASSPHRASE` — and `py-clob-client` /
   `@polymarket/clob-client` never send a bare `POLY_API_KEY` or an
-  `Authorization: Bearer <key>` on their own. PolySimulator collapses
+  `Authorization: Bearer ` on their own. PolySimulator collapses
   all of that to one value (your `ps_live_` key) and ignores HMAC
   signing because it's a paper-trading backend. So porting a bot still
   means pointing the SDK's `host` at PolySimulator and feeding it the
   `ps_live_` key — the aliases just mean common HTTP clients that
   default to `Authorization: Bearer …` or send `POLY_API_KEY` aren't
   rejected; they don't make a real `py-clob-client` work unchanged.
-</Note>
 
-<Warning>
   **Bearer is rejected on every trading and market-data endpoint.**
   `POST /v1/orders`, `POST /v1/order`, `POST /v1/clob/order`,
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
@@ -63,7 +58,6 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
-</Warning>
 
 ---
 
@@ -122,12 +116,9 @@ Keys support granular permissions:
 | `read` | Market data, prices, balance, positions, order history |
 | `trade` | Place orders, cancel orders, cancel-all, batch orders |
 
-<Warning>
   A key with only `read` permission cannot place trades. Create a key with
   `["read", "trade"]` permissions for bot usage.
-</Warning>
 
-<Note>
   **Key management is gated by auth, not by the `trade` scope.**
   Creating, listing, renaming, rotating, and revoking keys
   (`POST`/`GET`/`PATCH`/`DELETE /v1/keys`, `/v1/keys/{id}/rotate`) only
@@ -136,14 +127,12 @@ Keys support granular permissions:
   `trade`-scoped key to manage keys. (Free-tier keys are still read-only
   for trading and can't be created *with* `trade` — that's enforced at
   creation, see below.)
-</Note>
 
 ---
 
 ## Security Best Practices
 
-<AccordionGroup>
-  <Accordion title="Store keys in environment variables">
+  
     Never hardcode API keys in source code. Use environment variables or a secrets manager.
 
     ```bash
@@ -154,9 +143,9 @@ Keys support granular permissions:
     import os
     api_key = os.environ["POLYSIM_API_KEY"]
     ```
-  </Accordion>
+  
 
-  <Accordion title="Rotate keys for short-lived CI/CD deployments">
+  
     There is **no `expires_at` field on key creation** — `POST /v1/keys`
     and `POST /v1/keys/bootstrap` only accept `name`, `tier`, and
     `permissions`. (`expires_at` is set server-side: it appears on a
@@ -166,15 +155,15 @@ Keys support granular permissions:
     replacement and schedules the old key to expire after a 24h overlap,
     so you can roll a key without downtime and let the old one lapse on
     its own.
-  </Accordion>
+  
 
-  <Accordion title="Principle of least privilege">
+  
     Create separate keys for different bots:
     - **Data-only bot**: `["read"]` permission
     - **Trading bot**: `["read", "trade"]` permission
-  </Accordion>
+  
 
-  <Accordion title="Rotate keys regularly">
+  
     Create a new key, update your bot, then revoke the old key:
 
     ```bash
@@ -189,13 +178,12 @@ Keys support granular permissions:
     curl -X DELETE -H "X-API-Key: $NEW_KEY" \
       https://api.polysimulator.com/v1/keys/OLD_KEY_ID
     ```
-  </Accordion>
+  
 
-  <Accordion title="Maximum 5 keys per user">
+  
     The system enforces a limit of 5 active keys per user account.
     Revoke unused keys to free up slots.
-  </Accordion>
-</AccordionGroup>
+  
 
 ---
 
@@ -217,7 +205,7 @@ the body text.)
 The `X-Polysim-Code` response header carries a stable short code —
 domain-specific where the handler knows what went wrong (e.g.
 `INVALID_KEY`, `INSUFFICIENT_PERMISSION`, `RATE_LIMIT_EXCEEDED`,
-`BOOK_UNAVAILABLE`, `VALIDATION_FAILED`), or `HTTP_<status>` as a
+`BOOK_UNAVAILABLE`, `VALIDATION_FAILED`), or `HTTP_` as a
 generic fallback (`HTTP_400`, `HTTP_500`).
 
 The `X-Request-Id` response header always echoes the request id for
@@ -256,11 +244,8 @@ Common auth/permission codes — branch on `X-Polysim-Code`:
 | `INSUFFICIENT_PERMISSION` | 403 | Key lacks `trade` / other scope |
 | `RATE_LIMIT_EXCEEDED` | 429 | Per-key or per-IP burst exceeded |
 
-<Info>
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
-</Info>
 
-<Tip>
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on the request
   to get the legacy verbose body shape — useful while writing or
   debugging an SDK:
@@ -270,7 +255,6 @@ Common auth/permission codes — branch on `X-Polysim-Code`:
   ```
   The default single-field shape matches Polymarket's own /clob error
   contract, so PM-shape SDK ports work without translation.
-</Tip>
 
 ---
 
@@ -312,7 +296,7 @@ elif resp.status_code == 401:
     print("Invalid or expired Supabase JWT — sign in again at polysimulator.com")
 elif resp.status_code == 403:
     # Branch on the stable machine code in the `X-Polysim-Code` header.
-    # The response body is PM-shape `{"error": "<human msg>"}`, so the
+    # The response body is PM-shape `{"error": ""}`, so the
     # body's `error` field is the human message — NOT a stable code.
     # Header lookup is case-insensitive in `requests` / most HTTP libs.
     code = resp.headers.get("X-Polysim-Code")

@@ -1,8 +1,6 @@
----
-title: "PolySimulator API"
-sidebarTitle: "Introduction"
-description: "Virtual prediction market trading API — build and test HFT bots with real Polymarket data, then go live with one config change."
----
+# PolySimulator API
+
+Source: /introduction
 
 # PolySimulator HFT API v1
 
@@ -10,24 +8,20 @@ Build, test, and deploy prediction market trading bots in a risk-free environmen
 powered by **real-time Polymarket data**. When you're ready, switch to live trading
 by changing a single environment variable.
 
-<Frame caption="pip install → a 5-line script → a filled trade. Start in the Quickstart.">
-  <img src="/images/first-trade.gif" alt="A terminal: pip install polysimulator, then python first_trade.py prints 'filled FILLED @ 0.23 — order 102973'." noZoom />
-</Frame>
+  
 
-<CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
+  
     Get your API key and place your first trade in under 2 minutes.
-  </Card>
-  <Card title="Python SDK" icon="python" href="/sdk">
+  
+  
     `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` or py-sdk bot? Drop-ins included.
-  </Card>
-  <Card title="API Reference" icon="square-terminal" href="/api-reference">
+  
+  
     Interactive playground — test every endpoint with your API key.
-  </Card>
-  <Card title="Example Bot" icon="robot" href="/bots/example-trading-bot">
+  
+  
     Copy-paste a working Python trading bot and start experimenting.
-  </Card>
-</CardGroup>
+  
 
 ---
 
@@ -58,11 +52,11 @@ live Polymarket, so going live is a config change — not a rewrite.
 
 ```mermaid
 flowchart TD
-    PM["Polymarket<br/>live CLOB + Gamma"]
-    Cache["In-memory price cache<br/>Redis, low-latency reads"]
+    PM["Polymarketlive CLOB + Gamma"]
+    Cache["In-memory price cacheRedis, low-latency reads"]
     API["PolySimulator API v1"]
-    Bot["Your Trading Bot<br/>REST + WebSocket"]
-    Acct["Your paper account<br/>balance, positions, orders"]
+    Bot["Your Trading BotREST + WebSocket"]
+    Acct["Your paper accountbalance, positions, orders"]
     PM -->|realtime feed| Cache
     Cache -->|low-latency reads| API
     Bot -->|orders and queries| API
@@ -88,25 +82,21 @@ Keep the base URL **without** `/v1` so each path can prepend its own
 
 ## One Config Change to Go Live
 
-<Steps>
-  <Step title="Build with PolySimulator">
+  
     Develop and test your bot against the virtual API. Free keys are
     read-only (no API wallet). Paid Pro / Pro+ keys trade a simulated
     API wallet ($10,000 on Pro, $25,000 on Pro+).
-  </Step>
-  <Step title="Validate Strategy">
+  
+  
     Review your portfolio, trade history, and equity curve to confirm your edge.
-  </Step>
-  <Step title="Switch to Live">
+  
+  
     Set `TRADING_MODE=live` and add your Polymarket credentials. Same API, real money.
-  </Step>
-</Steps>
+  
 
-<Tip>
   The `/v1/clob/order` endpoint uses the same schema as Polymarket's real CLOB API.
   When migrating to live, you can even point your bot directly at `clob.polymarket.com`
   with zero code changes.
-</Tip>
 
 ---
 
@@ -123,17 +113,14 @@ and example prompts.
 
 ## What's Next?
 
-<CardGroup cols={2}>
-  <Card title="Authentication" icon="key" href="/authentication">
+  
     Learn how API key auth works and create your first key.
-  </Card>
-  <Card title="Place a Trade" icon="arrow-trend-up" href="/trading/placing-orders">
+  
+  
     Execute market and limit orders with string-precision numerics.
-  </Card>
-  <Card title="WebSocket Feeds" icon="signal-stream" href="/websockets/overview">
+  
+  
     Subscribe to real-time price updates and execution notifications.
-  </Card>
-  <Card title="Error Handling" icon="triangle-exclamation" href="/bots/error-handling">
+  
+  
     Handle rate limits, errors, and build retry strategies for your bot.
-  </Card>
-</CardGroup>

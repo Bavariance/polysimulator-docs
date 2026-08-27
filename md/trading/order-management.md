@@ -1,8 +1,6 @@
----
-title: "Order Management"
-sidebarTitle: "Order Management"
-description: "List, filter, and cancel pending orders with pagination."
----
+# Order Management
+
+Source: /trading/order-management
 
 # Order Management
 
@@ -19,7 +17,6 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 | `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `FOK` (default for market), `IOC`, `FAK` (normalised to `IOC`); `GTD` rolling out |
 | `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC` (default), `FOK`, `GTD` (rolling out — treated as `GTC` until activation). `IOC`/`FAK` are **not** accepted here |
 
-<Info>
   **Key difference**: The native `/v1/orders` endpoint uses `order_type` for
   market/limit and `time_in_force` for GTC/FOK/IOC. It also accepts `FAK`
   (Polymarket's term for IOC) and normalises it to `IOC` — so a listed order
@@ -27,9 +24,7 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
   CLOB-compatible endpoint uses `order_type` for the time-in-force policy
   (matching Polymarket's schema). See [CLOB Compatibility](/concepts/clob-compatibility)
   for the CLOB endpoint schema.
-</Info>
 
-<Warning>
   **`POST /v1/clob/order` does not support every PM order type.**
   `order_type=IOC` is **rejected with `400 UNSUPPORTED_ORDER_TYPE`** (the
   engine only enforces FOK worst-price semantics; routing IOC through it
@@ -38,9 +33,7 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
   there is no per-order date expiry yet, so manage your own deadline and
   cancel explicitly when it lapses. Use `GTC` (rests on the book) or `FOK`
   (immediate-or-fail) for predictable behaviour.
-</Warning>
 
-<Note>
   **Rolling out: real GTD + post-only.** A flag-gated engine upgrade is
   rolling out (see [Placing Orders](/trading/placing-orders) for the full
   list). Once active: `order_type=GTD` on `/v1/clob/order` (and
@@ -51,7 +44,6 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
   rejected at placement with `INVALID_ORDER_EXPIRATION`. Both endpoints
   also gain Polymarket's `post_only` option (reject-if-marketable).
   Watch the [changelog](/changelog) for activation.
-</Note>
 
 ---
 
@@ -67,9 +59,7 @@ Returns your full order stream — both kinds merged into one list:
 
 Both types share the same `OrderItem` response shape. Supports offset and cursor-based pagination.
 
-<Tip>
   **Tracking Order Fills and Cancellations:** REST polling remains the authoritative source for order state and cancellations. While WebSocket execution streams (`WS /v1/ws/executions` and `WS /v1/ws/user`) deliver low-latency fill notifications for in-process matches, they are fill-only (no cancellation events) and process-local in multi-process deployments. To avoid 429 rate limit rejections, observe the [Safe Order Polling Contract](/concepts/rate-limits#safe-order-polling-contract) (authoritative REST polling at minimum 1–2s intervals with jitter, batch status endpoints, and honoring `Retry-After`).
-</Tip>
 
 ### Query Parameters
 
@@ -103,7 +93,6 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 
 ### Examples
 
-<CodeGroup>
 ```bash Offset Pagination
 curl -H "X-API-Key: $API_KEY" \
   "https://api.polysimulator.com/v1/orders?status=PENDING&limit=20&offset=0"
@@ -139,7 +128,6 @@ while True:
 
 print(f"Fetched {len(all_orders)} orders")
 ```
-</CodeGroup>
 
 ### Response
 
@@ -174,7 +162,6 @@ is an approximate count of matching orders for progress display — treat it
 as a hint, not an exact total, and rely on `has_more` / `next_cursor` to
 iterate.
 
-<Tip>
   **Use cursor-based pagination for bots.** Treat the cursor as **opaque**
   (it is urlsafe-base64 wrapping the last item's `created_at` — every
   character is URL-safe, so naive string interpolation round-trips
@@ -182,7 +169,6 @@ iterate.
   avoids page drift when new orders
   arrive between requests. Pass the `next_cursor` value from the previous
   response back as the `cursor` (or `next_cursor`) parameter.
-</Tip>
 
 ---
 
@@ -232,14 +218,12 @@ Cancel **every** pending limit order for your account in one call. `POST` is
 the canonical verb; `DELETE` is a back-compat alias kept live for SDKs that
 adopted the earlier shape (it returns `X-Deprecation` / `Sunset` headers).
 
-<Warning>
   **Confirmation is required** to prevent accidental wipeouts. Pass either
   `?confirm=true` (query parameter) **or** the `X-Confirm-Cancel-All: true`
   header. Without one, the call is rejected with `400 CONFIRMATION_REQUIRED`
   and no orders are touched. To cancel a single order use
   `DELETE /v1/orders/{order_id}`; to cancel by market use
   `DELETE /v1/cancel-market-orders`.
-</Warning>
 
 ```bash
 curl -X POST "https://api.polysimulator.com/v1/cancel-all?confirm=true" \

@@ -1,25 +1,20 @@
----
-title: "API Keys"
-sidebarTitle: "API Keys"
-description: "Create, list, and revoke API keys for programmatic access."
----
+# API Keys
+
+Source: /concepts/api-keys
 
 # API Keys
 
 API keys are the primary authentication mechanism for the PolySimulator API. Each key is tied to a user account, has configurable permissions, and can be revoked instantly.
 
-<Note>
   **Open beta.** Anyone can mint a key. Free keys are **read-only**
   (`["read"]`); paid Pro / Pro+ keys are trade-capable. See
   [Authentication → Open Beta](/authentication#open-beta) for the
   default path and residual `CLOSED_BETA` / `ACCESS_RESTRICTED` codes.
-</Note>
 
 ---
 
 ## Create a Key
 
-<CodeGroup>
 ```bash cURL
 curl -X POST https://api.polysimulator.com/v1/keys \
   -H "X-API-Key: $API_KEY" \
@@ -47,15 +42,12 @@ resp.raise_for_status()
 key_data = resp.json()
 print(f"Save this key: {key_data['raw_key']}")
 ```
-</CodeGroup>
 
-<Note>
   **Free-tier keys are read-only.** A `free` key requesting `trade`
   returns `403 TIER_REQUIRES_UPGRADE` — so a `["read", "trade"]` key
   needs a paid tier (`pro` / `pro_plus` / `enterprise`). Omit
   `permissions` to take the per-tier default (`free` → `["read"]`,
   paid → `["read", "trade"]`).
-</Note>
 
 **Response (201 Created):**
 
@@ -71,10 +63,8 @@ print(f"Save this key: {key_data['raw_key']}")
 }
 ```
 
-<Warning>
   The `raw_key` field is shown **exactly once**. Store it securely — it cannot
   be retrieved again. Only the SHA-256 hash is stored in the database.
-</Warning>
 
 | Field | Description |
 |-------|------------|

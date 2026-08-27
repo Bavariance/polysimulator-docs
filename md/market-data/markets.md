@@ -1,0 +1,232 @@
+# Markets
+
+Source: /market-data/markets
+
+# Markets
+
+Discover and browse Polymarket prediction markets with live pricing data.
+
+---
+
+## List Markets
+
+```http
+GET /v1/markets
+```
+
+Returns markets with attached live prices from Polymarket's CLOB.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | int | 50 | Max results (1–200) |
+| `offset` | int | 0 | Pagination offset |
+| `hot_only` | bool | false | Only high-volume markets |
+| `active_only` | bool | — | PM-shape alias: when `true`, only return markets where `active=true AND closed=false`. |
+| `category` | string | — | Filter to a single category (e.g. `crypto`, `sports`, `politics`). Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
+| `q` | string | — | Free-text search over `question` and `slug` (case-insensitive substring). Empty string is ignored. |
+| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{data, next_cursor}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
+
+  `sort` is **not** supported — the underlying list is volume-ordered
+  server-side. For domain-specific ordering, fetch a wide page
+  (`limit=200`) and sort client-side.
+
+### Examples
+
+```bash
+# Bare-array (back-compat default)
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?hot_only=true&limit=10"
+
+# PM-shape envelope (recommended for PM-ported SDKs)
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?category=crypto&envelope=true&limit=10"
+
+# Search by keyword (matches against question OR slug, case-insensitive)
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?q=trump&limit=5"
+```
+
+### Response
+
+```json
+[
+  {
+    "condition_id": "0x1a2b3c...",
+    "slug": "will-bitcoin-reach-100k-by-2026",
+    "question": "Will Bitcoin reach $100K by end of 2026?",
+    "outcomes": ["Yes", "No"],
+    "active": true,
+    "closed": false,
+    "is_hot": true,
+    "image_url": "https://polymarket-upload.s3.us-east-2.amazonaws.com/...",
+    "category": "crypto",
+    "clob_token_ids": [
+      "71321234567890123456789012345678901234567890",
+      "71321234567890123456789012345678901234567891"
+    ],
+    "volume_24h": "125000.50",
+    "volume_total": "8420115.75",
+    "last_price": "0.65",
+    "live_price": {
+      "buy": "0.65",
+      "sell": "0.35",
+      "volume": "8420115.75",
+      "outcomes": [
+        {"label": "Yes", "price": "0.65", "token_id": "71321..."},
+        {"label": "No", "price": "0.35", "token_id": "71322..."}
+      ],
+      "updated_at": "2026-02-06T12:00:45Z"
+    }
+  }
+]
+```
+
+### Field reference
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `condition_id` | `string` | On-chain market identifier. Pass to `GET /v1/markets/{condition_id}` for full detail. |
+| `slug` | `string \| null` | URL-friendly market identifier (PM canonical name). |
+| `question` | `string \| null` | Human-readable market question. |
+| `outcomes` | `string[] \| null` | Outcome labels — typically `["Yes", "No"]`; categorical markets may list more. |
+| `category` | `string \| null` | Canonical category slug (`crypto`, `sports`, `politics`, `general`, ...). Use `?category=X` to filter. |
+| `clob_token_ids` | `string[] \| null` | CLOB asset ids ordered `[yes_id, no_id]`. Pass either to `GET /v1/clob/book/{token_id}` for the L2 order book. `null` for archived markets with no tracked outcomes. |
+| `volume_24h` | `string \| null` | **Rolling 24-hour** volume in USD (stringified for precision) — what traded on this market in the trailing 24 hours, and nothing else. **`null` means "no 24-hour figure reported"**; `"0"` means the market genuinely traded nothing in the last 24 hours. |
+| `volume_total` | `string \| null` | **Cumulative all-time** volume in USD since the market opened (stringified for precision). `null` means "no cumulative figure reported"; `"0"` means the market has never traded. For any market older than a day this is far larger than `volume_24h`. |
+| `last_price` | `string \| null` | Last trade price for the YES token (0.0–1.0 implied probability, stringified). `null` until data is available for a newly-listed market. |
+| `live_price` | `LivePrice \| null` | Real-time best-bid / best-ask snapshot — see [String Numerics](/concepts/string-numerics). `live_price.volume` is the upstream feed's headline volume and its **window is not guaranteed** (usually all-time, occasionally 24-hour) — read `volume_24h` / `volume_total` when the window matters. |
+
+  **Changed 2026-08-12 — `volume_24h` used to return all-time volume.**
+  Through 2026-08-11 this field was populated from the upstream cumulative
+  volume, so it reported a market's lifetime total under a 24-hour name —
+  overstating the real rolling figure by up to 91x on long-running markets.
+  It now carries the genuine trailing-24-hour number. **If your integration
+  was reading `volume_24h` and wanted the lifetime total, switch it to
+  `volume_total`** — on every market that reports a cumulative figure, which
+  is nearly all of them, that is the same number the old field returned.
+  See the [changelog](/changelog) for the full note.
+
+  **Data freshness**: `volume_24h`, `volume_total`, `last_price`, and
+  `category` are cached display values refreshed periodically. Newly-listed
+  markets surface immediately with these fields as `null` and gain real
+  values once data becomes available. Treat `null` as "data pending" rather
+  than "missing market". Neither volume field ever falls back to the
+  other's source — where the figure is unknown you get `null`, never a
+  substitute from a different time window.
+
+  `best_bid / best_ask / spread / last_trade` price fields aren't
+  returned on the list endpoint today. Use
+  `GET /v1/spread?token_id=...` and `GET /v1/midpoint?token_id=...`
+  for top-of-book / mid. The detail endpoint
+  `GET /v1/markets/{condition_id}` *does* return richer fields
+  (`event_group_id`, `event_title`, `end_date`, `resolved_outcome`,
+  `archived`, `archived_at`) plus the list-item shape.
+
+  All numeric values (`buy`, `sell`, `price`, `volume`, `volume_24h`,
+  `volume_total`, `last_price`) are **strings** for floating-point
+  precision safety. See [String Numerics](/concepts/string-numerics).
+
+---
+
+## Order Book Lookup Recipe
+
+Combine the list response with an order-book endpoint to render an L2 order book in two requests:
+
+```bash
+# Step 1: get the clob_token_ids for a market
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?q=bitcoin&limit=1" | jq '.[0].clob_token_ids'
+# → ["71321...", "71322..."]   # [yes_id, no_id]
+
+# Step 2: fetch the YES book (clob_token_ids[0])
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/clob/book/71321..."
+```
+
+**Convention**: `clob_token_ids[0]` is the YES outcome, `clob_token_ids[1]` is NO. The IDs are stable for the lifetime of the market.
+
+  **Three endpoint forms return the same `OrderBookSnapshot` shape** — pick the one
+  that matches the key you already hold:
+
+  | Endpoint | Keyed by | Notes |
+  |----------|----------|-------|
+  | `GET /v1/clob/book/{token_id}` | CLOB **token id** | Path form. Pass `clob_token_ids[0]` (YES) or `[1]` (NO). |
+  | `GET /v1/book?token_id=...` | CLOB **token id** | Query-string form. Same payload as the path form; use whichever matches your SDK's routing. |
+  | `GET /v1/markets/{condition_id}/book` | market **condition id** | Resolves the market's primary token for you. See [Order Book](/market-data/order-book) for the full field reference. |
+
+  All three return the identical `OrderBookSnapshot`. The first two are
+  first-class equivalents keyed by token id; the third is keyed by
+  condition id when you don't have the token id handy.
+
+---
+
+## Get Market Detail
+
+```http
+GET /v1/markets/{market_id}
+```
+
+Returns full market detail with an optional order book snapshot.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `include_book` | bool | false | Include CLOB order book snapshot |
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets/0x1a2b3c?include_book=true"
+```
+
+The response is the same as a list item, plus an optional `order_book` field when `include_book=true`, plus the following Polymarket-shape parity fields that `py-clob-client` SDKs read by name:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `tokens` | `MarketToken[] \| null` | PM-shape per-outcome token list — **the canonical Polymarket contract** that `py-clob-client` reads (`market["tokens"][i]["outcome"]`, `.find(t => t.winner)`, etc). Each entry is an object: `{token_id, outcome, price, winner}` (see below). For the flat CLOB asset-id string list, use `clob_token_ids` instead. |
+| `question_id` | `string` | Alias of `condition_id`. PM SDKs read this key by name. |
+| `market_slug` | `string \| null` | Alias of `slug`. PM SDKs use `market_slug`; polysim has historically used `slug`. Both are exposed with the same value. |
+| `neg_risk` | `bool` | Negative-risk routing flag. Polysim does not host negative-risk markets — always `false`. |
+
+Each `tokens[]` entry (a `MarketToken`) carries:
+
+| Sub-field | Type | Description |
+|-----------|------|-------------|
+| `token_id` | `string` | CLOB outcome (asset) ID for this side. |
+| `outcome` | `string` | Outcome label, e.g. `"Yes"`, `"No"`, `"Up"`, `"Down"`. |
+| `price` | `number` | YES/NO probability for this outcome at response-build time. |
+| `winner` | `bool` | `true` only when the market is **resolved** AND this outcome is the settled winner. Never derived from `price >= 0.99`. |
+
+  `tokens` (object list) and `clob_token_ids` (flat string list) are
+  **both** returned and both stable for the market's lifetime — pick
+  whichever your SDK expects. `tokens` matches the Polymarket
+  `get_market()` / `getClobMarketInfo()` shape; `clob_token_ids` is the
+  PolySimulator convenience list ordered `[yes_id, no_id]`.
+
+---
+
+## Hot Markets
+
+Markets with trading volume exceeding $5,000 are flagged as `is_hot: true`. Use `hot_only=true` to filter for actively traded markets — recommended for bots to ensure sufficient liquidity.
+
+  The `is_hot` threshold reads **cumulative** volume — the same figure
+  `volume_total` carries, not `volume_24h`. A long-running market that has
+  gone quiet can still be `is_hot: true` with a small `volume_24h`. This
+  behaviour is unchanged by the 2026-08-12 `volume_24h` correction; filter
+  on `volume_24h` yourself if you want recent activity specifically.
+
+```bash
+# Only hot markets
+curl -H "X-API-Key: $API_KEY" \
+  "https://api.polysimulator.com/v1/markets?hot_only=true"
+```
+
+---
+
+## Next Steps
+
+- [Order Book](/market-data/order-book) — L2 depth for a specific market
+- [Price Candles](/market-data/price-candles) — Historical OHLCV data
+- [Batch Prices](/market-data/batch-prices) — Multi-market price lookup

@@ -1,0 +1,411 @@
+# Example Trading Bot
+
+Source: /bots/example-trading-bot
+
+# Example Trading Bot
+
+A complete, working Python bot implementing a simple **mean-reversion strategy**:
+
+1. Fetch hot markets
+2. Find markets where Yes price < 0.40 (undervalued)
+3. Buy small positions
+4. Monitor and sell when price rises above 0.60
+
+---
+
+## Full Source Code
+
+```python
+#!/usr/bin/env python3
+"""
+PolySimulator Example Trading Bot
+
+Simple mean-reversion strategy:
+1. Fetch hot markets
+2. Find markets where Yes price is < 0.40 (undervalued)
+3. Buy small positions
+4. Monitor and sell when price rises above 0.60
+
+Usage:
+    export POLYSIM_API_KEY="ps_live_..."
+    export POLYSIM_BASE_URL="https://api.polysimulator.com"
+    python trading_bot.py
+"""
+
+import json
+import os
+import time
+import uuid
+import requests
+
+API_KEY = os.environ["POLYSIM_API_KEY"]
+BASE_URL = os.environ.get("POLYSIM_BASE_URL", "https://api.polysimulator.com")
+HEADERS = {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json",
+}
+
+def get_balance():
+    """Get current account balance."""
+    resp = requests.get(f"{BASE_URL}/v1/account/balance", headers=HEADERS)
+    resp.raise_for_status()
+    return resp.json()
+
+def get_hot_markets(limit=20):
+    """Fetch actively traded markets."""
+    resp = requests.get(
+        f"{BASE_URL}/v1/markets",
+        headers=HEADERS,
+        params={"hot_only": True, "limit": limit},
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+# Terminal (non-resting) order states returned by GET /v1/orders/{id}.
+# A PENDING order is still resting on the book; anything in this set is
+# done. NOTE the endpoint matters — and the CANCELLED spelling differs:
+#   * GET /v1/orders/{id}        → PENDING | FILLED | CANCELLED | REJECTED | EXPIRED  (native, double-L CANCELLED — this bot)
+#   * GET /v1/data/order/{id}    → ORDER_STATUS_LIVE | _MATCHED | _CANCELED | _INVALID  (PM-CLOB shape, single-L CANCELED)
+#   * POST /v1/order response    → live | matched | unmatched  (PM write-response shape)
+TERMINAL_STATUSES = ("FILLED", "CANCELLED", "REJECTED", "EXPIRED")
+
+def poll_order(order_id, timeout_s=30):
+    """Poll GET /v1/orders/{id} until status is final.
+
+    Used to recover from a 503 DEADLINE_OVERSHOT_BUT_PERSISTED — the
+    order persisted but the server response timed out. Polling lets us
+    learn the real outcome (a ``TERMINAL_STATUSES`` value, vs the
+    still-resting ``PENDING``) without double-placing.
+
+    Each request has a per-call ``timeout=5`` so a stalled TCP socket
+    can't pin a poll iteration past the ``timeout_s`` deadline. On
+    ``requests.exceptions.RequestException`` we sleep and retry instead
+    of bailing — transient network failures shouldn't terminate the
+    recovery loop.
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        try:
+            r = requests.get(
+                f"{BASE_URL}/v1/orders/{order_id}",
+                headers=HEADERS,
+                timeout=5,
+            )
+            if r.status_code == 200:
+                body = r.json()
+                status = body.get("status")
+                if status in TERMINAL_STATUSES:
+                    return body
+        except requests.exceptions.RequestException:
+            # Transient (connect/read timeout, DNS, conn-reset).
+            # Keep polling — the order is already persisted server-side.
+            pass
+        time.sleep(1)
+    return None  # caller decides whether to give up or keep polling
+
+def place_order(
+    market_id,
+    side,
+    outcome,
+    quantity,
+    price,
+    order_type="market",
+    idempotency_key=None,
+):
+    """Place a market or limit order.
+
+    Note: ``price`` is REQUIRED even for market orders — it acts as a
+    worst-price slippage cap (Polymarket-faithful semantics). For BUY,
+    set the maximum you'll pay; for SELL, the minimum you'll accept.
+
+    Handles the 503 DEADLINE_OVERSHOT_BUT_PERSISTED envelope correctly:
+    when the server-side deadline fires after the order has already
+    persisted, the response carries the order_id in the
+    ``X-Polysim-Order-Id`` header. We DO NOT re-place; we poll the
+    order endpoint to learn the final state. Critically, we re-use the
+    SAME idempotency_key on retry — the server's idempotency layer
+    deduplicates, but only when the key is stable across the retry
+    sequence.
+    """
+    # The default idempotency key MUST be stable across retries of the
+    # same logical order; otherwise the helper's retry-safety guarantee
+    # is hollow (a fresh key on every retry defeats the server-side
+    # dedup layer). Do NOT use ``uuid.uuid4()`` here — it's fresh-random
+    # per call.
+    #
+    # The deterministic key is uuid5(NAMESPACE_OID, payload) where the
+    # payload combines the order tuple AND a second-precision timestamp.
+    # Second precision keeps retries within a 1-second window dedup'd
+    # (typical 503-overshoot retry latency is <500ms) while letting
+    # genuinely independent same-second orders be the caller's job to
+    # disambiguate — for high-frequency strategies, pass an explicit
+    # ``idempotency_key`` (e.g. ``f"{strategy}-{client_seq}"``).
+    if idempotency_key is None:
+        second_bucket = int(time.time())
+        seed = f"{market_id}|{side}|{outcome}|{quantity}|{price}|{second_bucket}"
+        idempotency_key = f"bot-{uuid.uuid5(uuid.NAMESPACE_OID, seed)}"
+
+    payload = {
+        "market_id": market_id,
+        "side": side,
+        "outcome": outcome,
+        "quantity": str(quantity),  # Always use strings for numeric values
+        "price": str(price),         # Worst-price slippage cap
+        "order_type": order_type,
+    }
+
+    # Mirror ``poll_order``'s per-call ``timeout=5`` here. A stalled TCP
+    # socket on the POST would otherwise hang past the retry/idempotency
+    # boundary — and because the request is wrapped in idempotency-by-key,
+    # ``requests.exceptions.RequestException`` is the SAFE recovery surface:
+    # we don't know whether the order persisted server-side or not, but the
+    # caller's next call with the SAME default key will dedup if it did.
+    # Surface the exception so the caller can decide (retry with the same
+    # ``idempotency_key`` is safe; ignore-and-continue would silently lose
+    # an order). Do NOT swallow — unlike the poll loop, place_order is the
+    # write path, not a recovery loop.
+    try:
+        resp = requests.post(
+            f"{BASE_URL}/v1/orders",
+            headers={
+                **HEADERS,
+                "Idempotency-Key": idempotency_key,
+            },
+            json=payload,
+            timeout=5,
+        )
+    except requests.exceptions.RequestException as exc:
+        # Surface a structured error so callers can retry with the SAME
+        # ``idempotency_key`` (guaranteed-stable by the uuid5 seed above)
+        # without double-placing. The server's idempotency layer will
+        # deduplicate if the original request did land.
+        raise RuntimeError(
+            f"place_order network error (retry with same idempotency_key "
+            f"{idempotency_key!r} is safe): {exc}"
+        ) from exc
+
+    # Handle 503 DEADLINE_OVERSHOT_BUT_PERSISTED without crashing.
+    # The order DID land server-side; the X-Polysim-Order-Id header
+    # carries the id so we can poll for the final status instead of
+    # retrying (which would either double-fill or be deduplicated by
+    # the idempotency layer — but only if the key is stable).
+    if resp.status_code == 503:
+        body = {}
+        try:
+            body = resp.json()
+        except Exception:
+            pass
+        # Branch on the stable machine code in the X-Polysim-Code header —
+        # the default /v1/* body is PM-shape {"error": ""},
+        # so body["error"] is prose, not the code.
+        if resp.headers.get("X-Polysim-Code") == "DEADLINE_OVERSHOT_BUT_PERSISTED":
+            order_id = resp.headers.get("X-Polysim-Order-Id") or body.get("order_id")
+            if order_id is not None:
+                print(f"  [503] Order {order_id} persisted but deadline overshot. Polling for final state...")
+                final = poll_order(order_id)
+                if final is not None:
+                    return final
+                # Polling timed out — surface the partial info so the
+                # caller can decide whether to keep polling or give up.
+                return {"order_id": order_id, "status": "PENDING", "deadline_overshoot": True}
+        # Other 503 classes (SERVER_BUSY etc.) — let raise_for_status fire.
+
+    resp.raise_for_status()
+    return resp.json()
+
+def get_positions():
+    """Get all open positions."""
+    resp = requests.get(
+        f"{BASE_URL}/v1/account/positions",
+        headers=HEADERS,
+        params={"status": "OPEN"},
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+def run_strategy():
+    """Main trading loop."""
+    print("=== PolySimulator Bot Starting ===")
+    balance = get_balance()
+    print(f"Balance: ${balance['balance']} | Unrealized PnL: {balance['unrealized_pnl']}")
+
+    while True:
+        try:
+            # 1. Check balance
+            balance = get_balance()
+            cash = float(balance["balance"])
+            print(f"\n--- Cycle at {time.strftime('%H:%M:%S')} | Cash: ${cash:.2f} ---")
+
+            if cash < 1.0:
+                print("Low balance — waiting for sells or settlements")
+                time.sleep(30)
+                continue
+
+            # 2. Scan for undervalued markets
+            markets = get_hot_markets(limit=30)
+            opportunities = []
+            for m in markets:
+                if not m.get("live_price"):
+                    continue
+                yes_price = float(m["live_price"]["buy"])
+                if 0.10 < yes_price < 0.40:
+                    opportunities.append((m, yes_price))
+
+            if opportunities:
+                print(f"Found {len(opportunities)} undervalued markets")
+                # Buy the cheapest one
+                opportunities.sort(key=lambda x: x[1])
+                market, price = opportunities[0]
+                qty = min(5, int(cash / price))
+                if qty > 0:
+                    # Worst-price BUY cap: 5% above live ask, hard-clamped at 0.99
+                    worst_buy = min(0.99, price * 1.05)
+                    print(f"  BUY {qty}x Yes @ {price:.2f} (cap {worst_buy:.2f}) — {market['question'][:60]}")
+                    result = place_order(
+                        market["condition_id"], "BUY", "Yes", qty, worst_buy
+                    )
+                    print(f"  → Order {result['order_id']}: {result['status']} @ {result['price']}")
+
+            # 3. Check existing positions for exit signals
+            positions = get_positions()
+            for pos in positions:
+                current = float(pos["current_price"]) if pos.get("current_price") else None
+                if current and current > 0.60:
+                    qty = int(float(pos["quantity"]))
+                    if qty > 0:
+                        # Worst-price SELL floor: 5% below current, hard-floored at 0.01
+                        worst_sell = max(0.01, current * 0.95)
+                        print(f"  SELL {qty}x {pos['outcome']} @ {current:.2f} (floor {worst_sell:.2f})")
+                        result = place_order(
+                            pos["market_id"], "SELL", pos["outcome"], qty, worst_sell
+                        )
+                        print(f"  → Order {result['order_id']}: {result['status']} @ {result['price']}")
+
+            time.sleep(10)  # Wait before next cycle
+
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                retry = int(e.response.headers.get("Retry-After", 5))
+                print(f"Rate limited — waiting {retry}s")
+                time.sleep(retry)
+            else:
+                print(f"HTTP Error: {e}")
+                time.sleep(5)
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(10)
+
+if __name__ == "__main__":
+    run_strategy()
+```
+
+---
+
+## Running the Bot
+
+```bash
+# Set environment variables
+export POLYSIM_API_KEY="ps_live_..."
+export POLYSIM_BASE_URL="https://api.polysimulator.com"
+
+# Install dependencies
+pip install requests
+
+# Run
+python trading_bot.py
+```
+
+---
+
+## Key Patterns
+
+  
+    Always pass `quantity` and `price` as strings to prevent floating-point issues:
+    ```python
+    payload["quantity"] = str(quantity)  # "10", not 10
+    ```
+  
+
+  
+    Each order includes a STABLE idempotency key. The key MUST stay the
+    same across retries of the same logical order — the server's
+    idempotency layer (`/v1/orders` → `Idempotency-Key` header) only
+    deduplicates when the key is identical to a previous attempt:
+    ```python
+    # Stable across retries: uuid5 over the order tuple + a SECOND
+    # bucket. Two calls within the same second with the same
+    # parameters get the SAME key → server dedups → no double-fill.
+    # Two genuinely independent orders >= 1 second apart get DIFFERENT
+    # keys (a coarser minute-bucket would wrongly collapse rapid-fire
+    # orders into one).
+    second_bucket = int(time.time())
+    seed = f"{market_id}|{side}|{outcome}|{quantity}|{price}|{second_bucket}"
+    idempotency_key = f"bot-{uuid.uuid5(uuid.NAMESPACE_OID, seed)}"
+    "Idempotency-Key": idempotency_key
+    ```
+
+    
+      **Do NOT use `uuid.uuid4()` or a raw timestamp directly in your
+      idempotency key.** Both change on every retry, so the server treats
+      each retry as a fresh order and you double-fill on the first
+      transient error. Use `uuid.uuid5()` over a deterministic seed
+      (order tuple + second bucket) so retries within the same second
+      collapse to the same key, but two genuinely independent orders a
+      second later don't collide. For high-frequency strategies that
+      place multiple orders per second, pass an explicit
+      `idempotency_key` (e.g. `f"{strategy}-{client_seq}"`) so each
+      logical order has its own key.
+    
+  
+
+  
+    The `/v1/orders` endpoint has a 5-second server-side deadline. If
+    the order persists but the response times out, you get:
+
+    ```
+    HTTP/1.1 503 Service Unavailable
+    Retry-After: 1
+    X-Polysim-Order-Id: 42
+    Content-Type: application/json
+
+    {
+      "error": "DEADLINE_OVERSHOT_BUT_PERSISTED",
+      "error_code": "PERSISTED_DO_NOT_RETRY",
+      "message": "...",
+      "order_id": 42
+    }
+    ```
+
+    **Do NOT retry** — your order DID land. Read `X-Polysim-Order-Id`
+    (header) or `body.order_id` (JSON), then poll
+    `GET /v1/orders/{id}` until `status` is terminal
+    (`FILLED` / `CANCELLED` / `REJECTED` / `EXPIRED`; `PENDING` means
+    still resting).
+
+    
+      `response.raise_for_status()` crashes on 503 BEFORE you can read
+      the body. If you call it before inspecting the status code, you'll
+      lose the order_id. Always check `response.status_code == 503`
+      FIRST and recover from the header / body before `raise_for_status()`.
+    
+
+    The example `place_order()` above implements this recovery
+    pattern.
+  
+
+  
+    On HTTP 429, read the `Retry-After` header and wait exactly that long:
+    ```python
+    if e.response.status_code == 429:
+        retry = int(e.response.headers.get("Retry-After", 5))
+        time.sleep(retry)
+    ```
+  
+
+---
+
+## Next Steps
+
+- [WebSocket Bot](/bots/websocket-bot) — Real-time streaming bot
+- [Error Handling](/bots/error-handling) — Robust error handling patterns
+- [Best Practices](/bots/best-practices) — Production-grade bot patterns

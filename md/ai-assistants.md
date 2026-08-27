@@ -1,0 +1,79 @@
+# Use with AI assistants
+
+Source: /ai-assistants
+
+# Use PolySimulator with AI assistants
+
+These docs are built for coding agents as well as people. If you build trading
+bots with an AI assistant, point it at one of the surfaces below so it answers
+from current PolySimulator docs instead of guessing.
+
+## MCP server (recommended)
+
+We host a [Model Context Protocol](https://modelcontextprotocol.io) server that
+lets an assistant **search and read these docs as a live tool** — no copy-paste,
+always current.
+
+**Endpoint:** `https://docs.polysimulator.com/mcp`
+
+It exposes documentation search and a read-the-page tool, so an agent can look up
+an endpoint signature, an error code, or a code example mid-task.
+
+```json Claude Desktop / Claude Code (.mcp.json)
+{
+  "mcpServers": {
+    "polysimulator-docs": {
+      "url": "https://docs.polysimulator.com/mcp"
+    }
+  }
+}
+```
+
+```json Cursor (~/.cursor/mcp.json)
+{
+  "mcpServers": {
+    "polysimulator-docs": {
+      "url": "https://docs.polysimulator.com/mcp"
+    }
+  }
+}
+```
+
+```bash Claude Code (CLI)
+claude mcp add --transport http polysimulator-docs https://docs.polysimulator.com/mcp
+```
+
+After connecting, ask your assistant things like *"how do I place a FOK order on
+PolySimulator?"* or *"what's the rate limit for the beta tier?"* and it will
+query these docs directly.
+
+## One-click: open any page in ChatGPT or Claude
+
+Every docs page has a **Copy / View / Open in ChatGPT / Open in Claude** menu in
+the top-right. Use it to drop the current page (as clean markdown) into a chat
+without leaving your reading flow.
+
+## llms.txt — the full corpus for any LLM
+
+For assistants that ingest a text corpus rather than calling a tool:
+
+- **[`/llms.txt`](https://docs.polysimulator.com/llms.txt)** — a curated index of
+  the API: auth, endpoints, semantics, and copy-paste bot snippets.
+- **[`/llms-full.txt`](https://docs.polysimulator.com/llms-full.txt)** — the
+  **entire documentation site** concatenated into one file, for a complete-context
+  dump.
+
+## OpenAPI spec — the machine-readable contract
+
+A coding agent generating a client should read the spec directly:
+
+- **[`/openapi.json`](https://docs.polysimulator.com/openapi.json)** — the
+  REST surface (paths, schemas, auth). This is the source the
+  [API Reference](/api-reference/overview) renders from, regenerated on every
+  release so it never drifts from the deployed API.
+
+## Context7
+
+These docs are also indexed by [Context7](https://context7.com/bavariance/polysimulator-docs)
+(`/bavariance/polysimulator-docs`), which several assistants query natively for
+up-to-date library and API documentation.

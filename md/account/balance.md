@@ -1,0 +1,119 @@
+# Balance
+
+Source: /account/balance
+
+# Balance
+
+```
+GET /v1/account/balance
+```
+
+Returns your current **API wallet** balance, P&L metrics, and starting
+capital. API-authenticated requests always read from the API wallet —
+see [Wallets](/account/wallets) for how API, MAIN, and SANDBOX wallets
+relate.
+
+---
+
+## Authentication
+
+This endpoint accepts **either** an API key (`X-API-Key: `, or the
+PM-compat `POLY_API_KEY` / `Authorization: Bearer ps_live_...` aliases) **or**
+a Supabase Bearer JWT (`Authorization: Bearer `). The balance
+returned is always the **API wallet** regardless of which scheme you use.
+(Most account endpoints — positions, portfolio, history, equity — are API-key
+only; balance and `reset-api-balance` are the exceptions that also accept the
+JWT.)
+
+---
+
+## Request
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  https://api.polysimulator.com/v1/account/balance
+```
+
+---
+
+## Response
+
+```json
+{
+  "balance": "9745.20",
+  "currency": "USD",
+  "starting_balance": "10000.00",
+  "unrealized_pnl": "-242.50",
+  "total_value": "9757.50"
+}
+```
+
+A **Pro+** key sees its $25,000 baseline instead:
+
+```json
+{
+  "balance": "24745.20",
+  "currency": "USD",
+  "starting_balance": "25000.00",
+  "unrealized_pnl": "-242.50",
+  "total_value": "24757.50"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `balance` | string | Current API wallet cash balance (available for trading) |
+| `currency` | string | Always `USD` |
+| `starting_balance` | string | Initial API wallet capital — your tier baseline (Pro: `10000.00`; Pro+: `25000.00`). Falls back to `10000.00` when no API wallet baseline is set. |
+| `unrealized_pnl` | string | Total account P&L: `total_value − starting_balance`. Despite the name, this is total equity vs starting capital (cash + open-position mark-to-market), not the open-position MTM delta alone — it equals true unrealized P&L only when `balance == starting_balance`. |
+| `total_value` | string | Cash balance + market value of open API positions |
+
+  Your **total portfolio value** = `balance` + market value of open positions.
+  Use the [Portfolio](/account/portfolio) endpoint for a complete snapshot.
+
+  Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
+  wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
+  open API positions. Resets are **free and currently uncapped** — there is
+  no cooldown during the beta period (through 2026-08-31). See
+  [Wallets](/account/wallets) for the full reset semantics.
+
+---
+
+## Python Example
+
+```python
+import requests, os
+from decimal import Decimal
+
+BASE_URL = os.environ["POLYSIM_BASE_URL"]
+headers = {"X-API-Key": os.environ["POLYSIM_API_KEY"]}
+
+resp = requests.get(f"{BASE_URL}/v1/account/balance", headers=headers)
+
+if resp.status_code == 200:
+    data = resp.json()
+    balance = Decimal(data["balance"])
+    pnl = Decimal(data["total_value"]) - Decimal(data["starting_balance"])
+    print(f"Balance: ${balance} | P&L: ${pnl}")
+elif resp.status_code == 401:
+    print("Invalid API key — check POLYSIM_API_KEY")
+```
+
+---
+
+## Errors
+
+All errors return a JSON body of the shape `{"error": "<CODE>", "message": ""}`.
+
+| Status | `error` code | When |
+|--------|--------------|------|
+| 401 | `MISSING_AUTH` | No `X-API-Key` and no `Authorization` header supplied |
+| 401 | `INVALID_KEY` | API key (or Bearer-wrapped key) is unknown, deactivated, or expired |
+| 404 | `ACCOUNT_NOT_FOUND` | Authenticated user has no account record |
+
+---
+
+## Next Steps
+
+- [Positions](/account/positions) — View open and closed positions
+- [Portfolio](/account/portfolio) — Complete portfolio overview

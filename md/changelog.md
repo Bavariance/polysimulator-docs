@@ -1,16 +1,12 @@
----
-title: "Changelog"
-description: "API and documentation changes, including breaking changes shipped during the beta."
-icon: "clock-rotate-left"
----
+# Changelog
 
-<Note>
+Source: /changelog
+
 **Beta notice.** During the public open beta, breaking changes may ship with
 little or no advance notice — this page is the authoritative record. Pin your
 integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
-</Note>
 
 ## 2026-08-22 — Open beta: self-serve free read-only keys and paid trading
 
@@ -27,25 +23,6 @@ API leaves beta.
   [Datalake Schema](/market-data/datalake-schema).
 - **Markdown mirrors + `llms-full.txt`** are generated from `docs-site/` MDX
   by `scripts/generate_docs_mirrors.py`. Do not hand-edit the generated files.
-
-## 2026-08-22 — Simulation API v1 public contract (feature-dark)
-
-`/v1/simulation` is now declared in the public OpenAPI document: fill,
-coverage, fill-models, book, backtests (create/list/get/trades/equity/cancel),
-and exports. The router stays **404** until an operator flips
-`FEATURE_SIMULATION_API_ENABLED`. This is not a commercial activation and
-does not claim a Telonex-validated SKU.
-
-- Fill and book responses echo resolved `token_id` / `comp_token_id`.
-- Backtests accept an optional `token_ids` map and return the resolved map.
-- Equity is keyset-paginated (`data`, `next_cursor`) like trades.
-- OpenAPI advertises `503` plus the runtime `X-Polysim-Code` values
-  (`INVALID_REQUEST`, `BACKTEST_*`, `SIMULATION_HOURS_EXCEEDED`,
-  `METERING_UNAVAILABLE`, `CONDITION_HOUR_NOT_COVERED`, `ARCHIVE_*`, …).
-- Adjacent v4 capture sidecars are fail-closed; producer reason tiers
-  (`frames_spilled` valid, `frames_dropped` degraded) are honored.
-
-See [Simulation](/simulation).
 
 ## 2026-08-12 — Breaking: `volume_24h` is now genuinely 24-hour; new `volume_total`
 
@@ -196,7 +173,7 @@ probes and/or Polymarket's API reference before changing.
   Previously every status came back, so open-order counts and cancel-all
   sweeps operated on dead rows.
 - **`GET /v1/prices-history` returns PM's exact shape by default**:
-  `{"history": [{"t": <unix int>, "p": <float>}]}` — `p` is a JSON number
+  `{"history": [{"t": , "p": }]}` — `p` is a JSON number
   here, mirroring PM's wire. The old default (a bare array of
   `{t, o, h, l, c}` string points) remains available via `?format=ohlcv`.
   The endpoint also accepts PM's required `?market=` param (token id;
@@ -323,7 +300,7 @@ disagree in places), plus truthful fee reporting and wallet scoping.
   `/history`, and `/profile-analysis` previously returned rows from ALL your wallets
   (including website MAIN/SANDBOX wallets) when `wallet_id` was omitted. The default
   is now your **API wallet**, consistent with `/balance`, `/portfolio`, and
-  `/equity`. Pass `wallet_id=all` for the old behavior, `wallet_id=<id>` for a
+  `/equity`. Pass `wallet_id=all` for the old behavior, `wallet_id=` for a
   specific wallet. The `all`/`api` keywords work on all five account-read endpoints.
 
 ### Fees — now reported truthfully
@@ -331,7 +308,7 @@ disagree in places), plus truthful fee reporting and wallet scoping.
 The engine has always charged Polymarket-V2 per-category taker fees; the reporting
 surfaces wrongly claimed zero. Now:
 
-- `GET /v1/fee-rate` returns `{"base_fee": 0|1000, "fee_rate_bps": <effective rate>}`.
+- `GET /v1/fee-rate` returns `{"base_fee": 0|1000, "fee_rate_bps": }`.
   `base_fee` mirrors Polymarket's legacy base-fee parameter (observed: flat `1000` on
   fee-charging markets, `0` on fee-free ones); **`fee_rate_bps` is the effective
   per-category taker rate actually charged** (sports 300, finance/politics/mentions/tech

@@ -1,8 +1,6 @@
----
-title: "API Reference"
-sidebarTitle: "Overview"
-description: "Complete reference for the PolySimulator REST + WebSocket API — generated from a curated, stable OpenAPI spec."
----
+# API Reference
+
+Source: /api-reference/overview
 
 # API Reference
 
@@ -13,16 +11,13 @@ and ships with an interactive playground — paste your `ps_live_…` key
 into the **Authorization** widget and you can fire requests against the
 live production environment from this browser tab.
 
-<Note>
   The published reference is generated from a curated, stable OpenAPI
   spec. The live backend at
   [`api.polysimulator.com/openapi.json`](https://api.polysimulator.com/openapi.json)
   may expose additional unstable / legacy routes (v0 endpoints,
   internal helpers) that aren't shown here — only the endpoints
   documented here are part of the supported public surface.
-</Note>
 
-<Tip>
   **URL convention for endpoint pages**: each endpoint has a dedicated
   page at `/api-reference/{operationId}` (camelCase) — e.g.,
   `POST /v1/orders` lives at [/api-reference/postOrder](/api-reference/postOrder),
@@ -31,16 +26,13 @@ live production environment from this browser tab.
   `/api-reference/v1/markets/0xabc...`) are auto-redirected to the
   canonical operationId page, so you can paste live API paths straight
   into the URL bar and land on the right reference.
-</Tip>
 
-<CardGroup cols={2}>
-  <Card title="Authentication" icon="key" href="/authentication">
+  
     How `X-API-Key`, bootstrap, and the WebSocket JWT flow work.
-  </Card>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
+  
+  
     From signup to first trade in under two minutes.
-  </Card>
-</CardGroup>
+  
 
 ---
 
@@ -55,7 +47,6 @@ live production environment from this browser tab.
 | **CLOB Read (Public)** | Polymarket-shape book / midpoint / spread / price endpoints |
 | **CLOB Compat** | Polymarket-shape `POST /v1/order`, `POST /v1/orders`, `GET /v1/data/orders` |
 | **WebSocket** | `/v1/ws/prices` + `/v1/ws/executions` subscription endpoints |
-| **Simulation** | Historical fill, coverage, book replay, and curated backtests. Feature-dark until `FEATURE_SIMULATION_API_ENABLED` is on. |
 | **Health** | `/v1/health`, `/v1/health/ready`, `/v1/status`, `/v1/me` |
 
 Use the sidebar to drill into any group. Each endpoint page shows the
@@ -84,7 +75,7 @@ Most endpoints require an `X-API-Key` header. Public exceptions
 that work without a key: `/v1/health`, `/v1/health/ready`,
 `/api/beta/cohort-status`, and the public CLOB-read endpoints under
 **CLOB Read (Public)**. Note `/v1/keys/bootstrap` is **not** public —
-it requires a Supabase `Authorization: Bearer <access_token>` JWT
+it requires a Supabase `Authorization: Bearer ` JWT
 (returns `401 MISSING_AUTH` without one), it just doesn't take an
 `X-API-Key` because it mints your first key. Each endpoint's
 individual page lists its own auth requirement at the top — check
@@ -97,7 +88,6 @@ curl https://api.polysimulator.com/v1/account/balance \
   -H "X-API-Key: ps_live_..."
 ```
 
-<Tip>
   The interactive playground on every endpoint page lets you store your
   key once and replay requests without retyping it. Keys you paste into
   the playground are stored locally in your browser and attached to
@@ -105,7 +95,6 @@ curl https://api.polysimulator.com/v1/account/balance \
   anywhere until you click **Send**, at which point they're sent to
   `api.polysimulator.com` in the request header like any other API
   client call.
-</Tip>
 
 ---
 

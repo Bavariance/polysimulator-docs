@@ -1,0 +1,351 @@
+# Price Feed
+
+Source: /websockets/price-feed
+
+# Price Feed
+
+```
+WS /v1/ws/prices?token=
+```
+
+Streams real-time price updates for subscribed markets. All numeric values are strings.
+
+---
+
+## Stream prices with the SDK
+
+The native client handles the token mint, connect, subscribe, and auto-reconnect
+for you — [`prices_stream`](/sdk) just yields live price events as they arrive:
+
+```python
+from polysim_sdk import PolySimClient
+from polysim_sdk.ws import prices_stream
+
+prev = {}
+with PolySimClient() as client:                  # POLYSIM_API_KEY from env
+    cids = [m["condition_id"] for m in client.list_markets(limit=2)]
+    for ev in prices_stream(client, condition_ids=cids):
+        if ev.get("best_bid") is None:           # skip the subscribe ack
+            continue
+        mid, last = ev["market_id"], float(ev["last_trade"])
+        arrow = "▲" if last > prev.get(mid, last) else "▼" if last < prev.get(mid, last) else " "
+        prev[mid] = last
+        print(f'{mid[:10]}  bid {ev["best_bid"]}  ask {ev["best_ask"]}  {arrow}')
+```
+
+  
+
+The raw `/v1/ws/prices` wire protocol — subscribe frames, the full event shape,
+and a from-scratch `asyncio` example — is documented below.
+
+---
+
+## Subscribe
+
+After connecting, send a subscribe message:
+
+```json
+{"action": "subscribe", "markets": ["0xabc123...", "0xdef456..."]}
+```
+
+Server confirms:
+
+```json
+{"type": "subscribed", "markets": ["0xabc123...", "0xdef456..."]}
+```
+
+---
+
+## Price Updates
+
+The server pushes price changes automatically. All fields are at the **top level** (not nested under a `data` key):
+
+```json
+{
+  "type": "price",
+  "market_id": "0xabc123...",
+  "condition_id": "0xabc123...",
+  "buy": "0.67",
+  "sell": "0.33",
+  "best_bid": "0.66",
+  "best_ask": "0.68",
+  "last_trade": "0.67",
+  "volume": "125000.50",
+  "outcomes": [
+    {"label": "Yes", "price": "0.67", "token_id": "71321..."},
+    {"label": "No", "price": "0.33", "token_id": "71322..."}
+  ],
+  "tokens": {
+    "71321...": {"label": "Yes", "price": "0.67"},
+    "71322...": {"label": "No", "price": "0.33"}
+  },
+  "active": true,
+  "closed": false,
+  "source": "websocket",
+  "emit_ts_ms": 1715518800250,
+  "updated_at": "2026-05-11T20:30:45.250000+00:00",
+  "ws_updated_at": "2026-05-11T20:30:45.250000+00:00"
+}
+```
+
+The server broadcasts the cached price payload with `type` and
+`market_id` stamped on top. Most fields are conditional — the exact set
+depends on which writer last produced the snapshot (see
+[Source values](#source-values) below). Always treat extra/missing
+fields defensively.
+
+| Field | Type | Always present | Description |
+|-------|------|:-:|-------------|
+| `type` | string | yes | Always `"price"` for price updates |
+| `market_id` | string | yes | Polymarket condition_id |
+| `condition_id` | string | yes | Same value as `market_id` — emitted for backward-compat with consumers that key off `condition_id` |
+| `emit_ts_ms` | int | yes | Server wall-clock (milliseconds since epoch) stamped at the moment the frame is broadcast. Integer (not stringified). Purpose-built for HFT latency — compute end-to-end lag as `recv_ts_ms - emit_ts_ms`. See [Latency telemetry](#latency-telemetry-for-hft-bots) below. |
+| `source` | string | yes | Provenance of the cached snapshot — see [Source values](#source-values) below. |
+| `updated_at` | string | yes | ISO 8601 backend wall-clock when the price was written to the cache. *Not* an upstream Polymarket event timestamp. |
+| `outcomes` | array | yes | Per-outcome `{label, price, token_id}` breakdown |
+| `volume` | string | yes | 24h trading volume in USD |
+| `buy` | string | usually | Yes (first outcome) price (0–1). Absent if the outcome had no resolvable price. |
+| `sell` | string | usually | No (second outcome) price (0–1). Absent if the outcome had no resolvable price. |
+| `tokens` | object | usually | Per-outcome data keyed by `token_id` — convenience index for bots that already track tokens. Each value is `{label, price}`. Present whenever `token_id`s were available for the snapshot; absent on a small number of Up/Down discovery writes. |
+| `best_bid` | string | sometimes | Best bid price on the order book. Present when an order-book quote was available upstream. |
+| `best_ask` | string | sometimes | Best ask price on the order book. Same provenance as `best_bid`. |
+| `last_trade` | string | sometimes | Most recent trade price observed for the market. Absent until the first trade is seen. |
+| `active` | bool | sometimes | Market `active` flag. Present when known; drop frames where `active=false` if you care. |
+| `closed` | bool | sometimes | Market `closed` flag. Frames may still arrive briefly after resolution; ignore them. |
+| `ws_updated_at` | string | sometimes | ISO 8601 wall-clock of the most recent live-stream update. Present when `source="websocket"` or `"rtds_websocket"`; absent for periodic-refresh-only snapshots. |
+
+### Source values
+
+The `source` field labels how fresh the price is. The only distinctions
+that matter to a bot are: whether the snapshot came from a live order-book
+stream (freshest) versus a periodic refresh, and whether the market is a
+settled Up/Down market you should no longer trade.
+
+| Value | Meaning |
+|---|---|
+| `gamma_poller` | Periodic cached display price — used when no fresher live update has arrived. |
+| `websocket` | Fresh live order-book update (book change, last trade, or on-demand refresh for a viewed market). |
+| `rtds_websocket` | Fresh live update from the Up/Down real-time price stream. |
+| `clob_on_demand` | One-off refresh taken during order placement when the cached snapshot was stale. |
+| `updown_discovery_clob` | First price written when a new Up/Down market is surfaced. |
+| `updown_resolved_*` | A **settled** Up/Down market — both `buy` and `sell` will be 0 or 1; do not place new orders against it. |
+
+Bots that want only live-stream-fresh prices can filter on
+`source === "websocket"` (or `"rtds_websocket"`); bots that just want
+"some price" can accept any source but drop `updown_resolved_*` frames.
+
+### Latency telemetry for HFT bots
+
+Every price frame carries `emit_ts_ms` — an always-present integer
+wall-clock (milliseconds since epoch) stamped at the moment the frame
+is broadcast. It is purpose-built for end-to-end latency measurement:
+subtract it from your local receive time directly, with no parsing.
+
+```python
+import json, time
+
+msg = json.loads(raw_frame)
+recv_ts_ms = int(time.time() * 1000)
+observed_lag_ms = recv_ts_ms - msg["emit_ts_ms"]
+```
+
+Typical `observed_lag_ms` is 80–500 ms; sustained values above
+~2,000 ms indicate backend overload or a TCP retransmission storm
+on the client side.
+
+`updated_at` is a *different* timestamp — it is stamped backend-side
+when the price was written to the cache, which **precedes** the
+broadcast. Use it only for backend-internal lag: the gap between the
+cache write and the broadcast is `emit_ts_ms - (updated_at parsed to
+ms)`. For latency that matters to your strategy, prefer `emit_ts_ms` —
+the client-observable end-to-end lag (`recv_ts_ms - emit_ts_ms`) is the
+number that governs how stale your signal is.
+
+**Recommended bot logic**: drop any quote where
+`observed_lag_ms > 2000`. For 5-min Up/Down crypto-timer markets,
+tighten that to 500 ms — these markets resolve in minutes and you
+don't want to trade on stale signal.
+
+---
+
+## Tick-size changes
+
+Polymarket shrinks the minimum price tick from `0.01` to `0.001` when a
+market crosses certain thresholds (price `> 0.96` or `< 0.04`). UpDown
+5-minute crypto markets — our headline product — spend much of their
+last-minute lives in those ranges, so unhandled tick changes mean bot
+quoters silently emit orders at the wrong precision.
+
+  `tick_size_change` frames are **NOT delivered on this `/v1/ws/prices`
+  WebSocket.** When the upstream CLOB WS publishes a `tick_size_change`,
+  the backend broadcasts it only to subscribers of the SSE
+  `/prices/stream` feed — a separate manager. The JWT `/v1/ws/prices`
+  feed emits `type:"price"` frames only and has no tick-change path.
+
+  For tick changes on a WS bot, **poll `GET /v1/tick-size/{token_id}`**
+  (it consults the WS-fresh cache first, then the DB-synced value) or
+  consume the SSE `/prices/stream` feed alongside your WS price feed.
+
+On the SSE `/prices/stream` feed, the `tick_size_change` frame looks
+like this (shown for reference — this is the SSE shape, not a
+`/v1/ws/prices` frame):
+
+```json
+{
+  "event": "tick_size_change",
+  "data": {
+    "type": "tick_size_change",
+    "market": "0xabc123...",
+    "asset_id": "71321...",
+    "tick_size": 0.001,
+    "old_tick_size": 0.01,
+    "side": "BUY",
+    "ts_ms": 1715518800123
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"tick_size_change"` |
+| `market` | string | Condition_id of the market the change applies to. Nullable if the upstream payload didn't carry it. |
+| `asset_id` | string | CLOB token_id — the per-outcome key. The tick change is per-token, not per-market. |
+| `tick_size` | number | Post-change minimum tick (e.g. `0.001`). Use this for all subsequent quote rounding. |
+| `old_tick_size` | number\|null | Pre-change tick if the upstream payload included it; otherwise `null`. |
+| `side` | string\|null | `"BUY"`, `"SELL"`, or `null`. PM optionally narrows the change to one side. |
+| `ts_ms` | int | Server wall-clock at broadcast (milliseconds since epoch). |
+
+  The two directions have asymmetric correctness consequences:
+
+  - **Grow (0.001 → 0.01)** — previously-valid 0.001-step quotes are
+    no longer multiples of the new tick. PM rejects with
+    `INVALID_ORDER_MIN_TICK_SIZE`. This is the case where missing the
+    change silently breaks your bot.
+  - **Shrink (0.01 → 0.001)** — 0.01-step quotes are still valid
+    multiples of 0.001, so orders aren't rejected. The downside is
+    quote-competitiveness: other bots that respect the finer grid can
+    undercut you by 0.001 increments while you still quote at 0.01.
+
+  PolySim's matching engine validates against its own recorded minimum
+  tick for the market, so off-grid orders on grow transitions are usually
+  rejected here too — but reading the WS-fresh tick lets you avoid the gap
+  between the price moving and the next refresh of that recorded value.
+
+You can also read the current tick at any time via
+`GET /v1/tick-size/{token_id}` — that endpoint consults the WS-fresh
+cache first, then falls back to the DB-synced value.
+
+---
+
+## Unsubscribe
+
+```json
+{"action": "unsubscribe", "markets": ["0xabc123..."]}
+```
+
+---
+
+## Complete Example
+
+```python Python (asyncio)
+import asyncio
+import json
+import requests
+import websockets
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+
+# Mint WS token
+ws_token = requests.post(
+    f"{BASE}/keys/ws-token",
+    headers={"X-API-Key": API_KEY},
+).json()["token"]
+
+async def stream_prices():
+    async with websockets.connect(
+        f"wss://api.polysimulator.com/v1/ws/prices?token={ws_token}"
+    ) as ws:
+        # Subscribe to markets
+        await ws.send(json.dumps({
+            "action": "subscribe",
+            "markets": ["0xabc123...", "0xdef456..."],
+        }))
+
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg["type"] == "price":
+                mid = msg["market_id"][:16]
+                buy = msg["buy"]
+                print(f"{mid}... → Yes: {buy}")
+
+asyncio.run(stream_prices())
+```
+
+```python Python (websocket-client)
+import json
+import requests
+import websocket
+
+API_KEY = "ps_live_..."
+BASE = "https://api.polysimulator.com/v1"
+WS_URL = "wss://api.polysimulator.com/v1"
+
+token = requests.post(
+    f"{BASE}/keys/ws-token",
+    headers={"X-API-Key": API_KEY},
+).json()["token"]
+
+def on_message(ws, message):
+    data = json.loads(message)
+    if data["type"] == "price":
+        print(f"{data['market_id'][:16]}... → Yes: {data['buy']}")
+    elif data["type"] == "connected":
+        ws.send(json.dumps({
+            "action": "subscribe",
+            "markets": ["0xabc123...", "0xdef456..."],
+        }))
+
+ws = websocket.WebSocketApp(
+    f"{WS_URL}/ws/prices?token={token}",
+    on_message=on_message,
+)
+ws.run_forever()
+```
+
+```javascript JavaScript
+const API_KEY = "ps_live_...";
+const BASE = "https://api.polysimulator.com/v1";
+
+// Mint WS token
+const tokenResp = await fetch(`${BASE}/keys/ws-token`, {
+  method: "POST",
+  headers: { "X-API-Key": API_KEY },
+});
+const { token } = await tokenResp.json();
+
+const ws = new WebSocket(
+  `wss://api.polysimulator.com/v1/ws/prices?token=${token}`
+);
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({
+    action: "subscribe",
+    markets: ["0xabc123...", "0xdef456..."],
+  }));
+};
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === "price") {
+    console.log(`${msg.market_id}: Yes=${msg.buy}`);
+  }
+};
+```
+
+---
+
+## Next Steps
+
+- [Execution Feed](/websockets/execution-feed) — Get order fill notifications
+- [WebSocket Bot](/bots/websocket-bot) — Build a real-time trading bot

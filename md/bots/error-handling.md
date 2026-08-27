@@ -1,8 +1,6 @@
----
-title: "Error Handling"
-sidebarTitle: "Error Handling"
-description: "Comprehensive error handling patterns for resilient trading bots."
----
+# Error Handling
+
+Source: /bots/error-handling
 
 # Error Handling
 
@@ -63,7 +61,6 @@ human message in the body's `error` field. The `feature_key` /
 `upgrade_url` hints are body fields **only on 402** responses, not these
 403s. See [Open Beta Errors](#open-beta-errors) below.
 
-<Tip>
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
   request to get the legacy multi-field shape:
   ```json
@@ -72,7 +69,6 @@ human message in the body's `error` field. The `feature_key` /
   ```
   Useful when writing or debugging an SDK; PM-shape is the default so
   Polymarket-CLOB SDK ports work without translation.
-</Tip>
 
 ---
 
@@ -120,11 +116,9 @@ trading pages link here rather than restating the codes.
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
 
-<Note>
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
-</Note>
 
 ### Order status values
 
@@ -201,12 +195,10 @@ either, or simply treat any 429 as a back-off signal:
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
 | `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`). Body also carries `retry_after_ms`. Retry after `Retry-After`. |
 
-<Tip>
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
   robust pattern is to back off on `resp.status_code == 429` regardless
   of which code is in the header.
-</Tip>
 
 The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 
@@ -253,8 +245,6 @@ if resp.status_code == 403:
 ---
 
 ## Retry Strategy
-
-<CodeGroup>
 
 ```python Python — Exponential Backoff
 import time
@@ -329,8 +319,6 @@ async function apiCallWithRetry(method, url, options = {}, maxRetries = 3) {
 }
 ```
 
-</CodeGroup>
-
 ---
 
 ## WebSocket Error Handling
@@ -383,17 +371,14 @@ async def resilient_ws(url, token, market_ids):
 
 ## Best Practices
 
-<CardGroup cols={2}>
-  <Card title="Always check status codes" icon="circle-check">
+  
     Never assume a 2xx response. Parse the status code and handle each category appropriately.
-  </Card>
-  <Card title="Use Retry-After header" icon="clock">
+  
+  
     On 429 responses, the `Retry-After` header tells you exactly how long to wait. Don't guess.
-  </Card>
-  <Card title="Don't retry 4xx errors" icon="xmark">
+  
+  
     Client errors (400-422) indicate a problem with your request. Fix the payload instead of retrying.
-  </Card>
-  <Card title="Log error details" icon="file-lines">
+  
+  
     Always log the full error response body for debugging — the `details` field often contains actionable info.
-  </Card>
-</CardGroup>

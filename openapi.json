@@ -31132,7 +31132,7 @@
           "API Keys"
         ],
         "summary": "Create Key",
-        "description": "Generate a new API key.\n\nThe raw key is returned ONCE in the response.  Only the SHA-256 hash\nis stored in the database.\n\nClosed-beta gating (``CLOSED_BETA_MODE=true``, default): only users\nwho already hold an ACTIVE admin-issued key \u2014 i.e. cohort members\nadmitted via ``POST /admin/api-keys/issue`` or\n``/admin/api-keys/issue-beta`` \u2014 can self-service additional keys.\nAdmins themselves bypass the gate. A waitlisted user with no key\nyet receives a 403 CLOSED_BETA envelope pointing at the apply URL.",
+        "description": "Generate a new API key.\n\nThe raw key is returned ONCE in the response.  Only the SHA-256 hash\nis stored in the database.\n\nClosed-beta gating (``CLOSED_BETA_MODE=true``, emergency close\nswitch; default is **off** / open beta): only users who already\nhold an ACTIVE admin-issued key \u2014 i.e. cohort members admitted via\n``POST /admin/api-keys/issue`` or ``/admin/api-keys/issue-beta`` \u2014\ncan self-service additional keys. Admins themselves bypass the\ngate. A waitlisted user with no key yet receives a 403 CLOSED_BETA\nenvelope pointing at the apply URL.",
         "operationId": "createApiKey",
         "parameters": [
           {
