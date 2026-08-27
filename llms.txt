@@ -219,9 +219,9 @@ Key management (create/list/rename/rotate/revoke) requires only a valid credenti
 **PolySim-native channels** (cond-id keyed, JWT query-param auth):
 - WS /v1/ws/prices?token=<jwt> — Real-time price stream
   - Auth: pass JWT from POST /v1/keys/ws-token as query param
-  - Subscribe: {"action": "subscribe", "markets": ["cond-123", ...]}
-  - Unsubscribe: {"action": "unsubscribe", "markets": ["cond-123"]}
-  - Ping: {"action": "ping"} → {"type": "pong"}
+  - Subscribe: {"action": "subscribe", "markets": ["cond-123", ...]} (also accepts PM-compat shape: {"type": "subscribe", "conditions": ["cond-123", ...]}; note: `assets_ids` with token IDs is rejected — condition IDs required)
+  - Unsubscribe: {"action": "unsubscribe", "markets": ["cond-123"]} (also accepts PM-compat shape: {"type": "unsubscribe", "conditions": ["cond-123", ...]})
+  - Ping: {"action": "ping"} or {"type": "ping"} → {"type": "pong", "ts": ...}
   - Price message: {"type": "price", "market_id": "cond-123", "buy": "0.65", "sell": "0.35", "best_bid": "0.64", "best_ask": "0.66", "volume": "1000.00", "source": "clob", "updated_at": "..."}
 - WS /v1/ws/executions?token=<jwt> — Trade fill notifications
 - POST /v1/keys/ws-token — Mint short-lived WebSocket auth token (60s TTL)

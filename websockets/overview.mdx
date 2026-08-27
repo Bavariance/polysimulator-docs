@@ -72,13 +72,17 @@ WebSocket connections require a **short-lived JWT token** (60 seconds), separate
 
 ## Protocol
 
-All messages are JSON. The protocol supports these client actions:
+All messages are JSON. On `/v1/ws/prices`, the protocol accepts both PolySim-native (`action`, `markets`) and Polymarket-compatible (`type`, `conditions`) keys:
 
-| Action | Description |
-|--------|-------------|
-| `subscribe` | Subscribe to price updates for markets |
-| `unsubscribe` | Stop receiving updates for markets |
-| `ping` | Heartbeat check |
+| Action | Accepted Keys | Description |
+|--------|---------------|-------------|
+| `subscribe` | `action: "subscribe"` or `type: "subscribe"` | Subscribe to price updates (pass `markets` or `conditions` with hex condition IDs; max 50) |
+| `unsubscribe` | `action: "unsubscribe"` or `type: "unsubscribe"` | Stop receiving price updates for specified condition IDs |
+| `ping` | `action: "ping"` or `type: "ping"` | Heartbeat check — server responds with `{"type": "pong", "ts": <ms>}` |
+
+<Note>
+  On `/v1/ws/prices`, condition IDs (0x-hex strings) are required. Passing `assets_ids` (token IDs) is explicitly rejected. For decimal token ID subscriptions and L2 book events, use the [PM-compat Market Channel](/websockets/pm-compat-market) (`/v1/ws/market`).
+</Note>
 
 ### Ping/Pong
 

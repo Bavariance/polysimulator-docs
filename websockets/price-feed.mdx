@@ -44,19 +44,72 @@ and a from-scratch `asyncio` example — is documented below.
 
 ---
 
+## Connection Lifecycle
+
+Connect to `/v1/ws/prices?token=<jwt>` with a short-lived token minted from [`POST /v1/keys/ws-token`](/authentication). Upon connection, the server immediately sends an initial greeting frame:
+
+```json
+{
+  "type": "connected",
+  "user_id": 1234,
+  "protocol_version": "1.0"
+}
+```
+
+---
+
 ## Subscribe
 
-After connecting, send a subscribe message:
+After connecting, send a subscribe frame. PolySimulator accepts **both** the PolySim-native syntax and Polymarket CLOB-compatible subscription shapes:
 
-```json
-{"action": "subscribe", "markets": ["0xabc123...", "0xdef456..."]}
+<CodeGroup>
+```json PolySim Native
+{
+  "action": "subscribe",
+  "markets": ["0xabc123...", "0xdef456..."]
+}
 ```
 
-Server confirms:
+```json Polymarket Compatible
+{
+  "type": "subscribe",
+  "conditions": ["0xabc123...", "0xdef456..."]
+}
+```
+</CodeGroup>
+
+### Supported Keys
+
+| Field | Aliases | Description |
+|-------|---------|-------------|
+| Action / Op | `action`, `type` | Operation name. Set to `"subscribe"` (case-insensitive string). |
+| Condition IDs | `markets`, `conditions` | JSON array of 0x-prefixed 64-character hex condition IDs. Capped at **50 condition IDs** per connection. |
+
+Server confirms with the full list of active subscriptions for the connection:
 
 ```json
-{"type": "subscribed", "markets": ["0xabc123...", "0xdef456..."]}
+{
+  "type": "subscribed",
+  "markets": ["0xabc123...", "0xdef456..."]
+}
 ```
+
+<Warning>
+  **`assets_ids` is explicitly rejected on `/v1/ws/prices`:**
+
+  Polymarket's CLOB market channel (`/ws/market`) accepts `assets_ids` containing decimal token IDs (e.g. `["71321..."]`). The `/v1/ws/prices` endpoint broadcasts price feeds indexed strictly by 0x-hex **`condition_id`** (`price:{condition_id}` Redis channels).
+
+  If you pass `"assets_ids"` without `markets` or `conditions`, the server returns a descriptive error frame instead of silently creating a zero-tick subscription:
+
+  ```json
+  {
+    "type": "error",
+    "message": "'assets_ids' carries token IDs and is not a valid subscribe field — PolySim WS broadcasts by condition_id. Pass 'markets' (PolySim) or 'conditions' (PM) with the condition_id list."
+  }
+  ```
+
+  To subscribe by decimal token IDs or stream full orderbook L2 snapshots and tick changes, use the [PM-compat Market Channel](/websockets/pm-compat-market) (`WS /v1/ws/market`) instead.
+</Warning>
 
 ---
 
@@ -247,9 +300,83 @@ cache first, then falls back to the DB-synced value.
 
 ## Unsubscribe
 
-```json
-{"action": "unsubscribe", "markets": ["0xabc123..."]}
+Unsubscribe dynamically without dropping your WebSocket connection:
+
+<CodeGroup>
+```json PolySim Native
+{
+  "action": "unsubscribe",
+  "markets": ["0xabc123..."]
+}
 ```
+
+```json Polymarket Compatible
+{
+  "type": "unsubscribe",
+  "conditions": ["0xabc123..."]
+}
+```
+</CodeGroup>
+
+Server confirms with the updated remaining active subscriptions for the connection:
+
+```json
+{
+  "type": "subscribed",
+  "markets": []
+}
+```
+
+Passing `assets_ids` in an unsubscribe frame is rejected with:
+
+```json
+{
+  "type": "error",
+  "message": "'assets_ids' carries token IDs and is not a valid unsubscribe field — pass 'markets' (PolySim) or 'conditions' (PM) with the condition_id list."
+}
+```
+
+---
+
+## Heartbeat & Error Frames
+
+### Ping / Pong
+
+Keep the connection alive by sending a periodic ping frame. Both PolySim native and Polymarket-compatible shapes are accepted:
+
+```json
+{"action": "ping"}
+```
+
+or:
+
+```json
+{"type": "ping"}
+```
+
+Server replies with a JSON pong frame containing a server timestamp (milliseconds since epoch):
+
+```json
+{
+  "type": "pong",
+  "ts": 1715518800000
+}
+```
+
+### Protocol Errors
+
+| Error Condition | Example Error Response |
+|-----------------|------------------------|
+| Invalid JSON | `{"type": "error", "message": "Invalid JSON"}` |
+| Non-list markets/conditions | `{"type": "error", "message": "'markets' must be a list (accepted aliases: markets, conditions)"}` |
+| Unknown action | `{"type": "error", "message": "Unknown action: 'invalid'. Expected {action: subscribe\|unsubscribe\|ping, markets: [...]} (PolySim) or {type: subscribe\|unsubscribe, conditions: [...]} (PM). Note: 'assets_ids' (token IDs) is NOT accepted — pass condition IDs only."}` |
+
+### WebSocket Close Codes
+
+| Code | Reason | Resolution |
+|------|--------|------------|
+| `4001` | `Invalid or expired token` | Token verification failed or expired (60s TTL). Mint a fresh token via `POST /v1/keys/ws-token` and reconnect immediately. |
+| `4002` | `Maximum WebSocket connections exceeded` | Active connections for your user account reached tier limit. Close idle connections before reconnecting. |
 
 ---
 
