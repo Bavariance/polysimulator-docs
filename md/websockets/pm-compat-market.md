@@ -177,13 +177,18 @@ snapshot). Subsequent updates flow through `price_change` /
 }
 ```
 
-  **Two PM deviations:**
+  **Polymarket Compatibility & Null-for-Unknown Semantics:**
   - PolySim omits the `spread` field that PM's `best_bid_ask` carries
     (compute it yourself as `best_ask - best_bid` if you need it).
   - PM gates `best_bid_ask` (plus `new_market` / `market_resolved`)
     behind `custom_feature_enabled: true` in the subscribe message.
     PolySim ignores `custom_feature_enabled` and emits `best_bid_ask`
     **unconditionally** — you do not need to set the flag.
+  - **Null-for-unknown**: For non-first outcome tokens (e.g. NO tokens), if
+    outcome-specific orderbook data is unavailable, the `best_bid_ask` frame
+    is **omitted** rather than fabricating prices from other outcomes or
+    inverting YES. In `price_change` frames, unobserved top-of-book fields are
+    emitted as empty strings `""`.
 
 All prices are **strings** (no JSON numbers) to match PM verbatim and
 avoid float-precision drift.

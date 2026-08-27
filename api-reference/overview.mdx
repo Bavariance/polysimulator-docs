@@ -134,7 +134,10 @@ each one with side-by-side request/response examples.
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
-are always present on rate-limited responses. `X-RateLimit-Tier` is
+are present on authenticated responses. On legacy keyed and unauthenticated
+public endpoints, `429` responses return `Retry-After`, `X-Polysim-Code`,
+and `X-Request-Id` (full quota metadata headers are returned on authenticated
+private endpoints and flagged token resolver routes). `X-RateLimit-Tier` is
 present on authenticated responses only — unauthenticated requests
 metered against IP-only buckets omit it. The authoritative source for
 these numbers is `GET /v1/keys/tiers`. See

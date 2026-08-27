@@ -47,6 +47,7 @@ live production environment from this browser tab.
 | **CLOB Read (Public)** | Polymarket-shape book / midpoint / spread / price endpoints |
 | **CLOB Compat** | Polymarket-shape `POST /v1/order`, `POST /v1/orders`, `GET /v1/data/orders` |
 | **WebSocket** | `/v1/ws/prices` + `/v1/ws/executions` subscription endpoints |
+| **Simulation** | Historical fill, coverage, book replay, and curated backtests. Feature-dark until `FEATURE_SIMULATION_API_ENABLED` is on. |
 | **Health** | `/v1/health`, `/v1/health/ready`, `/v1/status`, `/v1/me` |
 
 Use the sidebar to drill into any group. Each endpoint page shows the
@@ -123,7 +124,10 @@ each one with side-by-side request/response examples.
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
-are always present on rate-limited responses. `X-RateLimit-Tier` is
+are present on authenticated responses. On legacy keyed and unauthenticated
+public endpoints, `429` responses return `Retry-After`, `X-Polysim-Code`,
+and `X-Request-Id` (full quota metadata headers are returned on authenticated
+private endpoints and flagged token resolver routes). `X-RateLimit-Tier` is
 present on authenticated responses only — unauthenticated requests
 metered against IP-only buckets omit it. The authoritative source for
 these numbers is `GET /v1/keys/tiers`. See

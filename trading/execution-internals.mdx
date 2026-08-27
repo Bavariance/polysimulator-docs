@@ -200,7 +200,7 @@ These are available in the order response and help you understand execution qual
 
 ---
 
-## Market Validation
+## Market & Execution Validation
 
 Before execution, the engine validates:
 
@@ -209,11 +209,12 @@ Before execution, the engine validates:
 3. **Not resolved**: `resolved_outcome` is null
 4. **Not expired**: `end_date` is in the future (or SELL for emergency exit)
 5. **Price sanity**: Outcome prices don't sum > 1.5 (post-expiry detection)
+6. **Quote freshness**: When quote freshness enforcement is enabled (`TRADE_QUOTE_MAX_AGE_MS` + `TRADE_QUOTE_MAX_AGE_ENFORCE=true`), fills with stale quotes are rejected with `400 STALE_QUOTE`.
+7. **Book depth requirement**: When depth enforcement is enabled (`TRADE_REQUIRE_BOOK_DEPTH=true`), fills that did not walk real order-book depth are rejected with `400 NO_EXECUTABLE_DEPTH`.
 
 <Note>
 **Emergency Exits**: When selling a position on an expired market with no live price, the engine allows a break-even exit at your entry price rather than blocking the trade.
 </Note>
-
 ---
 
 ## Idempotency

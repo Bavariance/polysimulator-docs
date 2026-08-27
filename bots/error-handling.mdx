@@ -105,6 +105,9 @@ trading pages link here rather than restating the codes.
 |-----------|------|-------------|
 | `INSUFFICIENT_BALANCE` | 400 | Not enough funds for order |
 | `INSUFFICIENT_POSITION` | 400 | Sell rejected — your position size for the chosen `token_id` is smaller than the requested `quantity`. PolySimulator does not support naked shorts: every SELL must be backed by an existing position. See **No naked shorts** below for the two-sided-quote workaround. |
+| `INSUFFICIENT_LIQUIDITY` | 400 | The order-book walk cannot source the requested quantity across resting liquidity. |
+| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Trades only execute against live Polymarket book depth. |
+| `STALE_QUOTE` | 400 | Fill rejected when the resolved price quote age exceeds the configured maximum age threshold (`TRADE_QUOTE_MAX_AGE_MS` when enforcement is enabled). Retry with a fresh quote. |
 | `INVALID_QUANTITY` | 400 | Non-positive `quantity` rejected by the execution engine. (A schema-level out-of-range value is caught earlier by Pydantic as `422 VALIDATION_FAILED` — see HTTP Status Codes above.) |
 | `PRICE_REQUIRED` | 400 | Market order submitted without the required `price` (worst-price limit). |
 | `FOK_ORDER_NOT_FILLED_ERROR` | 400 | The order could not fill entirely at or beyond your worst-price limit (BUY: best price above your cap; SELL: best price below your floor). This is the worst-price rejection for market / FOK orders — there is **no** `409 LIMIT_PRICE_NOT_MET` code. |
@@ -119,7 +122,6 @@ trading pages link here rather than restating the codes.
 | `IDEMPOTENCY_KEY_REUSE` | 409 | The same `Idempotency-Key` was replayed with a **different** request body. (An identical replay instead returns the original order — see Idempotency below.) |
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
-
 <Note>
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
@@ -199,7 +201,7 @@ either, or simply treat any 429 as a back-off signal:
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
-| `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`). Body also carries `retry_after_ms`. Retry after `Retry-After`. |
+| `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
 
 <Tip>
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the

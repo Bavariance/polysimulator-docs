@@ -8,6 +8,22 @@ integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
 
+## 2026-08-27 — API contract alignment & error codes
+
+- **429 rate limit headers**: Legacy keyed and unauthenticated public endpoints
+  return `Retry-After`, `X-Polysim-Code`, and `X-Request-Id`. Full quota metadata
+  (`x-ratelimit-*` headers) is emitted on authenticated private endpoints and
+  flagged token resolver routes. See [Rate Limits](/concepts/rate-limits).
+- **Order rejection codes**: Documented `STALE_QUOTE` (400) for quote freshness
+  enforcement, `NO_EXECUTABLE_DEPTH` (400) for order-book depth enforcement, and
+  `INSUFFICIENT_LIQUIDITY` (400) for book-walk size exhaustion. See
+  [Error Handling](/bots/error-handling#trading-errors).
+- **Trade rate limiting**: Documented `429 RATE_LIMITED` on session-JWT trade
+  endpoints (`POST /trade`, `POST /limit-order`).
+- **WebSocket `best_bid_ask`**: Non-first outcome frames now strictly omit
+  rather than fabricate top-of-book prices when outcome-specific orderbook depth
+  is unavailable. See [PM-compat WebSocket](/websockets/pm-compat-market#best_bid_ask-top-of-book-change).
+
 ## 2026-08-22 — Open beta: self-serve free read-only keys and paid trading
 
 - **Key issuance is self-serve.** Sign in, mint a key from the dashboard or
@@ -23,6 +39,25 @@ API leaves beta.
   [Datalake Schema](/market-data/datalake-schema).
 - **Markdown mirrors + `llms-full.txt`** are generated from `docs-site/` MDX
   by `scripts/generate_docs_mirrors.py`. Do not hand-edit the generated files.
+
+## 2026-08-22 — Simulation API v1 public contract (feature-dark)
+
+`/v1/simulation` is now declared in the public OpenAPI document: fill,
+coverage, fill-models, book, backtests (create/list/get/trades/equity/cancel),
+and exports. The router stays **404** until an operator flips
+`FEATURE_SIMULATION_API_ENABLED`. This is not a commercial activation and
+does not claim a Telonex-validated SKU.
+
+- Fill and book responses echo resolved `token_id` / `comp_token_id`.
+- Backtests accept an optional `token_ids` map and return the resolved map.
+- Equity is keyset-paginated (`data`, `next_cursor`) like trades.
+- OpenAPI advertises `503` plus the runtime `X-Polysim-Code` values
+  (`INVALID_REQUEST`, `BACKTEST_*`, `SIMULATION_HOURS_EXCEEDED`,
+  `METERING_UNAVAILABLE`, `CONDITION_HOUR_NOT_COVERED`, `ARCHIVE_*`, …).
+- Adjacent v4 capture sidecars are fail-closed; producer reason tiers
+  (`frames_spilled` valid, `frames_dropped` degraded) are honored.
+
+See [Simulation](/simulation).
 
 ## 2026-08-12 — Breaking: `volume_24h` is now genuinely 24-hour; new `volume_total`
 

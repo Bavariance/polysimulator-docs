@@ -464,6 +464,9 @@ codes most relevant to order placement:
 |--------|------------|---------|
 | `400` | `PRICE_REQUIRED` | Market orders require a `price` field (worst-price limit) |
 | `400` | `INSUFFICIENT_BALANCE` | Not enough funds for this trade |
+| `400` | `INSUFFICIENT_LIQUIDITY` | Order-book walk cannot source the requested size across resting depth |
+| `400` | `NO_EXECUTABLE_DEPTH` | Refused when order-book depth enforcement is active and no executable book depth was walked |
+| `400` | `STALE_QUOTE` | Fill rejected when resolved quote age exceeds the configured freshness threshold (when enforcement is enabled) |
 | `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
 | `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
 | `400` | `FOK_ORDER_NOT_FILLED_ERROR` | The order couldn't fill entirely at or beyond your worst-price limit (best available price moved past your cap). This is the worst-price rejection — there is **no** `409 LIMIT_PRICE_NOT_MET`. |

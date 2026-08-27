@@ -375,6 +375,7 @@ and example prompts.
 - [Authentication deep dive](/authentication) — Key management, security, permissions
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
 - [Build a trading bot](/bots/example-trading-bot) — Complete Python example
+- [Simulation API](/simulation) — Historical fill / coverage (feature-dark; 404 until the operator flag is on)
 
 
 # Python SDK
@@ -487,6 +488,12 @@ The native client also ships WebSocket price/execution streams (`polysim_sdk.ws`
 SSE underlying-spot firehose (`polysim_sdk.sse`), Up/Down helpers (`polysim_sdk.updown`),
 and pagination iterators (`polysim_sdk.pagination`). The
 [full README on PyPI](https://pypi.org/project/polysimulator/) documents every surface.
+
+The native client also exposes `client.simulation` for the dark
+`/v1/simulation` surface (`fill`, `coverage`, `book`,
+`create_backtest` / `wait`, list/get/cancel). Methods exist so typed
+clients can generate; the live router stays 404 until
+`FEATURE_SIMULATION_API_ENABLED` is on. See [Simulation](/simulation).
 
 ## Migrating a `py-clob-client` bot
 
@@ -1151,6 +1158,22 @@ integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
 
+## 2026-08-27 — API contract alignment & error codes
+
+- **429 rate limit headers**: Legacy keyed and unauthenticated public endpoints
+  return `Retry-After`, `X-Polysim-Code`, and `X-Request-Id`. Full quota metadata
+  (`x-ratelimit-*` headers) is emitted on authenticated private endpoints and
+  flagged token resolver routes. See [Rate Limits](/concepts/rate-limits).
+- **Order rejection codes**: Documented `STALE_QUOTE` (400) for quote freshness
+  enforcement, `NO_EXECUTABLE_DEPTH` (400) for order-book depth enforcement, and
+  `INSUFFICIENT_LIQUIDITY` (400) for book-walk size exhaustion. See
+  [Error Handling](/bots/error-handling#trading-errors).
+- **Trade rate limiting**: Documented `429 RATE_LIMITED` on session-JWT trade
+  endpoints (`POST /trade`, `POST /limit-order`).
+- **WebSocket `best_bid_ask`**: Non-first outcome frames now strictly omit
+  rather than fabricate top-of-book prices when outcome-specific orderbook depth
+  is unavailable. See [PM-compat WebSocket](/websockets/pm-compat-market#best_bid_ask-top-of-book-change).
+
 ## 2026-08-22 — Open beta: self-serve free read-only keys and paid trading
 
 - **Key issuance is self-serve.** Sign in, mint a key from the dashboard or
@@ -1166,6 +1189,25 @@ API leaves beta.
   [Datalake Schema](/market-data/datalake-schema).
 - **Markdown mirrors + `llms-full.txt`** are generated from `docs-site/` MDX
   by `scripts/generate_docs_mirrors.py`. Do not hand-edit the generated files.
+
+## 2026-08-22 — Simulation API v1 public contract (feature-dark)
+
+`/v1/simulation` is now declared in the public OpenAPI document: fill,
+coverage, fill-models, book, backtests (create/list/get/trades/equity/cancel),
+and exports. The router stays **404** until an operator flips
+`FEATURE_SIMULATION_API_ENABLED`. This is not a commercial activation and
+does not claim a Telonex-validated SKU.
+
+- Fill and book responses echo resolved `token_id` / `comp_token_id`.
+- Backtests accept an optional `token_ids` map and return the resolved map.
+- Equity is keyset-paginated (`data`, `next_cursor`) like trades.
+- OpenAPI advertises `503` plus the runtime `X-Polysim-Code` values
+  (`INVALID_REQUEST`, `BACKTEST_*`, `SIMULATION_HOURS_EXCEEDED`,
+  `METERING_UNAVAILABLE`, `CONDITION_HOUR_NOT_COVERED`, `ARCHIVE_*`, …).
+- Adjacent v4 capture sidecars are fail-closed; producer reason tiers
+  (`frames_spilled` valid, `frames_dropped` degraded) are honored.
+
+See [Simulation](/simulation).
 
 ## 2026-08-12 — Breaking: `volume_24h` is now genuinely 24-hour; new `volume_total`
 
@@ -1814,11 +1856,13 @@ in seconds.
 
 ---
 
-## Rate Limit Headers (on every response)
+## Rate Limit Headers (on authenticated responses)
 
 Every authenticated response carries `x-ratelimit-*` headers so bots
-can **pre-throttle** instead of waiting for an actual 429:
-
+can **pre-throttle** instead of waiting for an actual 429 (unauthenticated
+public routes and legacy keyed public 429s return `Retry-After`, `X-Polysim-Code`,
+and `X-Request-Id`; full quota metadata headers are returned on authenticated
+endpoints and flagged token resolver routes):
 | Header | Type | Description |
 |--------|------|-------------|
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
@@ -3832,6 +3876,9 @@ codes most relevant to order placement:
 |--------|------------|---------|
 | `400` | `PRICE_REQUIRED` | Market orders require a `price` field (worst-price limit) |
 | `400` | `INSUFFICIENT_BALANCE` | Not enough funds for this trade |
+| `400` | `INSUFFICIENT_LIQUIDITY` | Order-book walk cannot source the requested size across resting depth |
+| `400` | `NO_EXECUTABLE_DEPTH` | Refused when order-book depth enforcement is active and no executable book depth was walked |
+| `400` | `STALE_QUOTE` | Fill rejected when resolved quote age exceeds the configured freshness threshold (when enforcement is enabled) |
 | `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
 | `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
 | `400` | `FOK_ORDER_NOT_FILLED_ERROR` | The order couldn't fill entirely at or beyond your worst-price limit (best available price moved past your cap). This is the worst-price rejection — there is **no** `409 LIMIT_PRICE_NOT_MET`. |
@@ -5123,7 +5170,7 @@ These are available in the order response and help you understand execution qual
 
 ---
 
-## Market Validation
+## Market & Execution Validation
 
 Before execution, the engine validates:
 
@@ -5132,6 +5179,8 @@ Before execution, the engine validates:
 3. **Not resolved**: `resolved_outcome` is null
 4. **Not expired**: `end_date` is in the future (or SELL for emergency exit)
 5. **Price sanity**: Outcome prices don't sum > 1.5 (post-expiry detection)
+6. **Quote freshness**: When quote freshness enforcement is enabled (`TRADE_QUOTE_MAX_AGE_MS` + `TRADE_QUOTE_MAX_AGE_ENFORCE=true`), fills with stale quotes are rejected with `400 STALE_QUOTE`.
+7. **Book depth requirement**: When depth enforcement is enabled (`TRADE_REQUIRE_BOOK_DEPTH=true`), fills that did not walk real order-book depth are rejected with `400 NO_EXECUTABLE_DEPTH`.
 
 **Emergency Exits**: When selling a position on an expired market with no live price, the engine allows a break-even exit at your entry price rather than blocking the trade.
 
@@ -5801,7 +5850,7 @@ curl -H "X-API-Key: $API_KEY" \
   "last_trade_price": "0.65",
   "mid": "0.65",
   "spread": "0.02",
-  "timestamp": "2026-02-06T12:00:45Z"
+  "timestamp": "1778995283697"
 }
 ```
 
@@ -5814,23 +5863,24 @@ order-independently — see the warning below.
 
 ## Understanding the Book
 
-| Field | Description |
-|-------|-------------|
-| `token_id` | The CLOB outcome token (asset) the book is for. |
-| `market` | The market's `condition_id`. PM-compat alias — the SDK reads this to associate the book with a market. |
-| `asset_id` | Same value as `token_id`. PM uses `asset_id` as the canonical book key, so `py-clob-client`-ported code reads this name. |
-| `hash` | Order-book hash for change detection (PM convention). Compare across snapshots to detect whether the book moved without diffing every level. |
-| `bids` | Buy orders sorted by price **ascending** — **best (highest) bid is `bids[-1]`** (the last element), worst bid first. This is byte-identical to what the real Polymarket CLOB `/book` returns on the wire, so SDKs ported from `py-clob-client` read the same index. |
-| `asks` | Sell orders sorted by price **descending** — **best (lowest) ask is `asks[-1]`** (the last element), worst ask first. |
-| `min_order_size` | Minimum orderable shares for this market (string). |
-| `tick_size` | Price quantum as a **string** (e.g. `"0.01"`). `py-clob-client` reads this to quantize limit prices client-side. (Note: the standalone [`GET /v1/tick-size/{token_id}`](/concepts/pm-raw-http) endpoint returns the tick as a JSON **number**; here, inside the book, it is a string — see [String Numerics](/concepts/string-numerics).) |
-| `neg_risk` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
-| `last_trade_price` | The most recent trade price for this token (string), or `null` if no trades yet. |
-| `mid` | Average of best bid and best ask |
-| `spread` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
-| `stale` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
-| `price` | Price level (inside a `bids`/`asks` entry) |
-| `size` | Total shares available at that price |
+| Field | Type | Description |
+|-------|------|-------------|
+| `token_id` | `string` | The CLOB outcome token (asset) the book is for. |
+| `market` | `string \| null` | The market's `condition_id`. PM-compat alias — the SDK reads this to associate the book with a market condition ID. |
+| `asset_id` | `string \| null` | Same value as `token_id`. Polymarket CLOB uses `asset_id` as the canonical book key, so `py-clob-client`-ported code reads this name. |
+| `hash` | `string \| null` | Order-book hash for change detection (PM convention). Compare across snapshots to detect whether the book moved without diffing every level. |
+| `timestamp` | `string \| null` | Snapshot timestamp as a **Unix epoch milliseconds string** (e.g. `"1778995283697"`), matching Polymarket's live CLOB wire contract. Parse with `datetime.fromtimestamp(int(ts) / 1000, tz=timezone.utc)` in Python or `new Date(Number(ts))` in JavaScript. **Do not** parse as ISO 8601. |
+| `bids` | `BookLevel[]` | Buy orders sorted by price **ascending** — **best (highest) bid is `bids[-1]`** (the last element), worst bid first. This is byte-identical to what the real Polymarket CLOB `/book` returns on the wire, so SDKs ported from `py-clob-client` read the same index. |
+| `asks` | `BookLevel[]` | Sell orders sorted by price **descending** — **best (lowest) ask is `asks[-1]`** (the last element), worst ask first. |
+| `min_order_size` | `string \| null` | Minimum orderable shares for this market (string, e.g. `"5"`). |
+| `tick_size` | `string \| null` | Price quantum as a **string** (e.g. `"0.01"`). `py-clob-client` reads this to quantize limit prices client-side. (Note: the standalone [`GET /v1/tick-size/{token_id}`](/concepts/pm-raw-http) endpoint returns the tick as a JSON **number**; here, inside the book, it is a string — see [String Numerics](/concepts/string-numerics).) |
+| `neg_risk` | `boolean \| null` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
+| `last_trade_price` | `string \| null` | The most recent trade price for this token (string, e.g. `"0.65"`), or `null` if no trades yet. |
+| `mid` | `string \| null` | Average of best bid and best ask (Polysimulator extension, stringified). |
+| `spread` | `string \| null` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
+| `stale` | `boolean \| null` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent (`null`) on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
+| `price` | `string` | Price level (inside a `bids`/`asks` entry; 0.00–1.00 implied probability, stringified). |
+| `size` | `string` | Total shares available at that price level (stringified).
 
   **Recommended: read the inside market order-independently, not by index.**
   Bids are sorted **ascending** (best/highest bid last, `bids[-1]`) and asks
@@ -5852,6 +5902,28 @@ order-independently — see the warning below.
   `clob.polymarket.com/book` wire. Read the inside market with the
   order-independent `max`/`min` reads above rather than hard-coding `bids[0]` /
   `asks[0]`, so your integration survives any future wire-format change.
+
+### Timestamp Parsing
+
+The `timestamp` field is returned as a **Unix epoch milliseconds string** (e.g. `"1778995283697"`), matching Polymarket's CLOB wire format. It is not an ISO 8601 string.
+
+```python Python
+import datetime
+
+# timestamp is a Unix epoch milliseconds string, e.g. "1778995283697"
+ts_ms = int(book["timestamp"])
+snapshot_time = datetime.datetime.fromtimestamp(
+    ts_ms / 1000, tz=datetime.timezone.utc
+)
+print(f"Snapshot UTC: {snapshot_time.isoformat()}")
+```
+
+```javascript JavaScript
+// timestamp is a Unix epoch milliseconds string, e.g. "1778995283697"
+const tsMs = Number(book.timestamp);
+const snapshotTime = new Date(tsMs);
+console.log(`Snapshot UTC: ${snapshotTime.toISOString()}`);
+```
 
 ### Liquidity Assessment
 
@@ -6355,6 +6427,121 @@ con.execute(
 )
 print(con.fetchall())
 ```
+
+
+# Simulation API
+
+<!-- source: /simulation -->
+
+# Simulation API
+
+The `/v1/simulation` surface is a **feature-dark** historical fill and
+backtest contract. It is compiled into the public OpenAPI document so
+clients can generate typed methods, but the live router returns **404**
+until an operator sets `FEATURE_SIMULATION_API_ENABLED=true`.
+
+  This page documents a dark surface. It does **not** activate
+  commercial backtesting, flip the feature flag, or claim a Telonex /
+  vendor-validated SKU. Volume caps below are plan-matrix numbers, not
+  a live product offer.
+
+## First successful call (when the flag is on)
+
+`simulateFill` is the hook: one condition, one timestamp, one memorable
+VWAP. Do not start with a backtest.
+
+```python
+from polysim_sdk import PolySimClient
+
+with PolySimClient() as client:
+    fill = client.simulation.fill(
+        condition_id="0xabc123",
+        shares="10",
+        at="2026-08-04T18:00:00Z",
+        fill_model="depth_walk",
+        outcome="Yes",
+    )
+    print(fill["vwap_fill_price"], fill["token_id"], fill["comp_token_id"])
+```
+
+All money and share fields are **decimal strings**. Parse with
+`Decimal`, never `float`.
+
+## Nine paths
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/simulation/fill` | Point-in-time counterfactual fill |
+| `GET` | `/v1/simulation/coverage` | Per-hour archive verdicts + settlement overlay |
+| `GET` | `/v1/simulation/fill-models` | Named fill-model ladder |
+| `GET` | `/v1/simulation/book` | Reconstructed book at one timestamp |
+| `POST` | `/v1/simulation/backtests` | Enqueue a declarative job (`202`) |
+| `GET` | `/v1/simulation/backtests` | Keyset list |
+| `GET` | `/v1/simulation/backtests/{id}` | Job summary, including resolved `token_ids` |
+| `GET` | `/v1/simulation/backtests/{id}/trades` | Keyset trades |
+| `GET` | `/v1/simulation/backtests/{id}/equity` | Keyset equity (not a full dump) |
+| `DELETE` | `/v1/simulation/backtests/{id}` | Cancel |
+| `POST` | `/v1/simulation/exports` | Signed Parquet URL (`503` until R2 is configured) |
+
+`GET /v1/simulation/book` resolves a bounded hour record from Redis or
+an adjacent v4 sidecar. It never walks an unbound `hours` list.
+
+## Token identity
+
+Fill and book responses echo the **resolved** `token_id` and
+`comp_token_id`. Backtest create accepts an optional `token_ids` map
+(`condition_id → token_id`). The job stores the resolved map so clients
+can verify the exact books that were walked. Exact `asset_id` matching
+is preserved: `primary` / `yes` / `no` never match a real token.
+
+## Errors
+
+Every simulation error is a structured `/v1` envelope. Branch on
+`X-Polysim-Code`, not the body text. Declared codes include:
+
+- `INVALID_REQUEST`, `INVALID_WINDOW`, `INVALID_CURSOR`
+- `UPGRADE_REQUIRED`, `INSUFFICIENT_PERMISSION`, `NOT_FOUND`
+- `IDEMPOTENCY_KEY_REUSE`, `IDEMPOTENCY_CONFLICT_PENDING`
+- `UNIVERSE_EXCLUDED`
+- `BACKTEST_MONTHLY_CAP`, `BACKTEST_MARKET_CAP`, `BACKTEST_WINDOW_CAP`
+- `SIMULATION_HOURS_EXCEEDED`
+- `METERING_UNAVAILABLE`, `JOB_STORE_UNAVAILABLE` (`503`)
+- `CONDITION_HOUR_NOT_COVERED`, `ARCHIVE_UNAVAILABLE`, `ARCHIVE_NOT_FOUND`
+
+OpenAPI advertises `503` plus those codes. A missing sidecar next to a
+v4 capture object is fail-closed (`quarantined`), not a fabricated
+valid hour.
+
+## Volume caps (matrix, not activation)
+
+`FEATURE_MATRIX` gates **volume**, not the fill/coverage features:
+
+| Key | free | pro | pro_plus |
+| --- | --- | --- | --- |
+| `simulation.backtests_per_month` | 10 | 100 | 9999 |
+| `simulation.backtest_max_days` | 7 | 30 | 90 |
+| `simulation.backtest_max_markets` | 5 | 25 | 100 |
+| `simulation.market_hours_monthly` | 24 | 720 | 9999 |
+
+`analytics.backtesting` remains `false` for free/pro. `depth_walk_depletion`
+and signed exports still require `dataset.historical_full`. Do not treat
+these numbers as a live commercial SKU.
+
+## SDK
+
+```python
+client.simulation.fill(...)
+client.simulation.coverage(condition_id=...)
+client.simulation.book(condition_id=..., at=...)
+job = client.simulation.create_backtest(...)
+job = client.simulation.wait(job["job_id"])
+client.simulation.list_backtests()
+client.simulation.get_backtest(job_id)
+client.simulation.cancel_backtest(job_id)
+```
+
+`wait()` polls `get_backtest` until `completed` / `failed` / `cancelled`.
+It does not enable the flag and does not talk to Telonex.
 
 
 # Wallets
@@ -7600,13 +7787,15 @@ WebSocket connections require a **short-lived JWT token** (60 seconds), separate
 
 ## Protocol
 
-All messages are JSON. The protocol supports these client actions:
+All messages are JSON. On `/v1/ws/prices`, the protocol accepts both PolySim-native (`action`, `markets`) and Polymarket-compatible (`type`, `conditions`) keys:
 
-| Action | Description |
-|--------|-------------|
-| `subscribe` | Subscribe to price updates for markets |
-| `unsubscribe` | Stop receiving updates for markets |
-| `ping` | Heartbeat check |
+| Action | Accepted Keys | Description |
+|--------|---------------|-------------|
+| `subscribe` | `action: "subscribe"` or `type: "subscribe"` | Subscribe to price updates (pass `markets` or `conditions` with hex condition IDs; max 50) |
+| `unsubscribe` | `action: "unsubscribe"` or `type: "unsubscribe"` | Stop receiving price updates for specified condition IDs |
+| `ping` | `action: "ping"` or `type: "ping"` | Heartbeat check — server responds with `{"type": "pong", "ts": }` |
+
+  On `/v1/ws/prices`, condition IDs (0x-hex strings) are required. Passing `assets_ids` (token IDs) is explicitly rejected. For decimal token ID subscriptions and L2 book events, use the [PM-compat Market Channel](/websockets/pm-compat-market) (`/v1/ws/market`).
 
 ### Ping/Pong
 
@@ -7793,19 +7982,68 @@ and a from-scratch `asyncio` example — is documented below.
 
 ---
 
+## Connection Lifecycle
+
+Connect to `/v1/ws/prices?token=` with a short-lived token minted from [`POST /v1/keys/ws-token`](/authentication). Upon connection, the server immediately sends an initial greeting frame:
+
+```json
+{
+  "type": "connected",
+  "user_id": 1234,
+  "protocol_version": "1.0"
+}
+```
+
+---
+
 ## Subscribe
 
-After connecting, send a subscribe message:
+After connecting, send a subscribe frame. PolySimulator accepts **both** the PolySim-native syntax and Polymarket CLOB-compatible subscription shapes:
 
-```json
-{"action": "subscribe", "markets": ["0xabc123...", "0xdef456..."]}
+```json PolySim Native
+{
+  "action": "subscribe",
+  "markets": ["0xabc123...", "0xdef456..."]
+}
 ```
 
-Server confirms:
+```json Polymarket Compatible
+{
+  "type": "subscribe",
+  "conditions": ["0xabc123...", "0xdef456..."]
+}
+```
+
+### Supported Keys
+
+| Field | Aliases | Description |
+|-------|---------|-------------|
+| Action / Op | `action`, `type` | Operation name. Set to `"subscribe"` (case-insensitive string). |
+| Condition IDs | `markets`, `conditions` | JSON array of 0x-prefixed 64-character hex condition IDs. Capped at **50 condition IDs** per connection. |
+
+Server confirms with the full list of active subscriptions for the connection:
 
 ```json
-{"type": "subscribed", "markets": ["0xabc123...", "0xdef456..."]}
+{
+  "type": "subscribed",
+  "markets": ["0xabc123...", "0xdef456..."]
+}
 ```
+
+  **`assets_ids` is explicitly rejected on `/v1/ws/prices`:**
+
+  Polymarket's CLOB market channel (`/ws/market`) accepts `assets_ids` containing decimal token IDs (e.g. `["71321..."]`). The `/v1/ws/prices` endpoint broadcasts price feeds indexed strictly by 0x-hex **`condition_id`** (`price:{condition_id}` Redis channels).
+
+  If you pass `"assets_ids"` without `markets` or `conditions`, the server returns a descriptive error frame instead of silently creating a zero-tick subscription:
+
+  ```json
+  {
+    "type": "error",
+    "message": "'assets_ids' carries token IDs and is not a valid subscribe field — PolySim WS broadcasts by condition_id. Pass 'markets' (PolySim) or 'conditions' (PM) with the condition_id list."
+  }
+  ```
+
+  To subscribe by decimal token IDs or stream full orderbook L2 snapshots and tick changes, use the [PM-compat Market Channel](/websockets/pm-compat-market) (`WS /v1/ws/market`) instead.
 
 ---
 
@@ -7992,9 +8230,81 @@ cache first, then falls back to the DB-synced value.
 
 ## Unsubscribe
 
-```json
-{"action": "unsubscribe", "markets": ["0xabc123..."]}
+Unsubscribe dynamically without dropping your WebSocket connection:
+
+```json PolySim Native
+{
+  "action": "unsubscribe",
+  "markets": ["0xabc123..."]
+}
 ```
+
+```json Polymarket Compatible
+{
+  "type": "unsubscribe",
+  "conditions": ["0xabc123..."]
+}
+```
+
+Server confirms with the updated remaining active subscriptions for the connection:
+
+```json
+{
+  "type": "subscribed",
+  "markets": []
+}
+```
+
+Passing `assets_ids` in an unsubscribe frame is rejected with:
+
+```json
+{
+  "type": "error",
+  "message": "'assets_ids' carries token IDs and is not a valid unsubscribe field — pass 'markets' (PolySim) or 'conditions' (PM) with the condition_id list."
+}
+```
+
+---
+
+## Heartbeat & Error Frames
+
+### Ping / Pong
+
+Keep the connection alive by sending a periodic ping frame. Both PolySim native and Polymarket-compatible shapes are accepted:
+
+```json
+{"action": "ping"}
+```
+
+or:
+
+```json
+{"type": "ping"}
+```
+
+Server replies with a JSON pong frame containing a server timestamp (milliseconds since epoch):
+
+```json
+{
+  "type": "pong",
+  "ts": 1715518800000
+}
+```
+
+### Protocol Errors
+
+| Error Condition | Example Error Response |
+|-----------------|------------------------|
+| Invalid JSON | `{"type": "error", "message": "Invalid JSON"}` |
+| Non-list markets/conditions | `{"type": "error", "message": "'markets' must be a list (accepted aliases: markets, conditions)"}` |
+| Unknown action | `{"type": "error", "message": "Unknown action: 'invalid'. Expected {action: subscribe\|unsubscribe\|ping, markets: [...]} (PolySim) or {type: subscribe\|unsubscribe, conditions: [...]} (PM). Note: 'assets_ids' (token IDs) is NOT accepted — pass condition IDs only."}` |
+
+### WebSocket Close Codes
+
+| Code | Reason | Resolution |
+|------|--------|------------|
+| `4001` | `Invalid or expired token` | Token verification failed or expired (60s TTL). Mint a fresh token via `POST /v1/keys/ws-token` and reconnect immediately. |
+| `4002` | `Maximum WebSocket connections exceeded` | Active connections for your user account reached tier limit. Close idle connections before reconnecting. |
 
 ---
 
@@ -8402,13 +8712,18 @@ snapshot). Subsequent updates flow through `price_change` /
 }
 ```
 
-  **Two PM deviations:**
+  **Polymarket Compatibility & Null-for-Unknown Semantics:**
   - PolySim omits the `spread` field that PM's `best_bid_ask` carries
     (compute it yourself as `best_ask - best_bid` if you need it).
   - PM gates `best_bid_ask` (plus `new_market` / `market_resolved`)
     behind `custom_feature_enabled: true` in the subscribe message.
     PolySim ignores `custom_feature_enabled` and emits `best_bid_ask`
     **unconditionally** — you do not need to set the flag.
+  - **Null-for-unknown**: For non-first outcome tokens (e.g. NO tokens), if
+    outcome-specific orderbook data is unavailable, the `best_bid_ask` frame
+    is **omitted** rather than fabricating prices from other outcomes or
+    inverting YES. In `price_change` frames, unobserved top-of-book fields are
+    emitted as empty strings `""`.
 
 All prices are **strings** (no JSON numbers) to match PM verbatim and
 avoid float-precision drift.
@@ -9395,6 +9710,9 @@ trading pages link here rather than restating the codes.
 |-----------|------|-------------|
 | `INSUFFICIENT_BALANCE` | 400 | Not enough funds for order |
 | `INSUFFICIENT_POSITION` | 400 | Sell rejected — your position size for the chosen `token_id` is smaller than the requested `quantity`. PolySimulator does not support naked shorts: every SELL must be backed by an existing position. See **No naked shorts** below for the two-sided-quote workaround. |
+| `INSUFFICIENT_LIQUIDITY` | 400 | The order-book walk cannot source the requested quantity across resting liquidity. |
+| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Trades only execute against live Polymarket book depth. |
+| `STALE_QUOTE` | 400 | Fill rejected when the resolved price quote age exceeds the configured maximum age threshold (`TRADE_QUOTE_MAX_AGE_MS` when enforcement is enabled). Retry with a fresh quote. |
 | `INVALID_QUANTITY` | 400 | Non-positive `quantity` rejected by the execution engine. (A schema-level out-of-range value is caught earlier by Pydantic as `422 VALIDATION_FAILED` — see HTTP Status Codes above.) |
 | `PRICE_REQUIRED` | 400 | Market order submitted without the required `price` (worst-price limit). |
 | `FOK_ORDER_NOT_FILLED_ERROR` | 400 | The order could not fill entirely at or beyond your worst-price limit (BUY: best price above your cap; SELL: best price below your floor). This is the worst-price rejection for market / FOK orders — there is **no** `409 LIMIT_PRICE_NOT_MET` code. |
@@ -9487,7 +9805,7 @@ either, or simply treat any 429 as a back-off signal:
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
-| `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`). Body also carries `retry_after_ms`. Retry after `Retry-After`. |
+| `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
 
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
@@ -10210,6 +10528,7 @@ live production environment from this browser tab.
 | **CLOB Read (Public)** | Polymarket-shape book / midpoint / spread / price endpoints |
 | **CLOB Compat** | Polymarket-shape `POST /v1/order`, `POST /v1/orders`, `GET /v1/data/orders` |
 | **WebSocket** | `/v1/ws/prices` + `/v1/ws/executions` subscription endpoints |
+| **Simulation** | Historical fill, coverage, book replay, and curated backtests. Feature-dark until `FEATURE_SIMULATION_API_ENABLED` is on. |
 | **Health** | `/v1/health`, `/v1/health/ready`, `/v1/status`, `/v1/me` |
 
 Use the sidebar to drill into any group. Each endpoint page shows the
@@ -10286,7 +10605,10 @@ each one with side-by-side request/response examples.
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
-are always present on rate-limited responses. `X-RateLimit-Tier` is
+are present on authenticated responses. On legacy keyed and unauthenticated
+public endpoints, `429` responses return `Retry-After`, `X-Polysim-Code`,
+and `X-Request-Id` (full quota metadata headers are returned on authenticated
+private endpoints and flagged token resolver routes). `X-RateLimit-Tier` is
 present on authenticated responses only — unauthenticated requests
 metered against IP-only buckets omit it. The authoritative source for
 these numbers is `GET /v1/keys/tiers`. See

@@ -238,3 +238,4 @@ Source: /quickstart
 - [Authentication deep dive](/authentication) — Key management, security, permissions
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
 - [Build a trading bot](/bots/example-trading-bot) — Complete Python example
+- [Simulation API](/simulation) — Historical fill / coverage (feature-dark; 404 until the operator flag is on)

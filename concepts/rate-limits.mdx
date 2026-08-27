@@ -58,11 +58,13 @@ in seconds.
 
 ---
 
-## Rate Limit Headers (on every response)
+## Rate Limit Headers (on authenticated responses)
 
 Every authenticated response carries `x-ratelimit-*` headers so bots
-can **pre-throttle** instead of waiting for an actual 429:
-
+can **pre-throttle** instead of waiting for an actual 429 (unauthenticated
+public routes and legacy keyed public 429s return `Retry-After`, `X-Polysim-Code`,
+and `X-Request-Id`; full quota metadata headers are returned on authenticated
+endpoints and flagged token resolver routes):
 | Header | Type | Description |
 |--------|------|-------------|
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
