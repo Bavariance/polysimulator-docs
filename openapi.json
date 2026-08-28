@@ -30963,6 +30963,22 @@
             "description": "Wallet scope: an integer wallet id you own (404 WALLET_NOT_FOUND otherwise; MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution, matching /portfolio), 'all' (every wallet you own, including UI MAIN/SANDBOX wallets), or 'api' (your API wallet \u2014 includes legacy pre-attribution rows). Keywords are case-insensitive; any other value returns 422 VALIDATION_FAILED. **Default (omitted) = 'api'** since 2026-06-10, matching /balance, /portfolio and /equity; before 2026-06-10 the default was all-wallets \u2014 pass wallet_id=all to keep the old behaviour."
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -30975,10 +30991,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -30993,10 +31007,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -31011,28 +31023,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
