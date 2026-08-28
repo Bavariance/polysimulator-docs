@@ -5479,6 +5479,85 @@
         ],
         "title": "Provenance"
       },
+      "QuotaResponse": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "backtests_used": {
+            "type": "integer",
+            "title": "Backtests Used"
+          },
+          "backtests_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backtests Limit"
+          },
+          "market_hours_used": {
+            "type": "string",
+            "title": "Market Hours Used"
+          },
+          "market_hours_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Hours Limit"
+          },
+          "max_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Days"
+          },
+          "max_markets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Markets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "backtests_used",
+          "market_hours_used"
+        ],
+        "title": "QuotaResponse",
+        "description": "This month's meter consumption and the caller's plan caps.\n\n``None`` on a limit means the plan has no enforced cap for that key.",
+        "examples": [
+          {
+            "backtests_limit": 100,
+            "backtests_used": 3,
+            "market_hours_limit": 720,
+            "market_hours_used": "12.500",
+            "max_days": 30,
+            "max_markets": 25,
+            "month": "202608"
+          }
+        ]
+      },
       "RateLimitTierInfo": {
         "properties": {
           "tier": {
@@ -51471,6 +51550,22 @@
         "operationId": "simulateFill",
         "parameters": [
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -51483,10 +51578,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -51501,10 +51594,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -51519,28 +51610,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "requestBody": {
@@ -52347,6 +52418,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -52359,10 +52446,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -52377,10 +52462,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -52395,28 +52478,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -53170,6 +53233,22 @@
         "operationId": "listFillModels",
         "parameters": [
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -53182,10 +53261,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -53200,10 +53277,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -53218,28 +53293,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -54055,6 +54110,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -54067,10 +54138,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -54085,10 +54154,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -54103,28 +54170,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -54894,6 +54941,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -54906,10 +54969,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -54924,10 +54985,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -54942,28 +55001,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "requestBody": {
@@ -55753,6 +55792,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -55765,10 +55820,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -55783,10 +55836,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -55801,28 +55852,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -56585,6 +56616,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -56597,10 +56644,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -56615,10 +56660,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -56633,28 +56676,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -57415,6 +57438,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -57427,10 +57466,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -57445,10 +57482,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -57463,28 +57498,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -58275,6 +58290,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -58287,10 +58318,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -58305,10 +58334,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -58323,28 +58350,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -59135,6 +59142,22 @@
             }
           },
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -59147,10 +59170,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -59165,10 +59186,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -59183,28 +59202,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "responses": {
@@ -59958,6 +59957,22 @@
         "operationId": "createExport",
         "parameters": [
           {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
@@ -59970,10 +59985,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Your PolySimulator API key",
               "title": "X-Api-Key"
-            },
-            "description": "Your PolySimulator API key"
+            }
           },
           {
             "name": "POLY_API_KEY",
@@ -59988,10 +60001,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
               "title": "Poly Api Key"
-            },
-            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+            }
           },
           {
             "name": "Poly-API-Key",
@@ -60006,28 +60017,8 @@
                   "type": "null"
                 }
               ],
-              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
               "title": "Poly-Api-Key"
-            },
-            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
-          },
-          {
-            "name": "authorization",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
-              "title": "Authorization"
-            },
-            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
+            }
           }
         ],
         "requestBody": {
@@ -60047,6 +60038,822 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateExportResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Requests permitted in the current minute window for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current minute window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix-seconds timestamp when the current minute window resets.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Limit-Per-Second": {
+                "description": "Requests permitted per second for this key's tier.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Remaining-Per-Second": {
+                "description": "Requests remaining in the current one-second window.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-RateLimit-Tier": {
+                "description": "Rate-limit tier name applied to this request (free, pro, ...).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit": {
+                "description": "Alias of X-RateLimit-Limit (requests per minute for this tier).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining": {
+                "description": "Alias of X-RateLimit-Remaining (requests remaining this minute).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Reset": {
+                "description": "Alias of X-RateLimit-Reset (minute-window reset, unix seconds).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Limit-Per-Second": {
+                "description": "Alias of X-RateLimit-Limit-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Remaining-Per-Second": {
+                "description": "Alias of X-RateLimit-Remaining-Per-Second.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Polysim-RateLimit-Tier": {
+                "description": "Alias of X-RateLimit-Tier (tier name applied to this request).",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing required permission or plan volume cap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Body validation failure or universe exclusion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit or simulation volume cap exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Metering, job store, or archive unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "headers": {
+              "X-Polysim-Code": {
+                "description": "Stable short code identifying the error class. SDK consumers should branch on this header rather than the body text. Domain codes (INVALID_KEY, MARKET_NOT_FOUND, RATE_LIMIT_EXCEEDED, \u2026) are preferred; HTTP_<status> fallbacks ship when no domain code applies. The full list is mirrored in /llms.txt under \u2018Error Format\u2019.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "INVALID_KEY",
+                    "MISSING_API_KEY",
+                    "INSUFFICIENT_PERMISSION",
+                    "INSUFFICIENT_BALANCE",
+                    "MARKET_CLOSED",
+                    "INVALID_ORDER_MIN_TICK_SIZE",
+                    "MARKET_NOT_FOUND",
+                    "ORDER_NOT_FOUND",
+                    "RATE_LIMIT_EXCEEDED",
+                    "BOOK_UNAVAILABLE",
+                    "INVALID_TOKEN_ID",
+                    "VALIDATION_FAILED",
+                    "UPGRADE_REQUIRED",
+                    "ACCESS_RESTRICTED",
+                    "COHORT_FULL",
+                    "AUTH_STATE_INCOMPLETE",
+                    "INTERNAL_ERROR",
+                    "TOKEN_NOT_FOUND",
+                    "INVALID_CURSOR",
+                    "UPSTREAM_UNAVAILABLE",
+                    "UNSUPPORTED_ORDER_TYPE",
+                    "DUPLICATE_CLIENT_ORDER_ID",
+                    "ORDER_EXECUTION_FAILED",
+                    "DEADLINE_OVERSHOT_BUT_PERSISTED",
+                    "PERSISTENCE_UNKNOWN",
+                    "INVALID_BODY",
+                    "INVALID_SOURCE",
+                    "CLOSED_BETA",
+                    "API_PRO_COMING_SOON",
+                    "TIER_KEY_LIMIT_EXCEEDED",
+                    "INVALID_REQUEST",
+                    "INVALID_WINDOW",
+                    "BACKTEST_MONTHLY_CAP",
+                    "BACKTEST_MARKET_CAP",
+                    "BACKTEST_WINDOW_CAP",
+                    "SIMULATION_HOURS_EXCEEDED",
+                    "METERING_UNAVAILABLE",
+                    "JOB_STORE_UNAVAILABLE",
+                    "CONDITION_HOUR_NOT_COVERED",
+                    "ARCHIVE_UNAVAILABLE",
+                    "ARCHIVE_NOT_FOUND",
+                    "UNIVERSE_EXCLUDED",
+                    "IDEMPOTENCY_KEY_REUSE",
+                    "IDEMPOTENCY_CONFLICT_PENDING",
+                    "NOT_FOUND",
+                    "HTTP_400",
+                    "HTTP_401",
+                    "HTTP_403",
+                    "HTTP_404",
+                    "HTTP_409",
+                    "HTTP_422",
+                    "HTTP_429",
+                    "HTTP_500",
+                    "HTTP_502",
+                    "HTTP_503"
+                  ]
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request id for log correlation. Echoes the caller's ``X-Request-Id`` when supplied, otherwise a server-minted UUID. Stamped on every response (success and error).",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/simulation/quota": {
+      "get": {
+        "tags": [
+          "Simulation"
+        ],
+        "summary": "Get Simulation Quota",
+        "description": "This month's meter usage and the caller's plan caps. Never charges.",
+        "operationId": "getSimulationQuota",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "POLY_API_KEY",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Poly Api Key"
+            }
+          },
+          {
+            "name": "Poly-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Poly-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaResponse"
                 }
               }
             },
