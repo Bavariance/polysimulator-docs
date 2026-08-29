@@ -63740,7 +63740,7 @@
         ],
         "summary": "Discord Create",
         "description": "Validate a Discord webhook URL and create a subscription.\n\nPerforms URL shape + SSRF validation but does NOT send a verification\nPOST \u2014 Discord rate-limits hard on incoming webhooks (5 req / 2s per\nchannel), and the dedicated ``/test`` endpoint exists for that. The\nsubscription is marked ``verified=true`` because Discord URLs include\nthe auth token; if the URL is wrong, the first real delivery surfaces\nthe failure into the delivery log.",
-        "operationId": "discord_create_v1_integrations_discord_post",
+        "operationId": "createDiscordSubscription",
         "parameters": [
           {
             "name": "db",
@@ -64279,7 +64279,7 @@
         ],
         "summary": "Discord List",
         "description": "List the current user's Discord subscriptions.\n\nNOT entitlement-gated \u2014 a user who downgraded should still be able to\ninspect and remove existing configurations.",
-        "operationId": "discord_list_v1_integrations_discord_get",
+        "operationId": "listDiscordSubscriptions",
         "parameters": [
           {
             "name": "db",
@@ -64810,7 +64810,7 @@
         ],
         "summary": "Discord Delete",
         "description": "Remove a Discord subscription. CASCADE drops any in-flight delivery\nrows in ``alert_discord_deliveries``.\n\nNOT entitlement-gated \u2014 disconnects must always work.",
-        "operationId": "discord_delete_v1_integrations_discord__subscription_id__delete",
+        "operationId": "deleteDiscordSubscription",
         "parameters": [
           {
             "name": "subscription_id",
@@ -65350,7 +65350,7 @@
         ],
         "summary": "Discord Test",
         "description": "Send a synthetic ``system_notice`` event to the configured URL.\n\nSynchronous, bypasses the queue + dispatcher for immediate feedback.\nMirrors ``/me/webhook/test``.",
-        "operationId": "discord_test_v1_integrations_discord__subscription_id__test_post",
+        "operationId": "testDiscordSubscription",
         "parameters": [
           {
             "name": "subscription_id",
