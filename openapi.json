@@ -19707,6 +19707,24 @@
             "description": "When ``false``, suppress sports events from the response. Defaults to ``true`` for back-compat with the legacy ``/events`` endpoint."
           },
           {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Isolate the catalog by venue. ``all`` (default, mixed), ``kalshi``, or ``polymarket``. Invalid values 400, matching legacy ``GET /events``.",
+              "title": "Venue"
+            },
+            "description": "Isolate the catalog by venue. ``all`` (default, mixed), ``kalshi``, or ``polymarket``. Invalid values 400, matching legacy ``GET /events``."
+          },
+          {
             "name": "X-API-Key",
             "in": "header",
             "required": false,
