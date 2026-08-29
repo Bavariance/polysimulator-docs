@@ -260,10 +260,10 @@ Cancel paths: DELETE /v1/order (body), DELETE /v1/orders (array body), DELETE /v
 - Side values are always uppercase: "BUY" or "SELL"
 
 ## Error Format
-Default (PM-shape): `{"error": "<message>"}` — human description when one is available, otherwise the short code as a fallback. Branch on the response HEADER for stable handling:
-- X-Polysim-Code: stable short code. Domain-specific when known (INVALID_KEY, INSUFFICIENT_PERMISSION, RATE_LIMIT_EXCEEDED, BOOK_UNAVAILABLE, VALIDATION_FAILED, MARKET_NOT_FOUND, …); generic HTTP_<status> fallback when not (HTTP_400, HTTP_500).
+Default: `{"error": "ERROR_CODE", "message": "Human description"}`. Branch on `error`, never on `message`.
+- X-Polysim-Code: the same stable code carried in a response header. Domain-specific when known (INVALID_KEY, INSUFFICIENT_PERMISSION, RATE_LIMIT_EXCEEDED, BOOK_UNAVAILABLE, VALIDATION_FAILED, MARKET_NOT_FOUND, …); generic HTTP_<status> fallback when not (HTTP_400, HTTP_500).
 - X-Request-Id: request id for log correlation.
-Verbose body opt-in (request header `X-Polysim-Verbose: true`): `{"error": "ERROR_CODE", "message": "Human description", "request_id": "uuid", "details": {...}}` — useful for SDK debugging.
+Verbose body opt-in (request header `X-Polysim-Verbose: true`) adds `request_id` and `details`.
 
 ## Common Errors
 - 400 INSUFFICIENT_BALANCE — Not enough funds
@@ -293,7 +293,7 @@ Verbose body opt-in (request header `X-Polysim-Verbose: true`): `{"error": "ERRO
   Polymarket — guard extension calls with an environment check (see migration section).
 
 ## Error Handling & Retry Patterns
-All /v1 errors return PM-shape `{"error": "..."}` with `X-Polysim-Code` + `X-Request-Id` response headers (see Error Format). For verbose `{error, message, details, request_id}` body, send `X-Polysim-Verbose: true` on the request.
+All /v1 errors return `{"error": "ERROR_CODE", "message": "Human description"}` with matching `X-Polysim-Code` and an `X-Request-Id` response header. For additional `{details, request_id}` body fields, send `X-Polysim-Verbose: true`.
 
 ### Retryable Errors
 - 429 RATE_LIMIT_EXCEEDED — Back off using `Retry-After` header (seconds).

@@ -195,37 +195,31 @@ Keys support granular permissions:
 | `403 Forbidden` | Key lacks required permission for the endpoint | Using a `read`-only key to place trades |
 | `429 Too Many Requests` | Rate limit exceeded | Too many requests per second/minute for your tier |
 
-All `/v1/*` errors return Polymarket-shape: a single `error` field
-holding a human-readable description when one is available. (For
-unhandled exception paths where no message was set, the body falls
-back to the short machine code — so always branch on the
-`X-Polysim-Code` response header for stable error handling, not on
-the body text.)
-
-The `X-Polysim-Code` response header carries a stable short code —
-domain-specific where the handler knows what went wrong (e.g.
+All `/v1/*` errors return a structured envelope with a stable machine code
+in `error` and human-readable prose in `message`. Branch on `error`, never on
+`message`. The identical code is also carried in `X-Polysim-Code` for clients
+that centralize response handling around headers. Domain-specific codes include
 `INVALID_KEY`, `INSUFFICIENT_PERMISSION`, `RATE_LIMIT_EXCEEDED`,
-`BOOK_UNAVAILABLE`, `VALIDATION_FAILED`), or `HTTP_` as a
-generic fallback (`HTTP_400`, `HTTP_500`).
+`BOOK_UNAVAILABLE`, and `VALIDATION_FAILED`; handlers without a domain code use
+`HTTP_` (for example, `HTTP_400` or `HTTP_500`).
 
 The `X-Request-Id` response header always echoes the request id for
 log/support correlation.
 
 ```json
-// 401 — Invalid API key (handler sets X-Polysim-Code: INVALID_KEY)
-{"error": "Invalid API key"}
+// 401 — Invalid API key
+{"error": "INVALID_KEY", "message": "Invalid API key"}
 // + headers: X-Polysim-Code: INVALID_KEY, X-Request-Id: a1b2c3d4-...
 
 // 403 — Missing permission
-{"error": "API key missing required permission: trade"}
-// + headers: X-Polysim-Code: INSUFFICIENT_PERMISSION, X-Request-Id: ...
+{"error": "INSUFFICIENT_PERMISSION", "message": "API key missing required permission: trade"}
 
 // 429 — Rate limited
-{"error": "Rate limit exceeded. Retry after 1s."}
-// + headers: X-Polysim-Code: RATE_LIMIT_EXCEEDED, X-Request-Id: ..., Retry-After: 1
+{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
+// + headers: X-Polysim-Code: RATE_LIMIT_EXCEEDED, Retry-After: 1
 ```
 
-Common auth/permission codes — branch on `X-Polysim-Code`:
+Common auth/permission codes — branch on the response body's `error`:
 
 | Code | HTTP | When |
 | --- | --- | --- |
@@ -246,15 +240,12 @@ Common auth/permission codes — branch on `X-Polysim-Code`:
 
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
 
-  **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on the request
-  to get the legacy verbose body shape — useful while writing or
-  debugging an SDK:
+  **Verbose body opt-in.** Send `X-Polysim-Verbose: true` to add diagnostic
+  `details` and an in-body `request_id`:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
-  The default single-field shape matches Polymarket's own /clob error
-  contract, so PM-shape SDK ports work without translation.
 
 ---
 
@@ -295,11 +286,7 @@ elif resp.status_code == 400:
 elif resp.status_code == 401:
     print("Invalid or expired Supabase JWT — sign in again at polysimulator.com")
 elif resp.status_code == 403:
-    # Branch on the stable machine code in the `X-Polysim-Code` header.
-    # The response body is PM-shape `{"error": ""}`, so the
-    # body's `error` field is the human message — NOT a stable code.
-    # Header lookup is case-insensitive in `requests` / most HTTP libs.
-    code = resp.headers.get("X-Polysim-Code")
+    code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
         # Free self-serve keys are read-only. Drop "trade" or upgrade.
         print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
@@ -375,7 +362,7 @@ resp = requests.post(
 if resp.status_code == 201:
     print("Save this key NOW:", resp.json()["raw_key"])
 elif resp.status_code == 403:
-    code = resp.headers.get("X-Polysim-Code")
+    code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
         print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
     else:
@@ -386,8 +373,8 @@ elif resp.status_code == 403:
 
 Authenticated `/v1/*` requests can still return
 **`403 ACCESS_RESTRICTED`** if an already-issued key's account is
-flagged or under review. Like every `/v1/*` error, the stable machine
-code is in the `X-Polysim-Code` response header:
+flagged or under review. The stable machine code appears in both the body and
+the `X-Polysim-Code` response header:
 
 ```http
 HTTP/1.1 403 Forbidden
@@ -397,7 +384,7 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "API access restricted. Contact support to request access."}
+{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
 ```
 
 This is not the default open-beta signup path.

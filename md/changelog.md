@@ -8,6 +8,16 @@ integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
 
+## 2026-08-29 — Structured errors and cache-safe market data
+
+- `/v1/*` errors now expose the stable machine code in the JSON `error` field,
+  with human prose in `message`; `X-Polysim-Code` carries the same code.
+- Invalid account `side`, position `status`, and malformed price-history token
+  filters now fail with 4xx errors instead of returning misleading empty data.
+- Successful order-book and market-by-slug responses explicitly use
+  `Cache-Control: no-store`.
+- Health and OpenAPI now report the same API version.
+
 ## 2026-08-27 — API contract alignment & error codes
 
 - **429 rate limit headers**: Legacy keyed and unauthenticated public endpoints
