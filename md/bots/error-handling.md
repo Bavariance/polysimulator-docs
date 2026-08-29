@@ -10,27 +10,33 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-By default, the `/v1/*` surface returns the **Polymarket-shape**
-single-field envelope — one `error` key holding a human-readable
-description:
+By default, the `/v1/*` surface returns PolySimulator's stable two-field
+envelope: `error` holds the machine-readable code and `message` holds the
+human-readable description.
 
 ```json
-{"error": "Account balance $12.50 insufficient for order cost $25.00"}
+{
+  "error": "INSUFFICIENT_BALANCE",
+  "message": "Account balance $12.50 insufficient for order cost $25.00"
+}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Human-readable description. For PM-shape parity, the machine-readable short code is carried out-of-band in the `X-Polysim-Code` response header (e.g. `INSUFFICIENT_BALANCE`, `RATE_LIMIT_EXCEEDED`). |
+| `error` | string | Stable machine-readable short code, also carried in `X-Polysim-Code` (for example `INSUFFICIENT_BALANCE` or `RATE_LIMIT_EXCEEDED`). |
+| `message` | string | Human-readable description; do not branch on this prose. |
 
-For stable error handling, **branch on the `X-Polysim-Code` header**, not
-on the body text — the body holds the prose, the header holds the code.
-The `X-Request-Id` header echoes the request id for log correlation.
+For stable error handling, branch on `error` or the identical
+`X-Polysim-Code` header, never on `message`. The `X-Request-Id` header
+echoes the request id for log correlation.
 
-**`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
-its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
-can render an upsell flow without an extra round-trip. Every other
-status code (401, 403, 404, 429, 5xx, …) sticks with the single-field
-shape and exposes the machine code via `X-Polysim-Code`.
+This is a documented PolySimulator extension to Polymarket's single-field
+`{"error": ""}` shape. The runtime envelope did not change when
+this documentation was corrected on 2026-08-29.
+
+**`402 UPGRADE_REQUIRED` is the one enriched response**: its body also
+adds `feature_key` and `upgrade_url` so SDKs can render an upsell flow
+without an extra round-trip.
 
 ```json
 // 402 UPGRADE_REQUIRED — feature_key + upgrade_url at the root
@@ -43,12 +49,12 @@ shape and exposes the machine code via `X-Polysim-Code`.
 
 For the runtime allowlist gate (`ACCESS_RESTRICTED` — an already-issued
 key whose account isn't on the API v1 allowlist, or is flagged / under
-review), the body is PM-shape and the code is in the header:
+review), the body uses the same two-field envelope:
 
 ```json
 // 403 ACCESS_RESTRICTED (not on the allowlist / flagged account)
 // + headers: X-Polysim-Code: ACCESS_RESTRICTED
-{"error": "API access restricted. Contact support to request access."}
+{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
 ```
 
 The residual **key-issuance** codes use the same shape. Default open
@@ -56,19 +62,16 @@ beta self-serves keys: free callers get a read-only key, paying Pro /
 Pro+ callers get a trade-capable key. `403 TIER_REQUIRES_UPGRADE` is
 the expected refusal when a free caller requests `trade`.
 `CLOSED_BETA` / `API_PRO_COMING_SOON` remain valid residual codes for
-an emergency close, with the machine code in `X-Polysim-Code` and the
-human message in the body's `error` field. The `feature_key` /
-`upgrade_url` hints are body fields **only on 402** responses, not these
-403s. See [Open Beta Errors](#open-beta-errors) below.
+an emergency close. The `feature_key` / `upgrade_url` hints are body
+fields **only on 402** responses, not these 403s. See
+[Open Beta Errors](#open-beta-errors) below.
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
-  request to get the legacy multi-field shape:
+  request to add diagnostic fields:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
-  Useful when writing or debugging an SDK; PM-shape is the default so
-  Polymarket-CLOB SDK ports work without translation.
 
 ---
 
@@ -122,6 +125,38 @@ trading pages link here rather than restating the codes.
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
+
+### Deadline, busy, and concurrency errors
+
+Order writes are serialized per **user**, not per API key. A second write
+waits briefly for the first; if the lock is still held, it returns
+`409 TRADE_IN_PROGRESS` with `Retry-After: 1`. Separate keys for the same
+user do not bypass this lock. Wait, then retry the same logical request
+with the same `client_order_id`.
+
+| Error Code | HTTP | Persisted? | Client action |
+|-----------|------|------------|---------------|
+| `TRADE_IN_PROGRESS` | 409 | No new write started | Wait for `Retry-After`, then retry the same request. |
+| `SERVER_BUSY` | 503 | Persistence check confirmed no row | Safe to retry. For order placement, reuse the same `client_order_id` so idempotency deduplicates a late result. |
+| `DEADLINE_OVERSHOT_BUT_PERSISTED` | 503 | **Yes** | **Do not re-place.** Read `X-Polysim-Order-Id` and body `source`. For `source: "pending"`, poll `GET /v1/orders/{order_id}`. For `source: "filled"`, fetch `GET /v1/orders` and match your `client_order_id`; direct numeric ids can collide across the pending and filled tables. |
+| `PERSISTENCE_UNKNOWN` | 503 | Unknown | **Do not auto-retry.** Fetch recent `GET /v1/orders` results and scan for the same `client_order_id` before deciding whether to re-place. This response intentionally has no `Retry-After`. |
+
+```python
+import time
+
+code = response.headers.get("X-Polysim-Code")
+if code in {"TRADE_IN_PROGRESS", "SERVER_BUSY"}:
+    time.sleep(int(response.headers.get("Retry-After", "1")))
+    # Repeat the original request with the SAME client_order_id.
+elif code == "DEADLINE_OVERSHOT_BUT_PERSISTED":
+    order_id = response.headers["X-Polysim-Order-Id"]
+    source = response.json().get("source")
+    # Do not POST again. Poll by id only for a pending row; otherwise scan
+    # GET /v1/orders and match the original client_order_id.
+elif code == "PERSISTENCE_UNKNOWN":
+    # Do not POST again until GET /v1/orders confirms no matching order.
+    pass
+```
 
 ### Order status values
 

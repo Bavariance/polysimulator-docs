@@ -31,8 +31,8 @@ Rate limits are enforced **per API key** using sliding-window counters with both
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
-Polymarket-shape single-field `error` envelope and a stable
-`X-Polysim-Code` response header:
+standard two-field error envelope and a stable `X-Polysim-Code`
+response header:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -43,11 +43,11 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "Rate limit exceeded. Retry after 1s."}
+{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
 ```
 
-Branch on `X-Polysim-Code === "RATE_LIMIT_EXCEEDED"` rather than the
-body prose, and read the `Retry-After` header for the exact wait time
+Branch on `error` or the identical `X-Polysim-Code` value, not on
+`message`, and read the `Retry-After` header for the exact wait time
 in seconds.
 
 ---
