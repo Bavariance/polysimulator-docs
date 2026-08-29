@@ -16216,7 +16216,7 @@
           "CLOB Read (Public)"
         ],
         "summary": "Get Last Trade Price",
-        "description": "Polymarket-compat ``GET /last-trade-price?token_id=...``.\n\nReturns the cached last-traded price + side hint from our Redis\nprice cache. Distinct from ``GET /price`` which has a side\nparameter for best-ask/best-bid semantics. This endpoint is\npure last-trade.",
+        "description": "Polymarket-compat ``GET /last-trade-price?token_id=...``.\n\nReads Polymarket's authoritative token-scoped last-fill endpoint rather\nthan the local tracked-market cache. A valid CLOB token must remain\nresolvable even when PolySimulator is not currently tracking its market.",
         "operationId": "getLastTradePrice",
         "parameters": [
           {
