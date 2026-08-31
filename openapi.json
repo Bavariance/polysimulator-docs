@@ -3122,10 +3122,12 @@
         "type": "object",
         "required": [
           "token_id",
-          "outcome"
+          "outcome",
+          "price",
+          "winner"
         ],
         "title": "MarketToken",
-        "description": "Polymarket-shape per-outcome token entry on ``MarketDetail``.\n\nComposed from ``live_price.outcomes[]`` + ``Market.clob_token_ids[]`` +\n``Market.outcomes[]``. ``price`` is the YES/NO probability for that\noutcome at the moment the response was assembled; ``winner`` is\n``True`` only when the market is resolved AND this outcome is the\nsettled winner (NEVER derived from ``price >= 0.99``).\n\nThe PM ``py-clob-client`` SDK reads ``market.tokens[i].outcome`` to\nlabel the YES/NO sides of a market when rendering bot output. A\n``List[str]`` payload (legacy polysim shape) breaks the SDK on the\nfirst detail call; this shape is the documented PM contract."
+        "description": "Polymarket-shape per-outcome token entry on ``MarketDetail``.\n\nComposed from ``live_price.outcomes[]`` + ``Market.clob_token_ids[]`` +\n``Market.outcomes[]``. ``price`` is the YES/NO probability for that\noutcome at the moment the response was assembled; ``winner`` is\n``True`` only when the market is resolved AND this outcome is the\nsettled winner (NEVER derived from ``price >= 0.99``).\n\nThe PM ``py-clob-client`` SDK reads ``market.tokens[i].outcome`` to\nlabel the YES/NO sides of a market when rendering bot output. A\n``List[str]`` payload (legacy polysim shape) breaks the SDK on the\nfirst detail call; this shape is the documented PM contract.\n\n`price` and `winner` are emitted on every token (server-side defaults\nof 0.0 / False are applied) so SDK clients can rely on their presence\nrather than dealing with `Optional[float]` / `Optional[bool]`."
       },
       "MarketsEnvelope": {
         "properties": {
