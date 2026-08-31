@@ -9302,6 +9302,25 @@
             "description": "Free-text search over the market ``question`` and ``slug`` fields. Case-insensitive substring match \u2014 no ranking / no operator support. Empty string is ignored."
           },
           {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Alias for ``q``. Existing ``q`` callers remain supported and ``q`` wins when both names are supplied.",
+              "title": "Search"
+            },
+            "description": "Alias for ``q``. Existing ``q`` callers remain supported and ``q`` wins when both names are supplied."
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
