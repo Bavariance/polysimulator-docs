@@ -116,9 +116,9 @@ curl -H "X-API-Key: $API_KEY" \
 | `crypto_prices` | Current reference prices for tracked assets |
 | `cache_hit` | Whether the result was served from cache |
 
-> **Info:** `markets` is the canonical market list. Group it client-side by each
-> entry's `asset` and `interval` fields; the API does not duplicate full market
-> objects into precomputed grouping trees.
+  `markets` is the canonical market list. Group it client-side by each entry's
+  `asset` and `interval` fields; the API does not duplicate full market objects
+  into precomputed grouping trees.
 
 ### Market Entry Fields
 
