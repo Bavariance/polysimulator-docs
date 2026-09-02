@@ -6628,6 +6628,18 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Markets"
+          },
+          "poller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poller"
           }
         },
         "type": "object",
