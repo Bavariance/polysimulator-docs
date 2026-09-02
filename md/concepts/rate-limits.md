@@ -4,20 +4,7 @@ Source: /concepts/rate-limits
 
 # Rate Limits
 
-Rate limits are enforced **per API key** using **fixed-window** counters with
-both per-second (RPS) and per-minute (RPM) buckets. Each bucket is keyed on the
-current clock second and clock minute, and resets on the tick.
-
-  Because the windows are fixed rather than sliding, there is a **boundary
-  burst**: a client aligned to the clock second can send its full per-second
-  allowance just before the tick and again just after, briefly reaching about
-  twice the nominal RPS. We do not treat that as abuse, but it is a property of
-  the window rather than a documented allowance — do not design around it.
-
-  The limiter also **fails open**: if Redis is unreachable the check returns
-  full headroom instead of rejecting, so during a cache outage the stated limits
-  are not enforced. That is a deliberate availability trade, stated here so the
-  guarantee you are buying is the guarantee you actually get.
+Rate limits are enforced **per API key** using sliding-window counters with both per-second (RPS) and per-minute (RPM) buckets.
 
 ---
 
@@ -30,9 +17,10 @@ current clock second and clock minute, and resets on the tick.
 | `pro_plus` | 30 | 1,800 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
-  The `free` tier allows up to 2 requests in any one clock second, and is
-  also capped at 120 requests per clock minute, so the per-minute bucket is
-  the one you'll hit first under sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
+  The `free` tier allows short bursts (up to 2 requests in any one
+  second) but is also capped at 120 requests in any rolling one-minute
+  window, so the per-minute bucket is the one you'll hit first under
+  sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
   (which don't count against the REST limit) to stay well inside it.
 
   The authoritative source for tier limits is `GET /v1/keys/tiers`. If a doc
@@ -43,8 +31,8 @@ current clock second and clock minute, and resets on the tick.
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
-standard two-field error envelope and a stable `X-Polysim-Code`
-response header:
+Polymarket-shape single-field `error` envelope and a stable
+`X-Polysim-Code` response header:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -55,11 +43,11 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
+{"error": "Rate limit exceeded. Retry after 1s."}
 ```
 
-Branch on `error` or the identical `X-Polysim-Code` value, not on
-`message`, and read the `Retry-After` header for the exact wait time
+Branch on `X-Polysim-Code === "RATE_LIMIT_EXCEEDED"` rather than the
+body prose, and read the `Retry-After` header for the exact wait time
 in seconds.
 
 ---
@@ -76,9 +64,9 @@ endpoints and flagged token resolver routes):
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
 | `x-ratelimit-limit` | int | Per-minute cap for the tier |
 | `x-ratelimit-limit-per-second` | int | Per-second cap for the tier |
-| `x-ratelimit-remaining` | int | Requests remaining in the current clock-minute window |
-| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current clock-second window |
-| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window resets |
+| `x-ratelimit-remaining` | int | Requests remaining in the current rolling-minute window |
+| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current rolling-second window |
+| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window rolls over |
 
   Every header above is **also** emitted under the PolySim-namespaced
   `x-polysim-ratelimit-*` prefix with identical values (e.g.
@@ -98,7 +86,7 @@ reset_at = int(resp.headers.get("x-ratelimit-reset", "0"))
 # If the per-second bucket is almost drained, sleep a beat
 if remaining_sec <= 1:
     time.sleep(1.0)
-# If the per-minute bucket is almost drained, sleep until it resets
+# If the rolling-minute bucket is almost drained, sleep until reset
 elif remaining <= 5:
     sleep_for = max(0.0, reset_at - time.time())
     time.sleep(min(sleep_for, 60.0))

@@ -1149,13 +1149,6 @@ API leaves beta.
 
 - `/v1/*` errors now expose the stable machine code in the JSON `error` field,
   with human prose in `message`; `X-Polysim-Code` carries the same code.
-  **Clarification only (no runtime change):** this two-field envelope was
-  already the deployed behavior. Earlier pages incorrectly described the
-  Polymarket single-field `{"error": ""}` shape. Clients should
-  branch on body `error` or the identical `X-Polysim-Code`, not on `message`.
-- The public error catalog now documents `TRADE_IN_PROGRESS`, `SERVER_BUSY`,
-  `DEADLINE_OVERSHOT_BUT_PERSISTED`, and `PERSISTENCE_UNKNOWN`, including
-  which responses are safe to retry and which require an order lookup first.
 - Invalid account `side`, position `status`, and malformed price-history token
   filters now fail with 4xx errors instead of returning misleading empty data.
 - Successful order-book and market-by-slug responses explicitly use
@@ -1812,20 +1805,7 @@ else:
 
 # Rate Limits
 
-Rate limits are enforced **per API key** using **fixed-window** counters with
-both per-second (RPS) and per-minute (RPM) buckets. Each bucket is keyed on the
-current clock second and clock minute, and resets on the tick.
-
-  Because the windows are fixed rather than sliding, there is a **boundary
-  burst**: a client aligned to the clock second can send its full per-second
-  allowance just before the tick and again just after, briefly reaching about
-  twice the nominal RPS. We do not treat that as abuse, but it is a property of
-  the window rather than a documented allowance — do not design around it.
-
-  The limiter also **fails open**: if Redis is unreachable the check returns
-  full headroom instead of rejecting, so during a cache outage the stated limits
-  are not enforced. That is a deliberate availability trade, stated here so the
-  guarantee you are buying is the guarantee you actually get.
+Rate limits are enforced **per API key** using sliding-window counters with both per-second (RPS) and per-minute (RPM) buckets.
 
 ---
 
@@ -1838,9 +1818,10 @@ current clock second and clock minute, and resets on the tick.
 | `pro_plus` | 30 | 1,800 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
-  The `free` tier allows up to 2 requests in any one clock second, and is
-  also capped at 120 requests per clock minute, so the per-minute bucket is
-  the one you'll hit first under sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
+  The `free` tier allows short bursts (up to 2 requests in any one
+  second) but is also capped at 120 requests in any rolling one-minute
+  window, so the per-minute bucket is the one you'll hit first under
+  sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
   (which don't count against the REST limit) to stay well inside it.
 
   The authoritative source for tier limits is `GET /v1/keys/tiers`. If a doc
@@ -1851,8 +1832,8 @@ current clock second and clock minute, and resets on the tick.
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
-standard two-field error envelope and a stable `X-Polysim-Code`
-response header:
+Polymarket-shape single-field `error` envelope and a stable
+`X-Polysim-Code` response header:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -1863,11 +1844,11 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
+{"error": "Rate limit exceeded. Retry after 1s."}
 ```
 
-Branch on `error` or the identical `X-Polysim-Code` value, not on
-`message`, and read the `Retry-After` header for the exact wait time
+Branch on `X-Polysim-Code === "RATE_LIMIT_EXCEEDED"` rather than the
+body prose, and read the `Retry-After` header for the exact wait time
 in seconds.
 
 ---
@@ -1884,9 +1865,9 @@ endpoints and flagged token resolver routes):
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
 | `x-ratelimit-limit` | int | Per-minute cap for the tier |
 | `x-ratelimit-limit-per-second` | int | Per-second cap for the tier |
-| `x-ratelimit-remaining` | int | Requests remaining in the current clock-minute window |
-| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current clock-second window |
-| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window resets |
+| `x-ratelimit-remaining` | int | Requests remaining in the current rolling-minute window |
+| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current rolling-second window |
+| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window rolls over |
 
   Every header above is **also** emitted under the PolySim-namespaced
   `x-polysim-ratelimit-*` prefix with identical values (e.g.
@@ -1906,7 +1887,7 @@ reset_at = int(resp.headers.get("x-ratelimit-reset", "0"))
 # If the per-second bucket is almost drained, sleep a beat
 if remaining_sec <= 1:
     time.sleep(1.0)
-# If the per-minute bucket is almost drained, sleep until it resets
+# If the rolling-minute bucket is almost drained, sleep until reset
 elif remaining <= 5:
     sleep_for = max(0.0, reset_at - time.time())
     time.sleep(min(sleep_for, 60.0))
@@ -2117,27 +2098,7 @@ In live markets, large orders consume liquidity and shift the market price again
 ## Operational Boundaries & Beta SLA
 
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
-* **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
-  per-second bucket and a per-minute bucket, each keyed on the current clock
-  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
-
-  
-  A fixed window has a **boundary burst**: because the counter resets at each
-  clock second, a client aligned to that boundary can send its full per-second
-  allowance just before the tick and again just after — briefly about **twice**
-  the nominal RPS. We do not treat that as abuse, but do not design around it
-  either: it is a property of the window, not a documented allowance, and
-  tightening it later would break a client that relied on it.
-  
-
-  
-  **The limiter fails open.** If Redis is unreachable the limit check returns
-  full headroom rather than rejecting your request, so during a cache outage
-  the stated limits are not enforced. This is a deliberate availability trade —
-  we would rather serve you unthrottled than fail your requests because *our*
-  cache is down — and it is stated here so the guarantee you are buying is the
-  guarantee you actually get.
-  
+* **Rate Limits:** Per-key rate limits are enforced via sliding-window token buckets (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
 * **Deprecation Policy:** Breaking API or schema changes during public beta will be communicated with at least **14 days notice** via email and documentation changelogs.
 
 
@@ -5708,6 +5669,18 @@ curl -H "X-API-Key: $API_KEY" \
       "icon": "https://polymarket.com/icons/btc.svg"
     }
   ],
+  "grouped_by_asset": {
+    "BTC": ["...(same shape as markets[])"],
+    "ETH": ["..."]
+  },
+  "grouped_by_interval": {
+    "1H": ["..."],
+    "4H": ["..."]
+  },
+  "grouped_nested": {
+    "BTC": { "1H": ["..."], "4H": ["..."] },
+    "ETH": { "1H": ["..."] }
+  },
   "total": 42,
   "interval_counts": { "5M": 0, "15M": 0, "1H": 12, "4H": 8, "daily": 6 },
   "asset_counts": { "BTC": 10, "ETH": 8, "SOL": 6 },
@@ -5725,6 +5698,9 @@ curl -H "X-API-Key: $API_KEY" \
 | Field | Description |
 |-------|-------------|
 | `markets` | Array of market entries (see fields below) |
+| `grouped_by_asset` | Markets grouped by asset symbol (same shape as `markets[]`) |
+| `grouped_by_interval` | Markets grouped by time interval |
+| `grouped_nested` | Markets nested by `asset` → `interval` |
 | `total` | Total number of markets returned |
 | `interval_counts` | Count of active markets per interval |
 | `asset_counts` | Count of active markets per asset |
@@ -5732,10 +5708,6 @@ curl -H "X-API-Key: $API_KEY" \
 | `available_assets` | Assets that have at least one active market |
 | `crypto_prices` | Current reference prices for tracked assets |
 | `cache_hit` | Whether the result was served from cache |
-
-  `markets` is the canonical market list. Group it client-side by each entry's
-  `asset` and `interval` fields; the API does not duplicate full market objects
-  into precomputed grouping trees.
 
 ### Market Entry Fields
 
@@ -9644,33 +9616,27 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-By default, the `/v1/*` surface returns PolySimulator's stable two-field
-envelope: `error` holds the machine-readable code and `message` holds the
-human-readable description.
+By default, the `/v1/*` surface returns the **Polymarket-shape**
+single-field envelope — one `error` key holding a human-readable
+description:
 
 ```json
-{
-  "error": "INSUFFICIENT_BALANCE",
-  "message": "Account balance $12.50 insufficient for order cost $25.00"
-}
+{"error": "Account balance $12.50 insufficient for order cost $25.00"}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Stable machine-readable short code, also carried in `X-Polysim-Code` (for example `INSUFFICIENT_BALANCE` or `RATE_LIMIT_EXCEEDED`). |
-| `message` | string | Human-readable description; do not branch on this prose. |
+| `error` | string | Human-readable description. For PM-shape parity, the machine-readable short code is carried out-of-band in the `X-Polysim-Code` response header (e.g. `INSUFFICIENT_BALANCE`, `RATE_LIMIT_EXCEEDED`). |
 
-For stable error handling, branch on `error` or the identical
-`X-Polysim-Code` header, never on `message`. The `X-Request-Id` header
-echoes the request id for log correlation.
+For stable error handling, **branch on the `X-Polysim-Code` header**, not
+on the body text — the body holds the prose, the header holds the code.
+The `X-Request-Id` header echoes the request id for log correlation.
 
-This is a documented PolySimulator extension to Polymarket's single-field
-`{"error": ""}` shape. The runtime envelope did not change when
-this documentation was corrected on 2026-08-29.
-
-**`402 UPGRADE_REQUIRED` is the one enriched response**: its body also
-adds `feature_key` and `upgrade_url` so SDKs can render an upsell flow
-without an extra round-trip.
+**`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
+its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
+can render an upsell flow without an extra round-trip. Every other
+status code (401, 403, 404, 429, 5xx, …) sticks with the single-field
+shape and exposes the machine code via `X-Polysim-Code`.
 
 ```json
 // 402 UPGRADE_REQUIRED — feature_key + upgrade_url at the root
@@ -9683,12 +9649,12 @@ without an extra round-trip.
 
 For the runtime allowlist gate (`ACCESS_RESTRICTED` — an already-issued
 key whose account isn't on the API v1 allowlist, or is flagged / under
-review), the body uses the same two-field envelope:
+review), the body is PM-shape and the code is in the header:
 
 ```json
 // 403 ACCESS_RESTRICTED (not on the allowlist / flagged account)
 // + headers: X-Polysim-Code: ACCESS_RESTRICTED
-{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
+{"error": "API access restricted. Contact support to request access."}
 ```
 
 The residual **key-issuance** codes use the same shape. Default open
@@ -9696,16 +9662,19 @@ beta self-serves keys: free callers get a read-only key, paying Pro /
 Pro+ callers get a trade-capable key. `403 TIER_REQUIRES_UPGRADE` is
 the expected refusal when a free caller requests `trade`.
 `CLOSED_BETA` / `API_PRO_COMING_SOON` remain valid residual codes for
-an emergency close. The `feature_key` / `upgrade_url` hints are body
-fields **only on 402** responses, not these 403s. See
-[Open Beta Errors](#open-beta-errors) below.
+an emergency close, with the machine code in `X-Polysim-Code` and the
+human message in the body's `error` field. The `feature_key` /
+`upgrade_url` hints are body fields **only on 402** responses, not these
+403s. See [Open Beta Errors](#open-beta-errors) below.
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
-  request to add diagnostic fields:
+  request to get the legacy multi-field shape:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
+  Useful when writing or debugging an SDK; PM-shape is the default so
+  Polymarket-CLOB SDK ports work without translation.
 
 ---
 
@@ -9759,38 +9728,6 @@ trading pages link here rather than restating the codes.
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
-
-### Deadline, busy, and concurrency errors
-
-Order writes are serialized per **user**, not per API key. A second write
-waits briefly for the first; if the lock is still held, it returns
-`409 TRADE_IN_PROGRESS` with `Retry-After: 1`. Separate keys for the same
-user do not bypass this lock. Wait, then retry the same logical request
-with the same `client_order_id`.
-
-| Error Code | HTTP | Persisted? | Client action |
-|-----------|------|------------|---------------|
-| `TRADE_IN_PROGRESS` | 409 | No new write started | Wait for `Retry-After`, then retry the same request. |
-| `SERVER_BUSY` | 503 | Persistence check confirmed no row | Safe to retry. For order placement, reuse the same `client_order_id` so idempotency deduplicates a late result. |
-| `DEADLINE_OVERSHOT_BUT_PERSISTED` | 503 | **Yes** | **Do not re-place.** Read `X-Polysim-Order-Id` and body `source`. For `source: "pending"`, poll `GET /v1/orders/{order_id}`. For `source: "filled"`, fetch `GET /v1/orders` and match your `client_order_id`; direct numeric ids can collide across the pending and filled tables. |
-| `PERSISTENCE_UNKNOWN` | 503 | Unknown | **Do not auto-retry.** Fetch recent `GET /v1/orders` results and scan for the same `client_order_id` before deciding whether to re-place. This response intentionally has no `Retry-After`. |
-
-```python
-import time
-
-code = response.headers.get("X-Polysim-Code")
-if code in {"TRADE_IN_PROGRESS", "SERVER_BUSY"}:
-    time.sleep(int(response.headers.get("Retry-After", "1")))
-    # Repeat the original request with the SAME client_order_id.
-elif code == "DEADLINE_OVERSHOT_BUT_PERSISTED":
-    order_id = response.headers["X-Polysim-Order-Id"]
-    source = response.json().get("source")
-    # Do not POST again. Poll by id only for a pending row; otherwise scan
-    # GET /v1/orders and match the original client_order_id.
-elif code == "PERSISTENCE_UNKNOWN":
-    # Do not POST again until GET /v1/orders confirms no matching order.
-    pass
-```
 
 ### Order status values
 

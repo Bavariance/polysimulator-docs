@@ -115,25 +115,5 @@ In live markets, large orders consume liquidity and shift the market price again
 ## Operational Boundaries & Beta SLA
 
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
-* **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
-  per-second bucket and a per-minute bucket, each keyed on the current clock
-  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
-
-  <Warning>
-  A fixed window has a **boundary burst**: because the counter resets at each
-  clock second, a client aligned to that boundary can send its full per-second
-  allowance just before the tick and again just after — briefly about **twice**
-  the nominal RPS. We do not treat that as abuse, but do not design around it
-  either: it is a property of the window, not a documented allowance, and
-  tightening it later would break a client that relied on it.
-  </Warning>
-
-  <Warning>
-  **The limiter fails open.** If Redis is unreachable the limit check returns
-  full headroom rather than rejecting your request, so during a cache outage
-  the stated limits are not enforced. This is a deliberate availability trade —
-  we would rather serve you unthrottled than fail your requests because *our*
-  cache is down — and it is stated here so the guarantee you are buying is the
-  guarantee you actually get.
-  </Warning>
+* **Rate Limits:** Per-key rate limits are enforced via sliding-window token buckets (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
 * **Deprecation Policy:** Breaking API or schema changes during public beta will be communicated with at least **14 days notice** via email and documentation changelogs.
