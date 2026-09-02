@@ -1884,39 +1884,6 @@
         ],
         "title": "DiscordLinkRequest"
       },
-      "EquityPoint": {
-        "properties": {
-          "timestamp": {
-            "type": "string",
-            "title": "Timestamp"
-          },
-          "cash_balance": {
-            "type": "string",
-            "title": "Cash Balance"
-          },
-          "position_value": {
-            "type": "string",
-            "title": "Position Value"
-          },
-          "total_value": {
-            "type": "string",
-            "title": "Total Value"
-          },
-          "pnl": {
-            "type": "string",
-            "title": "Pnl"
-          }
-        },
-        "type": "object",
-        "required": [
-          "timestamp",
-          "cash_balance",
-          "position_value",
-          "total_value",
-          "pnl"
-        ],
-        "title": "EquityPoint"
-      },
       "EquityTimelineSummary": {
         "properties": {
           "return_7d": {
@@ -7642,6 +7609,39 @@
           "expires_in"
         ],
         "title": "WsTokenResponse"
+      },
+      "app__api_v1__account__EquityPoint": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "cash_balance": {
+            "type": "string",
+            "title": "Cash Balance"
+          },
+          "position_value": {
+            "type": "string",
+            "title": "Position Value"
+          },
+          "total_value": {
+            "type": "string",
+            "title": "Total Value"
+          },
+          "pnl": {
+            "type": "string",
+            "title": "Pnl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "cash_balance",
+          "position_value",
+          "total_value",
+          "pnl"
+        ],
+        "title": "EquityPoint"
       }
     },
     "securitySchemes": {
@@ -29387,7 +29387,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/EquityPoint"
+                    "$ref": "#/components/schemas/app__api_v1__account__EquityPoint"
                   },
                   "title": "Response Getequitycurve"
                 }
