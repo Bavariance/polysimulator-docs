@@ -2930,6 +2930,18 @@
             ],
             "title": "Neg Risk",
             "description": "PM-shape: negative-risk routing flag. ``true`` when the market is part of a negative-risk auction (single-winner across many outcomes); ``false`` for standard binary. ``null`` if not classified \u2014 treat as ``false``."
+          },
+          "canonical_redirect_slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Redirect Slug",
+            "description": "SEO redirect target: populated with the current canonical slug when this market was requested via a deprecated/historical slug alias."
           }
         },
         "type": "object",
