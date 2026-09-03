@@ -81,12 +81,12 @@ human message in the body's `error` field. The `feature_key` /
 | `401` | Invalid or missing API key | No | Check `X-API-Key` header |
 | `403` | Insufficient permissions | No | Check key scopes |
 | `404` | Resource not found | No | Verify market ID or order ID |
-| `409` | Conflict (duplicate idempotency key) | No | Use original response |
+| `409` | Conflict — duplicate idempotency key, **or** `LOCK_BUSY_RETRY` | Depends | Duplicate key: use the original response. `LOCK_BUSY_RETRY`: retry after `Retry-After`. Branch on `error_code`. |
 | `422` | Validation error | No | Fix input fields |
 | `429` | Rate limited | **Yes** | Wait for `Retry-After` header |
 | `500` | Internal server error | **Yes** | Retry with backoff |
 | `502` | Upstream error | **Yes** | Retry with backoff |
-| `503` | Service unavailable | **Yes** | Retry with backoff |
+| `503` | Service unavailable | **Only with `Retry-After`** | Retry after `Retry-After`. A 503 **without** the header (`PERSISTENCE_UNKNOWN`, `DEADLINE_OVERSHOT_BUT_PERSISTED`) may already have persisted — poll `GET /v1/orders` instead of retrying. |
 
 ---
 
@@ -117,11 +117,22 @@ trading pages link here rather than restating the codes.
 | `DUPLICATE_CLIENT_ORDER_ID` | 409 | A new order reused a `client_order_id` already bound to a different order. |
 | `IDEMPOTENCY_KEY_REUSE` | 409 | The same `Idempotency-Key` was replayed with a **different** request body. (An identical replay instead returns the original order — see Idempotency below.) |
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
+| `LOCK_BUSY_RETRY` | 409 | **Retryable.** Another order write for the same account is already in flight, and the 2 s cooperative wait elapsed. Body `error` is `TRADE_IN_PROGRESS`. Carries `Retry-After: 1`. Order writes are serialised per account — see [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account). |
+| `DB_CONTENTION_RETRY` | 503 | **Retryable.** The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired. Body `error` is `SERVER_BUSY`, and the message states the order was **not** placed. `Retry-After: 1` on placement, `Retry-After: 5` on cancellation — read the header rather than assuming. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
 
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
+
+  **`LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` are self-inflicted in almost
+  every case.** They mean two order writes for the *same account* overlapped —
+  most often a client that fires a cancel without waiting for the preceding
+  placement to return. One account sustains about **3–4 order writes per
+  second** regardless of tier, because each write holds a per-account lock for
+  200–294 ms. Serialise your writes per account, and add accounts (not tier) to
+  go faster. Full contract: [Order writes are serialised per
+  account](/concepts/rate-limits#order-writes-are-serialised-per-account).
 
 ### Order status values
 
@@ -189,19 +200,29 @@ your inventory per `token_id` before submitting a SELL.
 
 ### Rate Limit Errors
 
-The backend emits **two distinct 429 codes** (in the `X-Polysim-Code`
-header). Both are retryable and both carry `Retry-After` — branch on
-either, or simply treat any 429 as a back-off signal:
+The backend emits **three distinct 429 codes** (in the `X-Polysim-Code`
+header). All are retryable and all carry `Retry-After` — branch on
+whichever you need, or simply treat any 429 as a back-off signal:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
 | `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
+| `API_KEY_CONCURRENCY_EXCEEDED` | 429 | The **per-key in-flight cap**: too many `/v1/*` requests executing simultaneously for one key on one API worker — a limit on concurrency, not on rate. Carries `Retry-After: 1` plus `X-Concurrency-Key-Limit` and `X-Concurrency-Key-Remaining`. **Enforced in production**; see [Per-key in-flight concurrency](/concepts/rate-limits#per-key-in-flight-concurrency). |
 
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
   robust pattern is to back off on `resp.status_code == 429` regardless
   of which code is in the header.
+
+  **Some 429s on public market data are charged per source IP, not per key.**
+  Resolving a key from cold on the public market-data routes charges a shared
+  budget of **2 requests/second (120/minute) keyed on the source IP**, before
+  your tier is known. Every key behind one NAT egress IP shares it, and keys
+  minted in the same second go cold together every 120 seconds, so the
+  rejections arrive in bursts that look unrelated to your traffic. Details and
+  mitigations: [Read limits are
+  separate](/concepts/rate-limits#read-limits-are-separate-and-one-of-them-is-per-ip).
 
 The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 

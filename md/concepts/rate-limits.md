@@ -57,6 +57,206 @@ per-second (RPS) and per-minute (RPM) buckets.
 
 ---
 
+## Order writes are serialised per account
+
+Tier limits bound **requests**. They do not bound **order writes on one account**.
+Every order write on an account is serialised behind two locks, and the ceiling
+that falls out is roughly **3–4 order writes per second per account — on every
+tier, including `enterprise`**.
+
+The two locks, in series, on `POST /v1/orders`, `POST /v1/orders/batch`,
+`POST /v1/clob/order` and `DELETE /v1/orders/{order_id}`:
+
+1. **A per-account advisory lock** (`trade:lock:user:{user_id}` in Redis), held
+   across the whole write — tick resolution, validation, the balance statement,
+   and commit. One holder at a time across every API worker and container.
+2. **The `accounts` row lock** — `SELECT … FROM accounts WHERE user_id = … FOR
+   UPDATE`. This is the authoritative anti-double-spend primitive and it stays
+   in place; the advisory lock in front of it exists so contenders wait in the
+   application instead of pinning a database connection.
+
+Measured on 2026-09-02, the advisory lock's **p95 hold time was 200–294 ms** and
+it stayed flat from 1 to 16 concurrent traders. Flat means it is not congestion —
+it is the intrinsic cost of one order write. `1 / 0.253 s ≈ 4/s`, and a single
+trader measured **3.3 order writes per second** sustained, which is what a 294 ms
+hold predicts.
+
+  **An `enterprise` key is sold at 100 req/s. On the order-write path a single
+  account reaches about 4/s — roughly 25× less.** That is not a bug and buying a
+  higher tier will not move it. A higher tier buys you more *requests* (market
+  data, order status, positions, lookups); it does not buy a faster lock. If your
+  design needs 40 order writes per second, it needs about ten accounts, not a
+  bigger plan.
+
+### Throughput scales with accounts, not with tier
+
+| Accounts | Sustained order writes/sec (approx.) |
+|---:|---:|
+| 1 | 3–4 |
+| 4 | 12–16 |
+| 16 | 48–64 |
+| N | N × 3–4 |
+
+Sixteen independent accounts sustained **51.8 req/s of order traffic with zero
+errors** in the same measurement — 1,185 place/cancel round trips plus 386
+synchronous fills in 60 seconds — so the per-account ceiling is genuinely
+per-account, and the shared path behind it has headroom.
+
+The practical rule: **one account per strategy, per participant, or per funded
+trader.** A prop-firm evaluation is already shaped this way — each candidate gets
+their own account, and the firm's aggregate throughput is the sum. A single
+account driven by a fan-out of threads is the shape that hits the ceiling.
+
+### What happens when you overlap writes on one account
+
+The API does **not** queue you behind the lock indefinitely. It waits a bounded
+amount of time and then returns a bounded, retryable error:
+
+| Condition | HTTP | `error_code` | `Retry-After` |
+|---|:---:|---|:---:|
+| Another write for the same account is in flight and the 2 s cooperative wait elapsed | `409` | `LOCK_BUSY_RETRY` (body `error`: `TRADE_IN_PROGRESS`) | `1` |
+| The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired, on **placement** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
+| Same, on **cancellation** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `5` |
+| The write exceeded the server-side placement deadline | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
+
+Every one of these is transient, and every one carries `Retry-After` in
+**seconds**. Read the header; do not hard-code the number — the placement and
+cancellation paths deliberately differ.
+
+  **`409 LOCK_BUSY_RETRY` is not a validation failure.** The body's `error` field
+  is `TRADE_IN_PROGRESS` and the machine-readable code is `LOCK_BUSY_RETRY`.
+  Unlike the other 409s in the trading taxonomy (`DUPLICATE_CLIENT_ORDER_ID`,
+  `IDEMPOTENCY_KEY_REUSE`), it means "your request was fine, it lost a lock
+  race" — it is **retryable**. Branch on `error_code`, not on the status alone.
+
+  **`503 DB_CONTENTION_RETRY` on placement means the order was NOT placed.** The
+  message says so explicitly; retry it. The 503s you must *not* auto-retry are
+  `PERSISTENCE_UNKNOWN` and `DEADLINE_OVERSHOT_BUT_PERSISTED`, which ship
+  **without** a `Retry-After` header precisely so a naive retry loop cannot
+  double-place — poll `GET /v1/orders` instead. Treating "carries `Retry-After`"
+  as the retry signal is correct for all of them.
+
+### The client pattern that avoids all of this
+
+  
+    Provision an account (and key) per strategy, participant, or funded trader.
+    This is the only lever that raises aggregate write throughput.
+  
+
+  
+    On a single account, serialise your own writes client-side: wait for the
+    placement response before issuing the cancel. Overlapping them is what
+    produces `LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` — you are contending
+    with yourself, and the API tells you so rather than queueing you.
+  
+
+  
+    Read the header, sleep that many seconds, retry. Do not retry immediately,
+    and do not retry a 503 that arrived without the header.
+  
+
+  
+    An `Idempotency-Key` header (or `client_order_id`) makes every retry above
+    safe: a replay of the same payload returns the original order instead of
+    double-placing. Retrying a write without one is how you get two positions.
+  
+
+```python
+import time
+import requests
+
+def place_order(session, url, payload, key, max_attempts=4):
+    """One account, one in-flight write, Retry-After honoured, idempotent."""
+    headers = {"X-API-Key": key, "Idempotency-Key": payload["client_order_id"]}
+
+    for attempt in range(max_attempts):
+        resp = session.post(url, headers=headers, json=payload)
+
+        # 409 LOCK_BUSY_RETRY / 503 DB_CONTENTION_RETRY / 429 all carry
+        # Retry-After in seconds. A 5xx without the header is NOT
+        # auto-retryable — the write may already be persisted.
+        if resp.status_code in (409, 429, 503):
+            retry_after = resp.headers.get("Retry-After")
+            code = resp.headers.get("X-Polysim-Code", "")
+            if retry_after is None:
+                raise RuntimeError(
+                    f"non-retryable {resp.status_code} {code}; poll GET /v1/orders"
+                )
+            time.sleep(int(retry_after))
+            continue
+
+        return resp
+
+    raise RuntimeError(f"still contended after {max_attempts} attempts")
+```
+
+Batching helps only where the endpoint offers it: `POST /v1/orders/batch` is one
+request against your RPS/RPM budget, bounded by your tier's **Max Batch Size**
+(`free=1`, `pro=5`, `pro_plus=10`, `enterprise=25` — see the Tiers table above).
+It does not bypass the per-account lock: the orders inside the batch still write
+under it.
+
+---
+
+## Per-key in-flight concurrency
+
+Separate from the per-window rate limiter, a **per-key in-flight cap** bounds how
+many `/v1/*` requests one key may have executing *simultaneously* on a single API
+worker. The rate limiter counts requests per window; this counts requests in
+flight. A client can sit inside its tier's RPS and still pin a worker's database
+connections by holding many slow requests open at once — that is what this
+bounds.
+
+When it rejects, it does so immediately rather than queueing:
+
+| HTTP | `error_code` (also in `X-Polysim-Code`) | `Retry-After` | Extra headers |
+|:---:|---|:---:|---|
+| `429` | `API_KEY_CONCURRENCY_EXCEEDED` | `1` | `X-Concurrency-Key-Limit`, `X-Concurrency-Key-Remaining` |
+
+The per-tier caps are **derived from the live connection pool** rather than being
+fixed constants, so that one key at its cap can never take the last connection
+another tenant of that worker needs. On the current production pool the derived
+caps are `free=4`, `pro=9`, `pro_plus=12`, `enterprise=12`. Read
+`X-Concurrency-Key-Limit` for the value actually in force rather than hard-coding
+it — the number moves when the pool is resized.
+
+  This cap is **enforced in production** (since 2026-09-02). A client that already
+  branches on `429` + `Retry-After` needs no change. If you see
+  `API_KEY_CONCURRENCY_EXCEEDED`, you have more requests in flight on one key than
+  the cap allows: wait for `Retry-After` and reduce concurrency, or spread the work
+  across more accounts.
+
+---
+
+## Read limits are separate, and one of them is per-IP
+
+The per-tier RPS/RPM budgets above govern the read path. One additional budget is
+easy to miss because it is **not keyed on your API key at all**.
+
+**Public market-data routes charge a shared per-IP budget of 2 requests/second
+(120/minute) when your key has to be resolved from cold.** Those routes resolve
+your key against a cache with a 120-second TTL; on a miss, the resolution itself
+is charged to a bucket keyed on the **source IP**, before your tier is known.
+
+This bites exactly one shape of client, and it is the prop-firm shape:
+
+- **Many keys behind one NAT egress IP share the same 2 rps budget.** The
+  resulting 429s have nothing to do with anyone's tier — a fleet of `enterprise`
+  keys at 3 rps each will still see them.
+- **Keys issued together expire together.** Cache entries minted in the same
+  second go cold in the same second, so cold lookups arrive as a burst every 120
+  seconds rather than spread across it. In measurement, sixteen keys minted
+  together produced **8–14 × 429 per 60-second run** at roughly 3 rps per key.
+- A cache flush or an API worker recycle makes every key cold at once, producing
+  the same burst.
+
+What helps today: stagger key creation so their TTLs do not align; keep traffic
+flowing on each key so its entry is refreshed rather than going cold; spread
+egress across more than one source IP; and back off on `429` with `Retry-After`
+as normal — the burst clears within a second or two.
+
+---
+
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
