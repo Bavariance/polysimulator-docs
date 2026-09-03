@@ -3699,6 +3699,17 @@
             ],
             "title": "Cancelled Reason"
           },
+          "fill_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fill Source"
+          },
           "price_source": {
             "anyOf": [
               {
