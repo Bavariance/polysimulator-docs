@@ -3127,6 +3127,18 @@
       },
       "MarketsEnvelope": {
         "properties": {
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "description": "Page limit requested or served.",
+            "default": 0
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Count of market items in this page.",
+            "default": 0
+          },
           "data": {
             "items": {
               "$ref": "#/components/schemas/MarketSummary"
@@ -3147,7 +3159,7 @@
           "next_cursor"
         ],
         "title": "MarketsEnvelope",
-        "description": "PM-shape envelope for ``GET /v1/markets?envelope=true``.\n\n``py-clob-client`` (and forks like ``clob-rust``) expect a\n``{data, next_cursor}`` envelope on the markets-list endpoint, while\nthe bare-array response would break those SDKs at parse time.\n\nTo avoid breaking existing consumers that DO depend on the bare\narray (the polysim frontend + first-party SDK), the envelope is\nopt-in via the ``envelope=true`` query parameter; the bare-array\npath remains the default to preserve back-compat.\n\n``next_cursor`` is PM's exact cursor format \u2014 a BASE64-ENCODED\nOFFSET (e.g. ``\"NTA=\"`` = offset 50; live PM /markets emits\n``\"MTAwMA==\"`` = 1000) with the terminal ``\"LTE=\"`` sentinel\n(base64 of -1) on the last page. Pass it back via the\n``next_cursor`` (or ``cursor``) query param \u2014 exactly what\nPM-ported paginators do. Pre-fix the field was a raw int string\nthat NO query param accepted (both ``?cursor=`` and\n``?next_cursor=`` were silently ignored \u2014 paginators looped on\npage 1 forever); raw int strings are still accepted on the way in\nfor back-compat."
+        "description": "PM-shape envelope for ``GET /v1/markets?envelope=true``.\n\n``py-clob-client`` (and forks like ``clob-rust``) expect a\n``{limit, count, next_cursor, data}`` envelope on the markets-list endpoint,\nwhile the bare-array response would break those SDKs at parse time.\n\nTo avoid breaking existing consumers that DO depend on the bare\narray (the polysim frontend + first-party SDK), the envelope is\nopt-in via the ``envelope=true`` query parameter; the bare-array\npath remains the default to preserve back-compat.\n\n``next_cursor`` is PM's exact cursor format \u2014 a BASE64-ENCODED\nOFFSET (e.g. ``\"NTA=\"`` = offset 50; live PM /markets emits\n``\"MTAwMA==\"`` = 1000) with the terminal ``\"LTE=\"`` sentinel\n(base64 of -1) on the last page. Pass it back via the\n``next_cursor`` (or ``cursor``) query param \u2014 exactly what\nPM-ported paginators do. Pre-fix the field was a raw int string\nthat NO query param accepted (both ``?cursor=`` and\n``?next_cursor=`` were silently ignored \u2014 paginators looped on\npage 1 forever); raw int strings are still accepted on the way in\nfor back-compat."
       },
       "MatchDetail": {
         "properties": {
@@ -5272,17 +5284,27 @@
       },
       "PositionsEnvelope": {
         "properties": {
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 0
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "next_cursor": {
+            "type": "string",
+            "title": "Next Cursor",
+            "default": ""
+          },
           "data": {
             "items": {
               "$ref": "#/components/schemas/PositionResponse"
             },
             "type": "array",
             "title": "Data"
-          },
-          "next_cursor": {
-            "type": "string",
-            "title": "Next Cursor",
-            "default": ""
           }
         },
         "type": "object",
@@ -7080,17 +7102,27 @@
       },
       "TradeHistoryEnvelope": {
         "properties": {
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 0
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "default": 0
+          },
+          "next_cursor": {
+            "type": "string",
+            "title": "Next Cursor",
+            "default": ""
+          },
           "data": {
             "items": {
               "$ref": "#/components/schemas/TradeHistoryItem"
             },
             "type": "array",
             "title": "Data"
-          },
-          "next_cursor": {
-            "type": "string",
-            "title": "Next Cursor",
-            "default": ""
           }
         },
         "type": "object",
@@ -11964,7 +11996,7 @@
           "Market Data"
         ],
         "summary": "Batch Prices",
-        "description": "Fetch cached prices for multiple markets in one request.\n\nUses a Redis pipeline for efficient batch lookups.\nLimited to 50 markets per request (adjustable per API tier).",
+        "description": "Fetch cached prices for multiple markets or tokens in one request.\n\nUses a Redis pipeline for efficient batch lookups.\nLimited to 50 markets per request (adjustable per API tier).\nAlso accepts token-based shapes as a convenience alias for POST /v1/prices.",
         "operationId": "getPricesBatchInternal",
         "parameters": [
           {
@@ -12045,7 +12077,23 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/BatchPriceRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/BatchPriceRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/BatchTokenPriceRequest"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/PmBatchPriceItem"
+                    },
+                    "maxItems": 500
+                  }
+                ],
+                "description": "Accepts PolySim market batch `{\"market_ids\": [...]}` (returns list of market batch items), or token-based shapes: PolySim `{\"token_ids\": [...]}` (returns `{token_id: price}`) or Polymarket `[{\"token_id\": \"...\", \"side\": \"BUY|SELL\"}, ...]` (returns `{token_id: {side: price}}`).",
+                "title": "Body"
               }
             }
           }
@@ -12056,10 +12104,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/BatchPriceItem"
-                  },
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BatchPriceItem"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ],
                   "title": "Response Getpricesbatchinternal"
                 }
               }

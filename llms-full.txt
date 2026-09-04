@@ -276,6 +276,8 @@ and example prompts.
     
 
     
+      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
+
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
@@ -735,7 +737,7 @@ where there's no browser session.
 The Polymarket-CLOB-compatible read endpoints (e.g. `/v1/book`,
 `/v1/midpoint`, `/v1/spread`, `/v1/markets-by-token`) are **public**
 and don't require a key. For convenience, PolySimulator also accepts
-the single-value header aliases `POLY_API_KEY` and
+the single-value header aliases `POLY_API_KEY`, `Poly-API-Key`, and
 `Authorization: Bearer ps_live_…`, each carrying the whole `ps_live_`
 key, on authenticated routes (`X-API-Key` takes precedence when
 several are sent).
@@ -747,6 +749,10 @@ curl -H "X-API-Key: ps_live_abc123..." \
 
 # Equivalent — single-value POLY_API_KEY alias (PolySimulator convenience)
 curl -H "POLY_API_KEY: ps_live_abc123..." \
+     https://api.polysimulator.com/v1/markets
+
+# Equivalent — single-value Poly-API-Key (dashed form)
+curl -H "Poly-API-Key: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
 ```
 
@@ -769,7 +775,7 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
   `GET /v1/midpoint*`, the websocket connect URL, and
   `GET /v1/account/{balance,positions,portfolio,history,equity}`
-  all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
+  all require `X-API-Key` (or the `POLY_API_KEY` / `Poly-API-Key` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
 
@@ -3074,7 +3080,7 @@ Mirror of Polymarket's [`POST /order`](https://docs.polymarket.com/clob/post-ord
     "makerAmount": "500000",
     "takerAmount": "1000000",
     "side": "BUY",
-    "expiration": "0",
+    "expiration": 0,
     "salt": 1234567890,
     "maker": "0x0000000000000000000000000000000000000000",
     "signer": "0x0000000000000000000000000000000000000000",
@@ -3274,7 +3280,7 @@ Polymarket-shaped `OrdersResponse`:
       "size_matched": "0.2480",
       "price": "0.5000",
       "outcome": "Yes",
-      "expiration": "0",
+      "expiration": 0,
       "order_type": "GTC",
       "associate_trades": [],
       "created_at": 1778103749
@@ -3772,6 +3778,39 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 }
 ```
 
+### Outcome Labels vs Token IDs
+
+PolySimulator's `POST /v1/orders` endpoint accepts the human-readable **outcome label** in the `outcome` field (e.g. `"Yes"`, `"No"`, or custom labels like `"Trump"`, `"Harris"`, `"Up"`, `"Down"`), **NOT** Polymarket's 77-digit decimal token ID.
+
+If you are migrating from Polymarket's CLOB SDK (which is token-id-native) and have a `token_id`:
+1. Use `GET /v1/markets-by-token/{token_id}` to resolve the token ID to its `condition_id` and outcome label (`outcomes[].label`).
+2. Or use the token-native endpoints `POST /v1/order` (Polymarket nested `{order: {tokenId: ...}}` shape) or `POST /v1/clob/order` (`tokenId`-keyed flat shape).
+
+#### Worked Examples
+
+**1. Binary market (Yes/No):**
+```json
+{
+  "market_id": "0x0f49db970d47fe90c606ab5f171cb61d497c41bc227582eb7d8c47f3b8ddf594",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55"
+}
+```
+
+**2. Categorical / multi-outcome market:**
+```json
+{
+  "market_id": "0x1b48e3e4a2c0f64c12d45c613e55c68b75e2f3d45c613e55c68b75e2f3d45c61",
+  "side": "BUY",
+  "outcome": "Trump",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.48"
+}
+```
 ### Time in Force
 
 | Value | Description | Polymarket Equivalent |
@@ -5286,9 +5325,9 @@ Returns markets with attached live prices from Polymarket's CLOB.
 | `offset` | int | 0 | Pagination offset |
 | `hot_only` | bool | false | Only high-volume markets |
 | `active_only` | bool | — | PM-shape alias: when `true`, only return markets where `active=true AND closed=false`. |
-| `category` | string | — | Filter to a single category (e.g. `crypto`, `sports`, `politics`). Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
+| `category` | string | — | Filter to a single category. Supported category enum matching `/categories`: `crypto`, `sports`, `politics`, `world`, `technology`, `science`, `general`. Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
 | `q` | string | — | Free-text search over `question` and `slug` (case-insensitive substring). Empty string is ignored. |
-| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{data, next_cursor}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
+| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{limit, count, next_cursor, data}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
 
   `sort` is **not** supported — the underlying list is volume-ordered
   server-side. For domain-specific ordering, fetch a wide page
@@ -6192,6 +6231,18 @@ tier limit long before the ceiling.
 
 ---
 
+## `POST /v1/prices/batch` vs `POST /v1/prices`
+
+PolySimulator provides two batch price lookup endpoints tailored for condition IDs vs token IDs:
+
+| Endpoint | Input Shape | Identifiers | Return Shape |
+|---|---|---|---|
+| `POST /v1/prices/batch` | `{"market_ids": ["0x..."]}` | 0x hex condition IDs | Array of `{condition_id, buy, sell, outcomes}` objects |
+| `POST /v1/prices` | `[{"token_id": "...", "side": "BUY"}]` or `{"token_ids": [...]}` | 77-digit decimal token IDs | Map `{token_id: {side: price}}` or `{token_id: price}` |
+
+For convenience, `POST /v1/prices/batch` also accepts the token-based shapes as aliases, avoiding footgun errors when porting between SDKs.
+---
+
 ## Response
 
 ```json
@@ -6642,32 +6693,51 @@ The reset response carries four fields:
 
 ## Scoping account reads to a wallet
 
-The account read endpoints accept a `wallet_id` query parameter with three
+The account and order endpoints accept a `wallet_id` query parameter with three
 forms (case-insensitive keywords):
 
 | Value | Meaning |
 |---|---|
-| *(omitted)* | **Your API wallet** — the default on every account read |
+| *(omitted)* | **Your API wallet** — the default on account reads (and legacy merged behaviour on `/v1/orders`) |
 | `api` | Your API wallet, explicitly (includes legacy rows recorded before per-wallet attribution) |
 | `all` | Every wallet you own — UI MAIN/SANDBOX/COMPETITION included |
 | `` | One specific wallet you own (ids from `GET /v1/me/wallets`); 404 `WALLET_NOT_FOUND` otherwise. MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution |
 
-Supported on [Positions](/account/positions),
-[Trade History](/account/trade-history),
-[Profile Analysis](/account/profile-analysis),
-[Portfolio](/account/portfolio) and [Equity Curve](/account/equity-curve).
-[Balance](/account/balance) is always API-wallet scoped. Any other
-`wallet_id` value returns 422 `VALIDATION_FAILED`.
+Supported on:
+- [`GET /v1/orders`](/trading/order-management)
+- [`GET /v1/account/positions`](/account/positions)
+- [`GET /v1/account/history`](/account/trade-history)
+- [`GET /v1/account/profile-analysis`](/account/profile-analysis)
+- [`GET /v1/account/portfolio`](/account/portfolio)
+- [`GET /v1/account/equity`](/account/equity-curve)
+
+Note that [`GET /v1/account/balance`](/account/balance) is always API-wallet scoped (`wallet_id` is a no-op). Any invalid
+`wallet_id` string returns 422 `VALIDATION_FAILED`.
 
 ```bash
 # Default — API wallet only
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/positions
 
+# Specific wallet ID
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "https://api.polysimulator.com/v1/orders?wallet_id=1327"
+
 # Everything you own, including UI wallets
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   "https://api.polysimulator.com/v1/account/positions?wallet_id=all"
 ```
+
+### Multi-wallet querying
+
+To enumerate all wallets associated with your account and discover their numeric IDs, call:
+
+```bash
+curl -H "Authorization: Bearer $SUPABASE_JWT" \
+  https://api.polysimulator.com/v1/me/wallets
+```
+
+This returns your complete wallet roster (`id`, `name`, `type`, `balance`). You can then pass any of your wallet IDs as `?wallet_id=` to inspect positions, trade history, orders, or equity for that specific wallet.
 
   **Migration note (2026-06-10):** `GET /v1/account/positions`,
   `GET /v1/account/history` and `GET /v1/account/profile-analysis`
@@ -6756,8 +6826,8 @@ curl -H "X-API-Key: $API_KEY" \
   "balance": "9745.20",
   "currency": "USD",
   "starting_balance": "10000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "9757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "9757.50000000000000000"
 }
 ```
 
@@ -6768,8 +6838,8 @@ A **Pro+** key sees its $25,000 baseline instead:
   "balance": "24745.20",
   "currency": "USD",
   "starting_balance": "25000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "24757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "24757.50000000000000000"
 }
 ```
 
@@ -6783,6 +6853,12 @@ A **Pro+** key sees its $25,000 baseline instead:
 
   Your **total portfolio value** = `balance` + market value of open positions.
   Use the [Portfolio](/account/portfolio) endpoint for a complete snapshot.
+
+  **Numeric & Decimal Precision:** Cash fields (`balance`, `starting_balance`) are
+  formatted to 2 decimal places. P&L-derived fields (`unrealized_pnl`, `total_value`)
+  preserve full Decimal precision (up to 19+ decimal places) from internal position
+  accounting. Always parse monetary fields with `Decimal(str_value)` (Python) or a
+  bignumber library, never cast to IEEE-754 `float`.
 
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
   wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
@@ -6860,7 +6936,7 @@ accepted here.
 |-----------|------|---------|-------------|
 | `status` | string | — | Filter: `OPEN` or `CLOSED`. **Omit to return all positions.** `OPEN` returns positions with `quantity > 0`; `CLOSED` includes reset-archived (`CLOSED_BY_RESET`) positions. Any other value is ignored (treated as no filter). |
 | `wallet_id` | int \| `"all"` \| `"api"` | `api` | Wallet scope. An integer scopes to a single wallet you own (404 `WALLET_NOT_FOUND` otherwise). `api` scopes to your API wallet (including legacy rows recorded before per-wallet attribution). `all` returns every position across **all** your wallets, UI MAIN/SANDBOX included. Keywords are case-insensitive; any other value returns 422 `VALIDATION_FAILED`. **Omitted = `api`.** |
-| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "data": [...], "next_cursor": "" }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
+| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "limit": N, "count": N, "next_cursor": "", "data": [...] }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
 
   **Default changed on 2026-06-10.** Before 2026-06-10 the default (param
   omitted) returned positions across **all** wallets — UI MAIN/SANDBOX
@@ -6931,8 +7007,10 @@ With `envelope=true` the same rows are wrapped Polymarket-style:
 
 ```json
 {
-  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ],
-  "next_cursor": ""
+  "limit": 1,
+  "count": 1,
+  "next_cursor": "",
+  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ]
 }
 ```
 

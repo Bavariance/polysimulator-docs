@@ -23,7 +23,7 @@ where there's no browser session.
 The Polymarket-CLOB-compatible read endpoints (e.g. `/v1/book`,
 `/v1/midpoint`, `/v1/spread`, `/v1/markets-by-token`) are **public**
 and don't require a key. For convenience, PolySimulator also accepts
-the single-value header aliases `POLY_API_KEY` and
+the single-value header aliases `POLY_API_KEY`, `Poly-API-Key`, and
 `Authorization: Bearer ps_live_…`, each carrying the whole `ps_live_`
 key, on authenticated routes (`X-API-Key` takes precedence when
 several are sent).
@@ -36,8 +36,11 @@ curl -H "X-API-Key: ps_live_abc123..." \
 # Equivalent — single-value POLY_API_KEY alias (PolySimulator convenience)
 curl -H "POLY_API_KEY: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
-```
 
+# Equivalent — single-value Poly-API-Key (dashed form)
+curl -H "Poly-API-Key: ps_live_abc123..." \
+     https://api.polysimulator.com/v1/markets
+```
 <Note>
   **These aliases are a deliberate PolySimulator simplification — not a
   literal match of Polymarket's request shape.** Real Polymarket L2 auth
@@ -60,7 +63,7 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
   `GET /v1/midpoint*`, the websocket connect URL, and
   `GET /v1/account/{balance,positions,portfolio,history,equity}`
-  all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
+  all require `X-API-Key` (or the `POLY_API_KEY` / `Poly-API-Key` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
 </Warning>
