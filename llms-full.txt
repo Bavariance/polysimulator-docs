@@ -1155,6 +1155,13 @@ API leaves beta.
 
 - `/v1/*` errors now expose the stable machine code in the JSON `error` field,
   with human prose in `message`; `X-Polysim-Code` carries the same code.
+  **Clarification only (no runtime change):** this two-field envelope was
+  already the deployed behavior. Earlier pages incorrectly described the
+  Polymarket single-field `{"error": ""}` shape. Clients should
+  branch on body `error` or the identical `X-Polysim-Code`, not on `message`.
+- The public error catalog now documents `TRADE_IN_PROGRESS`, `SERVER_BUSY`,
+  `DEADLINE_OVERSHOT_BUT_PERSISTED`, and `PERSISTENCE_UNKNOWN`, including
+  which responses are safe to retry and which require an order lookup first.
 - Invalid account `side`, position `status`, and malformed price-history token
   filters now fail with 4xx errors instead of returning misleading empty data.
 - Successful order-book and market-by-slug responses explicitly use
@@ -1811,34 +1818,20 @@ else:
 
 # Rate Limits
 
-Rate limits are enforced **per API key** using Redis **fixed-window** counters with both
-per-second (RPS) and per-minute (RPM) buckets.
+Rate limits are enforced **per API key** using **fixed-window** counters with
+both per-second (RPS) and per-minute (RPM) buckets. Each bucket is keyed on the
+current clock second and clock minute, and resets on the tick.
 
-  **Fixed window, not sliding — and what that means for you.** Each bucket is keyed
-  to a wall-clock second (and a wall-clock minute) and resets at the boundary. A
-  client that happens to align with the boundary can therefore send up to **twice**
-  its per-second allowance in a very short interval: at a 2 RPS tier, two requests
-  at `t = 0.999s` and two at `t = 1.001s` are four requests in two milliseconds and
-  all four are admitted. Sustained throughput is still capped by the per-minute
-  bucket. Do not build a strategy on that burst — it is an artefact of the window
-  shape, it is not part of the contract, and it may be removed without a breaking
-  change. `X-RateLimit-Reset` tells you when the current minute bucket resets.
+  Because the windows are fixed rather than sliding, there is a **boundary
+  burst**: a client aligned to the clock second can send its full per-second
+  allowance just before the tick and again just after, briefly reaching about
+  twice the nominal RPS. We do not treat that as abuse, but it is a property of
+  the window rather than a documented allowance — do not design around it.
 
-  An environment may instead run a **weighted sliding approximation** over the
-  same buckets, which is strictly *stricter*: the boundary burst above is
-  rejected, `Retry-After` is solved from how much of the previous bucket is
-  still counted rather than being a flat 1 s, and `X-RateLimit-Reset` names the
-  instant your next request would actually be served rather than the wall-clock
-  boundary. A client that honours `Retry-After` and `X-RateLimit-Reset` is
-  correct under both; a client that assumes the boundary burst is not.
-
-  **If Redis is unavailable, the limiter fails open.** Counters live in Redis; when
-  Redis errors, the API admits the request rather than rejecting it, because an
-  unavailable cache should not take the whole API down. Enforcement is therefore
-  best-effort during a Redis incident — you may briefly see no limits at all, or a
-  reduced fallback budget where that has been enabled. Your client should still
-  honour 429 and `Retry-After` at all times; do not treat a period without limits as
-  a licence to raise your send rate.
+  The limiter also **fails open**: if Redis is unreachable the check returns
+  full headroom instead of rejecting, so during a cache outage the stated limits
+  are not enforced. That is a deliberate availability trade, stated here so the
+  guarantee you are buying is the guarantee you actually get.
 
 ---
 
@@ -1851,224 +1844,21 @@ per-second (RPS) and per-minute (RPM) buckets.
 | `pro_plus` | 30 | 1,800 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
-  The `free` tier allows short bursts (up to 2 requests inside one wall-clock
-  second) and is capped at 120 requests inside one wall-clock minute, so the
-  per-minute bucket is the one you'll hit first under sustained load. Both
-  buckets are fixed windows keyed to the clock rather than rolling ones: the
-  minute bucket resets at the top of each minute, and `x-ratelimit-reset` tells
-  you when. Use `POST /v1/prices/batch` and the WebSocket feeds (which don't
-  count against the REST limit) to stay well inside it.
+  The `free` tier allows up to 2 requests in any one clock second, and is
+  also capped at 120 requests per clock minute, so the per-minute bucket is
+  the one you'll hit first under sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
+  (which don't count against the REST limit) to stay well inside it.
 
   The authoritative source for tier limits is `GET /v1/keys/tiers`. If a doc
   page ever disagrees with that endpoint, the endpoint wins.
 
 ---
 
-## Order writes are serialised per account
-
-Tier limits bound **requests**. They do not bound **order writes on one account**.
-Every order write on an account is serialised behind two locks, and the ceiling
-that falls out is roughly **3–4 order writes per second per account — on every
-tier, including `enterprise`**.
-
-The two locks, in series, on `POST /v1/orders`, `POST /v1/orders/batch`,
-`POST /v1/clob/order` and `DELETE /v1/orders/{order_id}`:
-
-1. **A per-account advisory lock** (`trade:lock:user:{user_id}` in Redis), held
-   across the whole write — tick resolution, validation, the balance statement,
-   and commit. One holder at a time across every API worker and container.
-2. **The `accounts` row lock** — `SELECT … FROM accounts WHERE user_id = … FOR
-   UPDATE`. This is the authoritative anti-double-spend primitive and it stays
-   in place; the advisory lock in front of it exists so contenders wait in the
-   application instead of pinning a database connection.
-
-Measured on 2026-09-02, the advisory lock's **p95 hold time was 200–294 ms** and
-it stayed flat from 1 to 16 concurrent traders. Flat means it is not congestion —
-it is the intrinsic cost of one order write. `1 / 0.253 s ≈ 4/s`, and a single
-trader measured **3.3 order writes per second** sustained, which is what a 294 ms
-hold predicts.
-
-  **An `enterprise` key is sold at 100 req/s. On the order-write path a single
-  account reaches about 4/s — roughly 25× less.** That is not a bug and buying a
-  higher tier will not move it. A higher tier buys you more *requests* (market
-  data, order status, positions, lookups); it does not buy a faster lock. If your
-  design needs 40 order writes per second, it needs about ten accounts, not a
-  bigger plan.
-
-### Throughput scales with accounts, not with tier
-
-| Accounts | Sustained order writes/sec (approx.) |
-|---:|---:|
-| 1 | 3–4 |
-| 4 | 12–16 |
-| 16 | 48–64 |
-| N | N × 3–4 |
-
-Sixteen independent accounts sustained **51.8 req/s of order traffic with zero
-errors** in the same measurement — 1,185 place/cancel round trips plus 386
-synchronous fills in 60 seconds — so the per-account ceiling is genuinely
-per-account, and the shared path behind it has headroom.
-
-The practical rule: **one account per strategy, per participant, or per funded
-trader.** A prop-firm evaluation is already shaped this way — each candidate gets
-their own account, and the firm's aggregate throughput is the sum. A single
-account driven by a fan-out of threads is the shape that hits the ceiling.
-
-### What happens when you overlap writes on one account
-
-The API does **not** queue you behind the lock indefinitely. It waits a bounded
-amount of time and then returns a bounded, retryable error:
-
-| Condition | HTTP | `error_code` | `Retry-After` |
-|---|:---:|---|:---:|
-| Another write for the same account is in flight and the 2 s cooperative wait elapsed | `409` | `LOCK_BUSY_RETRY` (body `error`: `TRADE_IN_PROGRESS`) | `1` |
-| The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired, on **placement** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
-| Same, on **cancellation** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `5` |
-| The write exceeded the server-side placement deadline | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
-
-Every one of these is transient, and every one carries `Retry-After` in
-**seconds**. Read the header; do not hard-code the number — the placement and
-cancellation paths deliberately differ.
-
-  **`409 LOCK_BUSY_RETRY` is not a validation failure.** The body's `error` field
-  is `TRADE_IN_PROGRESS` and the machine-readable code is `LOCK_BUSY_RETRY`.
-  Unlike the other 409s in the trading taxonomy (`DUPLICATE_CLIENT_ORDER_ID`,
-  `IDEMPOTENCY_KEY_REUSE`), it means "your request was fine, it lost a lock
-  race" — it is **retryable**. Branch on `error_code`, not on the status alone.
-
-  **`503 DB_CONTENTION_RETRY` on placement means the order was NOT placed.** The
-  message says so explicitly; retry it. The 503s you must *not* auto-retry are
-  `PERSISTENCE_UNKNOWN` and `DEADLINE_OVERSHOT_BUT_PERSISTED`, which ship
-  **without** a `Retry-After` header precisely so a naive retry loop cannot
-  double-place — poll `GET /v1/orders` instead. Treating "carries `Retry-After`"
-  as the retry signal is correct for all of them.
-
-### The client pattern that avoids all of this
-
-  
-    Provision an account (and key) per strategy, participant, or funded trader.
-    This is the only lever that raises aggregate write throughput.
-  
-
-  
-    On a single account, serialise your own writes client-side: wait for the
-    placement response before issuing the cancel. Overlapping them is what
-    produces `LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` — you are contending
-    with yourself, and the API tells you so rather than queueing you.
-  
-
-  
-    Read the header, sleep that many seconds, retry. Do not retry immediately,
-    and do not retry a 503 that arrived without the header.
-  
-
-  
-    An `Idempotency-Key` header (or `client_order_id`) makes every retry above
-    safe: a replay of the same payload returns the original order instead of
-    double-placing. Retrying a write without one is how you get two positions.
-  
-
-```python
-import time
-import requests
-
-def place_order(session, url, payload, key, max_attempts=4):
-    """One account, one in-flight write, Retry-After honoured, idempotent."""
-    headers = {"X-API-Key": key, "Idempotency-Key": payload["client_order_id"]}
-
-    for attempt in range(max_attempts):
-        resp = session.post(url, headers=headers, json=payload)
-
-        # 409 LOCK_BUSY_RETRY / 503 DB_CONTENTION_RETRY / 429 all carry
-        # Retry-After in seconds. A 5xx without the header is NOT
-        # auto-retryable — the write may already be persisted.
-        if resp.status_code in (409, 429, 503):
-            retry_after = resp.headers.get("Retry-After")
-            code = resp.headers.get("X-Polysim-Code", "")
-            if retry_after is None:
-                raise RuntimeError(
-                    f"non-retryable {resp.status_code} {code}; poll GET /v1/orders"
-                )
-            time.sleep(int(retry_after))
-            continue
-
-        return resp
-
-    raise RuntimeError(f"still contended after {max_attempts} attempts")
-```
-
-Batching helps only where the endpoint offers it: `POST /v1/orders/batch` is one
-request against your RPS/RPM budget, bounded by your tier's **Max Batch Size**
-(`free=1`, `pro=5`, `pro_plus=10`, `enterprise=25` — see the Tiers table above).
-It does not bypass the per-account lock: the orders inside the batch still write
-under it.
-
----
-
-## Per-key in-flight concurrency
-
-Separate from the per-window rate limiter, a **per-key in-flight cap** bounds how
-many `/v1/*` requests one key may have executing *simultaneously* on a single API
-worker. The rate limiter counts requests per window; this counts requests in
-flight. A client can sit inside its tier's RPS and still pin a worker's database
-connections by holding many slow requests open at once — that is what this
-bounds.
-
-When it rejects, it does so immediately rather than queueing:
-
-| HTTP | `error_code` (also in `X-Polysim-Code`) | `Retry-After` | Extra headers |
-|:---:|---|:---:|---|
-| `429` | `API_KEY_CONCURRENCY_EXCEEDED` | `1` | `X-Concurrency-Key-Limit`, `X-Concurrency-Key-Remaining` |
-
-The per-tier caps are **derived from the live connection pool** rather than being
-fixed constants, so that one key at its cap can never take the last connection
-another tenant of that worker needs. On the current production pool the derived
-caps are `free=4`, `pro=9`, `pro_plus=12`, `enterprise=12`. Read
-`X-Concurrency-Key-Limit` for the value actually in force rather than hard-coding
-it — the number moves when the pool is resized.
-
-  This cap is **enforced in production** (since 2026-09-02). A client that already
-  branches on `429` + `Retry-After` needs no change. If you see
-  `API_KEY_CONCURRENCY_EXCEEDED`, you have more requests in flight on one key than
-  the cap allows: wait for `Retry-After` and reduce concurrency, or spread the work
-  across more accounts.
-
----
-
-## Read limits are separate, and one of them is per-IP
-
-The per-tier RPS/RPM budgets above govern the read path. One additional budget is
-easy to miss because it is **not keyed on your API key at all**.
-
-**Public market-data routes charge a shared per-IP budget of 2 requests/second
-(120/minute) when your key has to be resolved from cold.** Those routes resolve
-your key against a cache with a 120-second TTL; on a miss, the resolution itself
-is charged to a bucket keyed on the **source IP**, before your tier is known.
-
-This bites exactly one shape of client, and it is the prop-firm shape:
-
-- **Many keys behind one NAT egress IP share the same 2 rps budget.** The
-  resulting 429s have nothing to do with anyone's tier — a fleet of `enterprise`
-  keys at 3 rps each will still see them.
-- **Keys issued together expire together.** Cache entries minted in the same
-  second go cold in the same second, so cold lookups arrive as a burst every 120
-  seconds rather than spread across it. In measurement, sixteen keys minted
-  together produced **8–14 × 429 per 60-second run** at roughly 3 rps per key.
-- A cache flush or an API worker recycle makes every key cold at once, producing
-  the same burst.
-
-What helps today: stagger key creation so their TTLs do not align; keep traffic
-flowing on each key so its entry is refreshed rather than going cold; spread
-egress across more than one source IP; and back off on `429` with `Retry-After`
-as normal — the burst clears within a second or two.
-
----
-
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
-Polymarket-shape single-field `error` envelope and a stable
-`X-Polysim-Code` response header:
+standard two-field error envelope and a stable `X-Polysim-Code`
+response header:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -2079,11 +1869,11 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "Rate limit exceeded. Retry after 1s."}
+{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
 ```
 
-Branch on `X-Polysim-Code === "RATE_LIMIT_EXCEEDED"` rather than the
-body prose, and read the `Retry-After` header for the exact wait time
+Branch on `error` or the identical `X-Polysim-Code` value, not on
+`message`, and read the `Retry-After` header for the exact wait time
 in seconds.
 
 ---
@@ -2100,9 +1890,9 @@ endpoints and flagged token resolver routes):
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
 | `x-ratelimit-limit` | int | Per-minute cap for the tier |
 | `x-ratelimit-limit-per-second` | int | Per-second cap for the tier |
-| `x-ratelimit-remaining` | int | Requests remaining in the current fixed one-minute window |
-| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current fixed one-second window |
-| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window rolls over |
+| `x-ratelimit-remaining` | int | Requests remaining in the current clock-minute window |
+| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current clock-second window |
+| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window resets |
 
   Every header above is **also** emitted under the PolySim-namespaced
   `x-polysim-ratelimit-*` prefix with identical values (e.g.
@@ -2122,7 +1912,7 @@ reset_at = int(resp.headers.get("x-ratelimit-reset", "0"))
 # If the per-second bucket is almost drained, sleep a beat
 if remaining_sec <= 1:
     time.sleep(1.0)
-# If the current minute bucket is almost drained, sleep until reset
+# If the per-minute bucket is almost drained, sleep until it resets
 elif remaining <= 5:
     sleep_for = max(0.0, reset_at - time.time())
     time.sleep(min(sleep_for, 60.0))
@@ -2288,9 +2078,6 @@ graph TD
 | Pro REST | **10 req/s**, **600 req/min** | Same two-bucket model. |
 | Pro+ REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
-| Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account). |
-| Overlapping writes, one account | `409 LOCK_BUSY_RETRY` / `503 DB_CONTENTION_RETRY` | The API returns a bounded error rather than queueing you. Both carry `Retry-After` (1 s on placement, 5 s on cancellation). Placement 503s state the order was **not** placed. |
-| Public market data, cold key lookup | **2 req/s**, **120 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
 | API wallet | Pro **$10,000**, Pro+ **$25,000** | Free keys have **no** API wallet and cannot trade. MAIN ($1,000) is never used by API keys. |
@@ -2307,14 +2094,6 @@ In a live matching engine, when you place a limit order at the current bid, your
 In PolySimulator paper trading, resting orders match whenever the venue price crosses your limit. If you place a limit BUY at $0.50 and the venue trades at $0.50, your order fills on the next loop iteration without simulating queue depletion ahead of you. 
 
   For realistic backtesting that models queue dynamics and historical book reconstruction, use the upcoming **Simulation SKU** rather than paper trading.
-
-### Order Writes Are Serialised Per Account
-
-Every order write on one account — place, batch place, and cancel — is serialised behind a per-account advisory lock and the account's `accounts` row lock. Measured on 2026-09-02, that lock is held for **200–294 ms at p95**, flat from 1 to 16 concurrent traders, because it is the intrinsic cost of one write rather than congestion. One account therefore sustains roughly **3–4 order writes per second**, and no tier changes that: an `enterprise` key is sold at 100 req/s and reaches about 4/s on the write path.
-
-The consequence is worth stating plainly rather than letting you discover it as errors. **Aggregate write throughput scales with the number of accounts, not with the size of the plan.** Sixteen independent accounts sustained 51.8 req/s of order traffic with zero errors in the same measurement. A prop firm running N funded traders on N accounts gets roughly N × 3–4 writes/s; the same firm fanning N threads at one account gets 3–4 and a stream of contention errors.
-
-When you do overlap writes on a single account, the API returns a bounded error rather than queueing you: `409 LOCK_BUSY_RETRY` once the 2 s cooperative wait elapses, or `503 DB_CONTENTION_RETRY` once the 200 ms database lock timeout fires. Both carry `Retry-After` in seconds, and with an `Idempotency-Key` the retry is safe. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account) for the full contract.
 
 ### No Self-Impact
 In live markets, large orders consume liquidity and shift the market price against the trader. In PolySimulator, your trades update your virtual portfolio and ledger, but do not affect external Polymarket order books. Size-aware VWAP book walking simulates the price you *would* receive given current book depth, but does not move the market for subsequent orders.
@@ -2344,9 +2123,27 @@ In live markets, large orders consume liquidity and shift the market price again
 ## Operational Boundaries & Beta SLA
 
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
-* **Rate Limits:** Per-key rate limits are enforced via Redis **fixed-window** counters — one per-second bucket and one per-minute bucket (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM). A fixed window is not a sliding window: a client that aligns to the bucket boundary can briefly send up to **twice** its per-second allowance (two requests just before a second ticks over and two just after are four requests in milliseconds, and all four are admitted). We size tiers with that in mind and we would rather tell you than have you discover it. See [Rate Limits](/concepts/rate-limits) for the exact behaviour.
-* **Per-Account Write Ceiling:** Tier limits bound requests; they do not bound order writes on one account. One account sustains **~3–4 order writes per second on every tier** because each write holds a per-account lock for 200–294 ms. Size a deployment by accounts — one per strategy, participant, or funded trader — not by tier. Overlapping writes on one account return `409 LOCK_BUSY_RETRY` or `503 DB_CONTENTION_RETRY` with `Retry-After`, never an unbounded queue. See [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account).
-* **Rate Limiter Availability:** The limiter stores its counters in Redis, and it **fails open** — if Redis is unreachable, requests are admitted rather than rejected, so a cache outage degrades enforcement instead of taking the API down. That is a deliberate availability trade: we would rather serve you unlimited for a few minutes than 500 every request. A bounded fallback budget can be enabled per environment, and every such event is counted (`polysim_api_rate_limit_redis_error_total`) so a silently-disabled limiter is visible to us.
+* **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
+  per-second bucket and a per-minute bucket, each keyed on the current clock
+  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
+
+  
+  A fixed window has a **boundary burst**: because the counter resets at each
+  clock second, a client aligned to that boundary can send its full per-second
+  allowance just before the tick and again just after — briefly about **twice**
+  the nominal RPS. We do not treat that as abuse, but do not design around it
+  either: it is a property of the window, not a documented allowance, and
+  tightening it later would break a client that relied on it.
+  
+
+  
+  **The limiter fails open.** If Redis is unreachable the limit check returns
+  full headroom rather than rejecting your request, so during a cache outage
+  the stated limits are not enforced. This is a deliberate availability trade —
+  we would rather serve you unthrottled than fail your requests because *our*
+  cache is down — and it is stated here so the guarantee you are buying is the
+  guarantee you actually get.
+  
 * **Deprecation Policy:** Breaking API or schema changes during public beta will be communicated with at least **14 days notice** via email and documentation changelogs.
 
 
@@ -5950,18 +5747,6 @@ curl -H "X-API-Key: $API_KEY" \
       "icon": "https://polymarket.com/icons/btc.svg"
     }
   ],
-  "grouped_by_asset": {
-    "BTC": ["...(same shape as markets[])"],
-    "ETH": ["..."]
-  },
-  "grouped_by_interval": {
-    "1H": ["..."],
-    "4H": ["..."]
-  },
-  "grouped_nested": {
-    "BTC": { "1H": ["..."], "4H": ["..."] },
-    "ETH": { "1H": ["..."] }
-  },
   "total": 42,
   "interval_counts": { "5M": 0, "15M": 0, "1H": 12, "4H": 8, "daily": 6 },
   "asset_counts": { "BTC": 10, "ETH": 8, "SOL": 6 },
@@ -5979,9 +5764,6 @@ curl -H "X-API-Key: $API_KEY" \
 | Field | Description |
 |-------|-------------|
 | `markets` | Array of market entries (see fields below) |
-| `grouped_by_asset` | Markets grouped by asset symbol (same shape as `markets[]`) |
-| `grouped_by_interval` | Markets grouped by time interval |
-| `grouped_nested` | Markets nested by `asset` → `interval` |
 | `total` | Total number of markets returned |
 | `interval_counts` | Count of active markets per interval |
 | `asset_counts` | Count of active markets per asset |
@@ -5989,6 +5771,10 @@ curl -H "X-API-Key: $API_KEY" \
 | `available_assets` | Assets that have at least one active market |
 | `crypto_prices` | Current reference prices for tracked assets |
 | `cache_hit` | Whether the result was served from cache |
+
+  `markets` is the canonical market list. Group it client-side by each entry's
+  `asset` and `interval` fields; the API does not duplicate full market objects
+  into precomputed grouping trees.
 
 ### Market Entry Fields
 
@@ -9936,27 +9722,33 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-By default, the `/v1/*` surface returns the **Polymarket-shape**
-single-field envelope — one `error` key holding a human-readable
-description:
+By default, the `/v1/*` surface returns PolySimulator's stable two-field
+envelope: `error` holds the machine-readable code and `message` holds the
+human-readable description.
 
 ```json
-{"error": "Account balance $12.50 insufficient for order cost $25.00"}
+{
+  "error": "INSUFFICIENT_BALANCE",
+  "message": "Account balance $12.50 insufficient for order cost $25.00"
+}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Human-readable description. For PM-shape parity, the machine-readable short code is carried out-of-band in the `X-Polysim-Code` response header (e.g. `INSUFFICIENT_BALANCE`, `RATE_LIMIT_EXCEEDED`). |
+| `error` | string | Stable machine-readable short code, also carried in `X-Polysim-Code` (for example `INSUFFICIENT_BALANCE` or `RATE_LIMIT_EXCEEDED`). |
+| `message` | string | Human-readable description; do not branch on this prose. |
 
-For stable error handling, **branch on the `X-Polysim-Code` header**, not
-on the body text — the body holds the prose, the header holds the code.
-The `X-Request-Id` header echoes the request id for log correlation.
+For stable error handling, branch on `error` or the identical
+`X-Polysim-Code` header, never on `message`. The `X-Request-Id` header
+echoes the request id for log correlation.
 
-**`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
-its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
-can render an upsell flow without an extra round-trip. Every other
-status code (401, 403, 404, 429, 5xx, …) sticks with the single-field
-shape and exposes the machine code via `X-Polysim-Code`.
+This is a documented PolySimulator extension to Polymarket's single-field
+`{"error": ""}` shape. The runtime envelope did not change when
+this documentation was corrected on 2026-08-29.
+
+**`402 UPGRADE_REQUIRED` is the one enriched response**: its body also
+adds `feature_key` and `upgrade_url` so SDKs can render an upsell flow
+without an extra round-trip.
 
 ```json
 // 402 UPGRADE_REQUIRED — feature_key + upgrade_url at the root
@@ -9969,12 +9761,12 @@ shape and exposes the machine code via `X-Polysim-Code`.
 
 For the runtime allowlist gate (`ACCESS_RESTRICTED` — an already-issued
 key whose account isn't on the API v1 allowlist, or is flagged / under
-review), the body is PM-shape and the code is in the header:
+review), the body uses the same two-field envelope:
 
 ```json
 // 403 ACCESS_RESTRICTED (not on the allowlist / flagged account)
 // + headers: X-Polysim-Code: ACCESS_RESTRICTED
-{"error": "API access restricted. Contact support to request access."}
+{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
 ```
 
 The residual **key-issuance** codes use the same shape. Default open
@@ -9982,19 +9774,16 @@ beta self-serves keys: free callers get a read-only key, paying Pro /
 Pro+ callers get a trade-capable key. `403 TIER_REQUIRES_UPGRADE` is
 the expected refusal when a free caller requests `trade`.
 `CLOSED_BETA` / `API_PRO_COMING_SOON` remain valid residual codes for
-an emergency close, with the machine code in `X-Polysim-Code` and the
-human message in the body's `error` field. The `feature_key` /
-`upgrade_url` hints are body fields **only on 402** responses, not these
-403s. See [Open Beta Errors](#open-beta-errors) below.
+an emergency close. The `feature_key` / `upgrade_url` hints are body
+fields **only on 402** responses, not these 403s. See
+[Open Beta Errors](#open-beta-errors) below.
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
-  request to get the legacy multi-field shape:
+  request to add diagnostic fields:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
-  Useful when writing or debugging an SDK; PM-shape is the default so
-  Polymarket-CLOB SDK ports work without translation.
 
 ---
 
@@ -10007,12 +9796,12 @@ human message in the body's `error` field. The `feature_key` /
 | `401` | Invalid or missing API key | No | Check `X-API-Key` header |
 | `403` | Insufficient permissions | No | Check key scopes |
 | `404` | Resource not found | No | Verify market ID or order ID |
-| `409` | Conflict — duplicate idempotency key, **or** `LOCK_BUSY_RETRY` | Depends | Duplicate key: use the original response. `LOCK_BUSY_RETRY`: retry after `Retry-After`. Branch on `error_code`. |
+| `409` | Conflict (duplicate idempotency key) | No | Use original response |
 | `422` | Validation error | No | Fix input fields |
 | `429` | Rate limited | **Yes** | Wait for `Retry-After` header |
 | `500` | Internal server error | **Yes** | Retry with backoff |
 | `502` | Upstream error | **Yes** | Retry with backoff |
-| `503` | Service unavailable | **Only with `Retry-After`** | Retry after `Retry-After`. A 503 **without** the header (`PERSISTENCE_UNKNOWN`, `DEADLINE_OVERSHOT_BUT_PERSISTED`) may already have persisted — poll `GET /v1/orders` instead of retrying. |
+| `503` | Service unavailable | **Yes** | Retry with backoff |
 
 ---
 
@@ -10043,22 +9832,43 @@ trading pages link here rather than restating the codes.
 | `DUPLICATE_CLIENT_ORDER_ID` | 409 | A new order reused a `client_order_id` already bound to a different order. |
 | `IDEMPOTENCY_KEY_REUSE` | 409 | The same `Idempotency-Key` was replayed with a **different** request body. (An identical replay instead returns the original order — see Idempotency below.) |
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
-| `LOCK_BUSY_RETRY` | 409 | **Retryable.** Another order write for the same account is already in flight, and the 2 s cooperative wait elapsed. Body `error` is `TRADE_IN_PROGRESS`. Carries `Retry-After: 1`. Order writes are serialised per account — see [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account). |
-| `DB_CONTENTION_RETRY` | 503 | **Retryable.** The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired. Body `error` is `SERVER_BUSY`, and the message states the order was **not** placed. `Retry-After: 1` on placement, `Retry-After: 5` on cancellation — read the header rather than assuming. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
 
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
 
-  **`LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` are self-inflicted in almost
-  every case.** They mean two order writes for the *same account* overlapped —
-  most often a client that fires a cancel without waiting for the preceding
-  placement to return. One account sustains about **3–4 order writes per
-  second** regardless of tier, because each write holds a per-account lock for
-  200–294 ms. Serialise your writes per account, and add accounts (not tier) to
-  go faster. Full contract: [Order writes are serialised per
-  account](/concepts/rate-limits#order-writes-are-serialised-per-account).
+### Deadline, busy, and concurrency errors
+
+Order writes are serialized per **user**, not per API key. A second write
+waits briefly for the first; if the lock is still held, it returns
+`409 TRADE_IN_PROGRESS` with `Retry-After: 1`. Separate keys for the same
+user do not bypass this lock. Wait, then retry the same logical request
+with the same `client_order_id`.
+
+| Error Code | HTTP | Persisted? | Client action |
+|-----------|------|------------|---------------|
+| `TRADE_IN_PROGRESS` | 409 | No new write started | Wait for `Retry-After`, then retry the same request. |
+| `SERVER_BUSY` | 503 | Persistence check confirmed no row | Safe to retry. For order placement, reuse the same `client_order_id` so idempotency deduplicates a late result. |
+| `DEADLINE_OVERSHOT_BUT_PERSISTED` | 503 | **Yes** | **Do not re-place.** Read `X-Polysim-Order-Id` and body `source`. For `source: "pending"`, poll `GET /v1/orders/{order_id}`. For `source: "filled"`, fetch `GET /v1/orders` and match your `client_order_id`; direct numeric ids can collide across the pending and filled tables. |
+| `PERSISTENCE_UNKNOWN` | 503 | Unknown | **Do not auto-retry.** Fetch recent `GET /v1/orders` results and scan for the same `client_order_id` before deciding whether to re-place. This response intentionally has no `Retry-After`. |
+
+```python
+import time
+
+code = response.headers.get("X-Polysim-Code")
+if code in {"TRADE_IN_PROGRESS", "SERVER_BUSY"}:
+    time.sleep(int(response.headers.get("Retry-After", "1")))
+    # Repeat the original request with the SAME client_order_id.
+elif code == "DEADLINE_OVERSHOT_BUT_PERSISTED":
+    order_id = response.headers["X-Polysim-Order-Id"]
+    source = response.json().get("source")
+    # Do not POST again. Poll by id only for a pending row; otherwise scan
+    # GET /v1/orders and match the original client_order_id.
+elif code == "PERSISTENCE_UNKNOWN":
+    # Do not POST again until GET /v1/orders confirms no matching order.
+    pass
+```
 
 ### Order status values
 
@@ -10126,29 +9936,19 @@ your inventory per `token_id` before submitting a SELL.
 
 ### Rate Limit Errors
 
-The backend emits **three distinct 429 codes** (in the `X-Polysim-Code`
-header). All are retryable and all carry `Retry-After` — branch on
-whichever you need, or simply treat any 429 as a back-off signal:
+The backend emits **two distinct 429 codes** (in the `X-Polysim-Code`
+header). Both are retryable and both carry `Retry-After` — branch on
+either, or simply treat any 429 as a back-off signal:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
 | `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
-| `API_KEY_CONCURRENCY_EXCEEDED` | 429 | The **per-key in-flight cap**: too many `/v1/*` requests executing simultaneously for one key on one API worker — a limit on concurrency, not on rate. Carries `Retry-After: 1` plus `X-Concurrency-Key-Limit` and `X-Concurrency-Key-Remaining`. **Enforced in production**; see [Per-key in-flight concurrency](/concepts/rate-limits#per-key-in-flight-concurrency). |
 
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
   robust pattern is to back off on `resp.status_code == 429` regardless
   of which code is in the header.
-
-  **Some 429s on public market data are charged per source IP, not per key.**
-  Resolving a key from cold on the public market-data routes charges a shared
-  budget of **2 requests/second (120/minute) keyed on the source IP**, before
-  your tier is known. Every key behind one NAT egress IP shares it, and keys
-  minted in the same second go cold together every 120 seconds, so the
-  rejections arrive in bursts that look unrelated to your traffic. Details and
-  mitigations: [Read limits are
-  separate](/concepts/rate-limits#read-limits-are-separate-and-one-of-them-is-per-ip).
 
 The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 
