@@ -29,7 +29,7 @@ Anyone who can sign in can mint a key. Default path:
    Body: `{"name": "my-bot"}` — `name` is optional. Send `{}` for defaults.
 2. Store the returned `raw_key` — it is shown only once.
 3. All subsequent requests use `X-API-Key: <raw_key>`.
-Free-tier bootstrap is READ-ONLY (`["read"]`); free + ["read","trade"] is 403 TIER_REQUIRES_UPGRADE. Paid Pro/Pro+ bootstrap returns ["read","trade"] and an isolated API wallet. CLOSED_BETA / API_PRO_COMING_SOON are residual emergency/cohort codes, not the default.
+Free-tier bootstrap returns `["read","trade"]` — free keys MAY trade (2026-09-05). They are bounded by a $100 API wallet that cannot be topped up and a per-user daily write cap, not by withholding the permission. Asking for a PAID TIER you are not entitled to is still 403 TIER_REQUIRES_UPGRADE, and `admin` is never self-issued at any tier. A key issued before the free-trade epoch, or one carrying a lapsed paid grant, stays read-only. Paid Pro/Pro+ bootstrap returns ["read","trade"] and an isolated API wallet. CLOSED_BETA / API_PRO_COMING_SOON are residual emergency/cohort codes, not the default.
 ```json
 {
   "id": 1,
@@ -244,7 +244,7 @@ All three call the same matching engine. Response status enum: {"live", "matched
 Cancel paths: DELETE /v1/order (body), DELETE /v1/orders (array body), DELETE /v1/orders/{id} (path), POST /v1/cancel-all.
 
 ### Open beta (default)
-- Key issuance is self-serve. POST /v1/keys and POST /v1/keys/bootstrap mint a free read-only key or a paid trade-capable key. Free + trade is 403 TIER_REQUIRES_UPGRADE. Paying Pro/Pro+ are not waitlisted. CLOSED_BETA / API_PRO_COMING_SOON remain valid residual X-Polysim-Code values for an emergency close or leftover cohort grant — they are NOT the default. For all /v1/* errors the machine code is in the X-Polysim-Code response header and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses. A residual runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account is flagged / under review.
+- Key issuance is self-serve. POST /v1/keys and POST /v1/keys/bootstrap mint a trade-capable key at any tier, free included. Requesting a paid TIER without entitlement is 403 TIER_REQUIRES_UPGRADE. Paying Pro/Pro+ are not waitlisted. CLOSED_BETA / API_PRO_COMING_SOON remain valid residual X-Polysim-Code values for an emergency close or leftover cohort grant — they are NOT the default. For all /v1/* errors the machine code is in the X-Polysim-Code response header and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses. A residual runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account is flagged / under review.
 - GET /api/beta/cohort-status — Public, no auth. Returns {cohort_label, available, active, cap, cutoff, reopens_at}. Pricing page uses residual cohort inventory; not required for self-serve signup.
 - Legacy beta-issued keys carry an X-API-Beta-Cutoff response header on every request when the cutoff is in the past — SDKs can pivot to read-only mode without an explicit "what's my cohort cutoff" round-trip.
 
@@ -285,7 +285,7 @@ Verbose body opt-in (request header `X-Polysim-Verbose: true`) adds `request_id`
 - 429 RATE_LIMIT_EXCEEDED — Too many requests (check Retry-After header)
 
 ## Trading Mode
-- Virtual (default): All trades are simulated. The API key trades against a tier-dependent **API wallet**, separate from the dashboard MAIN wallet: **Pro = $10,000**, **Pro+ = $25,000**, **Free = read-only (no trading, $0 API wallet)**. The dashboard MAIN/UI wallet starts at $1,000 but API keys never touch it — size PnL and order quantities off your API-wallet baseline (read it live via GET /v1/account/balance), not the $1,000 UI figure. Account reads (positions/history/profile-analysis/portfolio/equity) are API-wallet scoped by default — pass `wallet_id=all` to see UI-wallet activity too, or `wallet_id=<id>` for one specific wallet.
+- Virtual (default): All trades are simulated. The API key trades against a tier-dependent **API wallet**, separate from the dashboard MAIN wallet: **Pro = $10,000**, **Pro+ = $25,000**, **Free = $100 API wallet, trading enabled, no top-ups**. The dashboard MAIN/UI wallet starts at $1,000 but API keys never touch it — size PnL and order quantities off your API-wallet baseline (read it live via GET /v1/account/balance), not the $1,000 UI figure. Account reads (positions/history/profile-analysis/portfolio/equity) are API-wallet scoped by default — pass `wallet_id=all` to see UI-wallet activity too, or `wallet_id=<id>` for one specific wallet.
 - Live: Order format is identical — POST /v1/clob/order uses the same request body as
   Polymarket's POST /order. What changes: base URL, authentication method (HMAC L2 via
   py_clob_client SDK), and real USDC.e funds.
@@ -445,7 +445,7 @@ except Exception as e:
 |----------------|----------------------------|-------------------------------------|
 | Base URL       | api.polysimulator.com/v1   | clob.polymarket.com                 |
 | Auth           | X-API-Key header           | py_clob_client SDK (HMAC L2 auth)   |
-| Money          | Virtual API wallet: Pro $10,000 / Pro+ $25,000 / Free read-only ($0). (Dashboard MAIN wallet is $1,000 but API keys never use it.) | Real USDC.e on Polygon              |
+| Money          | Virtual API wallet: Pro $10,000 / Pro+ $25,000 / Free $100 (not resettable). (Dashboard MAIN wallet is $1,000 but API keys never use it.) | Real USDC.e on Polygon              |
 | Market IDs     | `market_id` = `condition_id` | Order routing uses `token_id` per outcome (`clobTokenIds`) |
 | Prices         | Same real-time CLOB prices | Same                                |
 | Extensions     | /markets/updown etc.    | Not available — guard with env check|
