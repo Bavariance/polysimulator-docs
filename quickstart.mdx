@@ -142,6 +142,8 @@ description: "Get your API key and place your first trade in under 2 minutes."
     </Frame>
 
     <Info>
+      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
+
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for

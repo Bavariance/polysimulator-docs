@@ -71,32 +71,51 @@ The reset response carries four fields:
 
 ## Scoping account reads to a wallet
 
-The account read endpoints accept a `wallet_id` query parameter with three
+The account and order endpoints accept a `wallet_id` query parameter with three
 forms (case-insensitive keywords):
 
 | Value | Meaning |
 |---|---|
-| *(omitted)* | **Your API wallet** — the default on every account read |
+| *(omitted)* | **Your API wallet** — the default on account reads (and legacy merged behaviour on `/v1/orders`) |
 | `api` | Your API wallet, explicitly (includes legacy rows recorded before per-wallet attribution) |
 | `all` | Every wallet you own — UI MAIN/SANDBOX/COMPETITION included |
 | `` | One specific wallet you own (ids from `GET /v1/me/wallets`); 404 `WALLET_NOT_FOUND` otherwise. MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution |
 
-Supported on [Positions](/account/positions),
-[Trade History](/account/trade-history),
-[Profile Analysis](/account/profile-analysis),
-[Portfolio](/account/portfolio) and [Equity Curve](/account/equity-curve).
-[Balance](/account/balance) is always API-wallet scoped. Any other
-`wallet_id` value returns 422 `VALIDATION_FAILED`.
+Supported on:
+- [`GET /v1/orders`](/trading/order-management)
+- [`GET /v1/account/positions`](/account/positions)
+- [`GET /v1/account/history`](/account/trade-history)
+- [`GET /v1/account/profile-analysis`](/account/profile-analysis)
+- [`GET /v1/account/portfolio`](/account/portfolio)
+- [`GET /v1/account/equity`](/account/equity-curve)
+
+Note that [`GET /v1/account/balance`](/account/balance) is always API-wallet scoped (`wallet_id` is a no-op). Any invalid
+`wallet_id` string returns 422 `VALIDATION_FAILED`.
 
 ```bash
 # Default — API wallet only
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/positions
 
+# Specific wallet ID
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "https://api.polysimulator.com/v1/orders?wallet_id=1327"
+
 # Everything you own, including UI wallets
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   "https://api.polysimulator.com/v1/account/positions?wallet_id=all"
 ```
+
+### Multi-wallet querying
+
+To enumerate all wallets associated with your account and discover their numeric IDs, call:
+
+```bash
+curl -H "Authorization: Bearer $SUPABASE_JWT" \
+  https://api.polysimulator.com/v1/me/wallets
+```
+
+This returns your complete wallet roster (`id`, `name`, `type`, `balance`). You can then pass any of your wallet IDs as `?wallet_id=` to inspect positions, trade history, orders, or equity for that specific wallet.
 
   **Migration note (2026-06-10):** `GET /v1/account/positions`,
   `GET /v1/account/history` and `GET /v1/account/profile-analysis`
