@@ -34,6 +34,20 @@ with PolySimClient() as client:                              # POLYSIM_API_KEY f
   | You already use… | Import | How to port |
   | --- | --- | --- |
   | [`py-clob-client`](https://github.com/Polymarket/py-clob-client) **v1** | `polysim_clob_client` | Drop-in mirror — change the import path, host, and auth call. See the [CLOB migration map](/concepts/clob-compatibility). |
+
+  <Warning>
+  **On CLOB V1 vs V2.** Polymarket has archived
+  [`py-clob-client`](https://github.com/Polymarket/py-clob-client) (v1) and moved
+  production to CLOB V2, with
+  [`py-clob-client-v2`](https://github.com/Polymarket/py-clob-client-v2) as the
+  current client. Our drop-in mirrors the **v1** surface, so it is the right tool
+  for porting an existing v1 bot — and it is *not* a V2 client.
+
+  If you are starting fresh today and intend to go live on Polymarket, write
+  against our native `PolySimClient` and treat the move to Polymarket as a real
+  port to V2 rather than a base-URL swap. V2 support is on our roadmap; until it
+  ships we would rather say so here than let you find out at the point you go live.
+  </Warning>
   | Polymarket's unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`polymarket-client`) | `polysim_polymarket` | Paper-mode mirror of `PublicClient` / `SecureClient` — swap the import prefix + host + auth. See the [py-sdk Mirror overview](/sdk-polymarket) + [compatibility](/concepts/py-sdk-compatibility). |
 </Note>
 
