@@ -43,10 +43,16 @@ with PolySimClient() as client:                              # POLYSIM_API_KEY f
   current client. Our drop-in mirrors the **v1** surface, so it is the right tool
   for porting an existing v1 bot — and it is *not* a V2 client.
 
-  If you are starting fresh today and intend to go live on Polymarket, write
-  against our native `PolySimClient` and treat the move to Polymarket as a real
-  port to V2 rather than a base-URL swap. V2 support is on our roadmap; until it
-  ships we would rather say so here than let you find out at the point you go live.
+  **And V2 is not where Polymarket is pointing new projects either.**
+  `py-clob-client-v2`'s own package README says *"We recommend Polymarket/py-sdk
+  for new projects"* — the unified SDK published on PyPI as `polymarket-client`.
+  So porting to V2 CLOB would be porting to something already being sidelined.
+
+  If you are starting fresh today and intend to go live on Polymarket, use
+  `polysim_polymarket` — our paper-mode mirror of that unified SDK — and treat
+  the move to Polymarket as a real port rather than a base-URL swap. Check its
+  pinned version against `polymarket-client` before relying on a specific method:
+  the mirror tracks a release, not upstream HEAD.
   </Warning>
   | Polymarket's unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`polymarket-client`) | `polysim_polymarket` | Paper-mode mirror of `PublicClient` / `SecureClient` — swap the import prefix + host + auth. See the [py-sdk Mirror overview](/sdk-polymarket) + [compatibility](/concepts/py-sdk-compatibility). |
 </Note>
