@@ -28,7 +28,7 @@ accepted here.
 |-----------|------|---------|-------------|
 | `status` | string | — | Filter: `OPEN` or `CLOSED`. **Omit to return all positions.** `OPEN` returns positions with `quantity > 0`; `CLOSED` includes reset-archived (`CLOSED_BY_RESET`) positions. Any other value is ignored (treated as no filter). |
 | `wallet_id` | int \| `"all"` \| `"api"` | `api` | Wallet scope. An integer scopes to a single wallet you own (404 `WALLET_NOT_FOUND` otherwise). `api` scopes to your API wallet (including legacy rows recorded before per-wallet attribution). `all` returns every position across **all** your wallets, UI MAIN/SANDBOX included. Keywords are case-insensitive; any other value returns 422 `VALIDATION_FAILED`. **Omitted = `api`.** |
-| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "data": [...], "next_cursor": "" }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
+| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "limit": N, "count": N, "next_cursor": "", "data": [...] }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
 
 <Warning>
   **Default changed on 2026-06-10.** Before 2026-06-10 the default (param
@@ -105,8 +105,10 @@ With `envelope=true` the same rows are wrapped Polymarket-style:
 
 ```json
 {
-  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ],
-  "next_cursor": ""
+  "limit": 1,
+  "count": 1,
+  "next_cursor": "",
+  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ]
 }
 ```
 

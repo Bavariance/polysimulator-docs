@@ -29,7 +29,7 @@ Anyone who can sign in can mint a key. Default path:
    Body: `{"name": "my-bot"}` — `name` is optional. Send `{}` for defaults.
 2. Store the returned `raw_key` — it is shown only once.
 3. All subsequent requests use `X-API-Key: <raw_key>`.
-Free-tier bootstrap is READ-ONLY (`["read"]`); free + ["read","trade"] is 403 TIER_REQUIRES_UPGRADE. Paid Pro/Pro+ bootstrap returns ["read","trade"] and an isolated API wallet. CLOSED_BETA / API_PRO_COMING_SOON are residual emergency/cohort codes, not the default.
+Free-tier bootstrap returns `["read","trade"]` — free keys MAY trade (2026-09-05). They are bounded by a $100 API wallet that cannot be topped up and a per-user daily write cap, not by withholding the permission. Asking for a PAID TIER you are not entitled to is still 403 TIER_REQUIRES_UPGRADE, and `admin` is never self-issued at any tier. A key issued before the free-trade epoch, or one carrying a lapsed paid grant, stays read-only. Paid Pro/Pro+ bootstrap returns ["read","trade"] and an isolated API wallet. CLOSED_BETA / API_PRO_COMING_SOON are residual emergency/cohort codes, not the default.
 ```json
 {
   "id": 1,
@@ -84,7 +84,7 @@ PolySimulator is designed for the "swap base URL to port from py-clob-client" wo
 
 | Surface | Status |
 | --- | --- |
-| Error envelope shape: `{"error": "<message>"}` | ✅ identical |
+| Error envelope shape: `{"error": "ERROR_CODE", "message": "<human prose>"}` | 📌 PolySim extension — Polymarket uses single-field `{"error": "<message>"}`. Runtime unchanged; documentation corrected 2026-08-29. |
 | `GET /book` level ordering: PolySim sorts `bids` price-**ASCENDING** (best/highest bid = `bids[-1]`, last) and `asks` price-**DESCENDING** (best/lowest ask = `asks[-1]`, last) — best level at the **tail** on BOTH sides, byte-identical to Polymarket's LIVE `/book` wire (verified against `clob.polymarket.com/book` 2026-06-10). NOTE: PM's *docs* say "bids highest-first" but the live *wire* does the opposite; we match the wire. **Recommended: read order-independently** — `max(float(b["price"]) for b in bids)` / `min(float(a["price"]) for a in asks)` (coerce to a number — string compare mis-orders `"0.9"` vs `"0.10"`). Migration (2026-06-10): a brief earlier build emitted bids descending / asks ascending (best at `[0]`); now PM live-wire (best at `[-1]`). | ✅ identical — best bid/ask at index `[-1]` on both platforms (live wire). |
 | `GET /price?token_id=X&side=BUY\|SELL` — side REQUIRED, returns `{"price": "X"}`. `side=BUY` → best **bid**, `side=SELL` → best **ask** (matches Polymarket's live `/price` wire; corrected 2026-06-10 — before that PolySim returned the opposite side of the book). | ✅ identical |
 | `GET /midpoint?token_id=X` — returns `{"mid": "X"}` (no side param) | ✅ identical |
@@ -95,8 +95,8 @@ PolySimulator is designed for the "swap base URL to port from py-clob-client" wo
 | Order status enum is endpoint-specific (read the one for the endpoint you call): **POST `/v1/order` / `/v1/clob/order` write response** → `live` (resting) \| `matched` (filled) \| `unmatched` (cancelled/rejected) — PM also has `delayed`, which the sim never emits (no taker-delay markets). **GET `/v1/data/order/{id}` / `/v1/order/{id}` (PM-CLOB shape)** → `ORDER_STATUS_PENDING` \| `ORDER_STATUS_FILLED` \| `ORDER_STATUS_CANCELLED` \| `ORDER_STATUS_REJECTED`. **POST `/v1/orders` (PolySim-shape `OrderResponse` write)** → `PENDING` \| `FILLED` \| `CANCELLED` \| `REJECTED` \| `EXPIRED`. Note: `REJECTED` only ever appears on this synchronous write response (a rejected order is never persisted — it comes back with `order_id: 0`). **GET `/v1/orders` + GET `/v1/orders/{id}`** read a PERSISTED row, so they return `PENDING` \| `FILLED` \| `CANCELLED` \| `EXPIRED` only — never `REJECTED`. | 📌 documented deviation — write-response enum (`live/matched/unmatched`) matches PM; the PolySim-shape listing/lookup uses the bare `PENDING/FILLED/...` words. Branch on the enum for the endpoint you actually call. |
 | Order types: `GTC \| FOK \| FAK \| GTD` | ✅ identical (we also accept `IOC` as a `FAK` alias) |
 | Tick-size enforcement on limit prices, market-aware (0.0001 / 0.001 / 0.01 / 0.1) | ✅ identical |
-| `X-Polysim-Code` response header carrying machine code | 📌 PolySim extension (PM uses `X-Polymarket-Code`) — body still PM-shape `{error}` |
-| 402 UPGRADE_REQUIRED body retains `feature_key` + `upgrade_url` | 📌 documented deviation — PM has no equivalent (no entitlement layer). All non-402 errors stay pure single-field. |
+| `X-Polysim-Code` response header carrying the same machine code as body `error` | 📌 PolySim extension (PM uses `X-Polymarket-Code`) |
+| 402 UPGRADE_REQUIRED body additionally carries `feature_key` + `upgrade_url` | 📌 documented deviation — PM has no equivalent (no entitlement layer). |
 | `POST /v1/clob/order` accepts legacy FLAT shape, NOT PM nested | 📌 use `POST /v1/order` for PM nested body |
 | WebSocket auth via `?token=<jwt>` from `POST /v1/keys/ws-token` (60s JWT) | 📌 PolySim signs WS with our own JWT; PM uses HMAC. Both endpoints stream identical JSON frames once connected. |
 | L1/L2 EIP-712 signing | ❌ not enforced — paper-trading. On-chain fields (salt, signer, signature, nonce, feeRateBps, signatureType) accepted but ignored. Live mode (real Polymarket) requires real signing. |
@@ -244,7 +244,7 @@ All three call the same matching engine. Response status enum: {"live", "matched
 Cancel paths: DELETE /v1/order (body), DELETE /v1/orders (array body), DELETE /v1/orders/{id} (path), POST /v1/cancel-all.
 
 ### Open beta (default)
-- Key issuance is self-serve. POST /v1/keys and POST /v1/keys/bootstrap mint a free read-only key or a paid trade-capable key. Free + trade is 403 TIER_REQUIRES_UPGRADE. Paying Pro/Pro+ are not waitlisted. CLOSED_BETA / API_PRO_COMING_SOON remain valid residual X-Polysim-Code values for an emergency close or leftover cohort grant — they are NOT the default. For all /v1/* errors the machine code is in the X-Polysim-Code response header and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses. A residual runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account is flagged / under review.
+- Key issuance is self-serve. POST /v1/keys and POST /v1/keys/bootstrap mint a trade-capable key at any tier, free included. Requesting a paid TIER without entitlement is 403 TIER_REQUIRES_UPGRADE. Paying Pro/Pro+ are not waitlisted. CLOSED_BETA / API_PRO_COMING_SOON remain valid residual X-Polysim-Code values for an emergency close or leftover cohort grant — they are NOT the default. For all /v1/* errors the machine code is in the X-Polysim-Code response header and the default PM-shape body's `error` field is the human message; feature_key + upgrade_url are body fields only on 402 responses. A residual runtime gate returns 403 ACCESS_RESTRICTED for an already-issued key whose account is flagged / under review.
 - GET /api/beta/cohort-status — Public, no auth. Returns {cohort_label, available, active, cap, cutoff, reopens_at}. Pricing page uses residual cohort inventory; not required for self-serve signup.
 - Legacy beta-issued keys carry an X-API-Beta-Cutoff response header on every request when the cutoff is in the past — SDKs can pivot to read-only mode without an explicit "what's my cohort cutoff" round-trip.
 
@@ -285,7 +285,7 @@ Verbose body opt-in (request header `X-Polysim-Verbose: true`) adds `request_id`
 - 429 RATE_LIMIT_EXCEEDED — Too many requests (check Retry-After header)
 
 ## Trading Mode
-- Virtual (default): All trades are simulated. The API key trades against a tier-dependent **API wallet**, separate from the dashboard MAIN wallet: **Pro = $10,000**, **Pro+ = $25,000**, **Free = read-only (no trading, $0 API wallet)**. The dashboard MAIN/UI wallet starts at $1,000 but API keys never touch it — size PnL and order quantities off your API-wallet baseline (read it live via GET /v1/account/balance), not the $1,000 UI figure. Account reads (positions/history/profile-analysis/portfolio/equity) are API-wallet scoped by default — pass `wallet_id=all` to see UI-wallet activity too, or `wallet_id=<id>` for one specific wallet.
+- Virtual (default): All trades are simulated. The API key trades against a tier-dependent **API wallet**, separate from the dashboard MAIN wallet: **Pro = $10,000**, **Pro+ = $25,000**, **Free = $100 API wallet, trading enabled, no top-ups**. The dashboard MAIN/UI wallet starts at $1,000 but API keys never touch it — size PnL and order quantities off your API-wallet baseline (read it live via GET /v1/account/balance), not the $1,000 UI figure. Account reads (positions/history/profile-analysis/portfolio/equity) are API-wallet scoped by default — pass `wallet_id=all` to see UI-wallet activity too, or `wallet_id=<id>` for one specific wallet.
 - Live: Order format is identical — POST /v1/clob/order uses the same request body as
   Polymarket's POST /order. What changes: base URL, authentication method (HMAC L2 via
   py_clob_client SDK), and real USDC.e funds.
@@ -445,7 +445,7 @@ except Exception as e:
 |----------------|----------------------------|-------------------------------------|
 | Base URL       | api.polysimulator.com/v1   | clob.polymarket.com                 |
 | Auth           | X-API-Key header           | py_clob_client SDK (HMAC L2 auth)   |
-| Money          | Virtual API wallet: Pro $10,000 / Pro+ $25,000 / Free read-only ($0). (Dashboard MAIN wallet is $1,000 but API keys never use it.) | Real USDC.e on Polygon              |
+| Money          | Virtual API wallet: Pro $10,000 / Pro+ $25,000 / Free $100 (not resettable). (Dashboard MAIN wallet is $1,000 but API keys never use it.) | Real USDC.e on Polygon              |
 | Market IDs     | `market_id` = `condition_id` | Order routing uses `token_id` per outcome (`clobTokenIds`) |
 | Prices         | Same real-time CLOB prices | Same                                |
 | Extensions     | /markets/updown etc.    | Not available — guard with env check|
