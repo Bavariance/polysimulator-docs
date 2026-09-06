@@ -66,6 +66,9 @@ graph TD
 | Pro REST | **10 req/s**, **600 req/min** | Same two-bucket model. |
 | Pro+ REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
+| Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account). |
+| Overlapping writes, one account | `409 LOCK_BUSY_RETRY` / `503 DB_CONTENTION_RETRY` | The API returns a bounded error rather than queueing you. Both carry `Retry-After` (1 s on placement, 5 s on cancellation). Placement 503s state the order was **not** placed. |
+| Public market data, cold key lookup | **2 req/s**, **120 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
 | API wallet | Pro **$10,000**, Pro+ **$25,000** | Free keys have **no** API wallet and cannot trade. MAIN ($1,000) is never used by API keys. |
@@ -84,6 +87,14 @@ In PolySimulator paper trading, resting orders match whenever the venue price cr
 <Tip>
   For realistic backtesting that models queue dynamics and historical book reconstruction, use the upcoming **Simulation SKU** rather than paper trading.
 </Tip>
+
+### Order Writes Are Serialised Per Account
+
+Every order write on one account — place, batch place, and cancel — is serialised behind a per-account advisory lock and the account's `accounts` row lock. Measured on 2026-09-02, that lock is held for **200–294 ms at p95**, flat from 1 to 16 concurrent traders, because it is the intrinsic cost of one write rather than congestion. One account therefore sustains roughly **3–4 order writes per second**, and no tier changes that: an `enterprise` key is sold at 100 req/s and reaches about 4/s on the write path.
+
+The consequence is worth stating plainly rather than letting you discover it as errors. **Aggregate write throughput scales with the number of accounts, not with the size of the plan.** Sixteen independent accounts sustained 51.8 req/s of order traffic with zero errors in the same measurement. A prop firm running N funded traders on N accounts gets roughly N × 3–4 writes/s; the same firm fanning N threads at one account gets 3–4 and a stream of contention errors.
+
+When you do overlap writes on a single account, the API returns a bounded error rather than queueing you: `409 LOCK_BUSY_RETRY` once the 2 s cooperative wait elapses, or `503 DB_CONTENTION_RETRY` once the 200 ms database lock timeout fires. Both carry `Retry-After` in seconds, and with an `Idempotency-Key` the retry is safe. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account) for the full contract.
 
 ### No Self-Impact
 In live markets, large orders consume liquidity and shift the market price against the trader. In PolySimulator, your trades update your virtual portfolio and ledger, but do not affect external Polymarket order books. Size-aware VWAP book walking simulates the price you *would* receive given current book depth, but does not move the market for subsequent orders.
@@ -115,25 +126,7 @@ In live markets, large orders consume liquidity and shift the market price again
 ## Operational Boundaries & Beta SLA
 
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
-* **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
-  per-second bucket and a per-minute bucket, each keyed on the current clock
-  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
-
-  <Warning>
-  A fixed window has a **boundary burst**: because the counter resets at each
-  clock second, a client aligned to that boundary can send its full per-second
-  allowance just before the tick and again just after — briefly about **twice**
-  the nominal RPS. We do not treat that as abuse, but do not design around it
-  either: it is a property of the window, not a documented allowance, and
-  tightening it later would break a client that relied on it.
-  </Warning>
-
-  <Warning>
-  **The limiter fails open.** If Redis is unreachable the limit check returns
-  full headroom rather than rejecting your request, so during a cache outage
-  the stated limits are not enforced. This is a deliberate availability trade —
-  we would rather serve you unthrottled than fail your requests because *our*
-  cache is down — and it is stated here so the guarantee you are buying is the
-  guarantee you actually get.
-  </Warning>
+* **Rate Limits:** Per-key rate limits are enforced via Redis **fixed-window** counters — one per-second bucket and one per-minute bucket (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM). A fixed window is not a sliding window: a client that aligns to the bucket boundary can briefly send up to **twice** its per-second allowance (two requests just before a second ticks over and two just after are four requests in milliseconds, and all four are admitted). We size tiers with that in mind and we would rather tell you than have you discover it. See [Rate Limits](/concepts/rate-limits) for the exact behaviour.
+* **Per-Account Write Ceiling:** Tier limits bound requests; they do not bound order writes on one account. One account sustains **~3–4 order writes per second on every tier** because each write holds a per-account lock for 200–294 ms. Size a deployment by accounts — one per strategy, participant, or funded trader — not by tier. Overlapping writes on one account return `409 LOCK_BUSY_RETRY` or `503 DB_CONTENTION_RETRY` with `Retry-After`, never an unbounded queue. See [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account).
+* **Rate Limiter Availability:** The limiter stores its counters in Redis, and it **fails open** — if Redis is unreachable, requests are admitted rather than rejected, so a cache outage degrades enforcement instead of taking the API down. That is a deliberate availability trade: we would rather serve you unlimited for a few minutes than 500 every request. A bounded fallback budget can be enabled per environment, and every such event is counted (`polysim_api_rate_limit_redis_error_total`) so a silently-disabled limiter is visible to us.
 * **Deprecation Policy:** Breaking API or schema changes during public beta will be communicated with at least **14 days notice** via email and documentation changelogs.
