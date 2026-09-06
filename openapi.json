@@ -9760,6 +9760,104 @@
               "title": "Asset"
             },
             "description": "Filter by asset symbol, e.g. BTC, ETH, SOL, XRP, BNB, DOGE, HYPE for the crypto intervals. Case-insensitive."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum markets returned PER INTERVAL, newest first. The response used to be unbounded and served 13.2 MB; a bot that wants one asset's current interval no longer has to download the catalogue to find it. Raise it if you genuinely need more.",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum markets returned PER INTERVAL, newest first. The response used to be unbounded and served 13.2 MB; a bot that wants one asset's current interval no longer has to download the catalogue to find it. Raise it if you genuinely need more."
+          },
+          {
+            "name": "group_by_asset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Also return `asset_markets`, the same markets re-keyed by asset. OFF by default because it is a duplicate: measured 2026-09-05 it held byte-for-byte the same market set as `current` (2,296 of 2,296 condition_ids in the 5M interval), which is where half of the old 13.2 MB went.",
+              "default": false,
+              "title": "Group By Asset"
+            },
+            "description": "Also return `asset_markets`, the same markets re-keyed by asset. OFF by default because it is a duplicate: measured 2026-09-05 it held byte-for-byte the same market set as `current` (2,296 of 2,296 condition_ids in the 5M interval), which is where half of the old 13.2 MB went."
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Your PolySimulator API key",
+              "title": "X-Api-Key"
+            },
+            "description": "Your PolySimulator API key"
+          },
+          {
+            "name": "POLY_API_KEY",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided.",
+              "title": "Poly Api Key"
+            },
+            "description": "Polymarket-CLOB-compat alias for ``X-API-Key`` (underscore form). SDK clients ported from Polymarket can authenticate without changing header names. ``X-API-Key`` takes precedence when both are provided."
+          },
+          {
+            "name": "Poly-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end.",
+              "title": "Poly-Api-Key"
+            },
+            "description": "PM-CLOB-compat dashed-form alias for ``X-API-Key``. Same value semantics as ``POLY_API_KEY`` but with HTTP-conventional dash separators. Both spellings are accepted end-to-end."
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those.",
+              "title": "Authorization"
+            },
+            "description": "PM-CLOB-compat: ``Authorization: Bearer ps_live_...`` (or ``ps_test_...``) is accepted as an alias for ``X-API-Key`` so py-clob-client and other ported SDKs authenticate without header name changes. Bearer JWTs are NOT accepted here \u2014 use the dashboard-auth endpoints for those."
           }
         ],
         "responses": {
