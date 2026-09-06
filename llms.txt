@@ -10,12 +10,14 @@ PolySimulator provides a complete algorithmic trading API for trading bots to pr
 ## API Base URL
 - Production: https://api.polysimulator.com/v1
 
-## Simulation (feature-dark)
+## Simulation
 - POST /v1/simulation/fill, GET /v1/simulation/coverage, GET /v1/simulation/book, GET /v1/simulation/fill-models
 - POST/GET/DELETE /v1/simulation/backtests (+ /trades, /equity). Equity is keyset-paginated.
 - All numerics are strings. Fill/book echo resolved token_id + comp_token_id.
 - Optional CreateBacktestRequest.token_ids map is stored on the job after resolution.
-- 404 while FEATURE_SIMULATION_API_ENABLED is off. Not a commercial SKU / Telonex activation.
+- LIVE on production since 2026-09-05: these return 401 without a key, not 404.
+  Gated by FEATURE_SIMULATION_API_ENABLED, which is ON in production.
+  Not a commercial SKU / Telonex activation.
 - X-Polysim-Code: INVALID_REQUEST, BACKTEST_MONTHLY_CAP, BACKTEST_MARKET_CAP, BACKTEST_WINDOW_CAP, SIMULATION_HOURS_EXCEEDED, METERING_UNAVAILABLE, CONDITION_HOUR_NOT_COVERED, ARCHIVE_UNAVAILABLE, ARCHIVE_NOT_FOUND, UNIVERSE_EXCLUDED, JOB_STORE_UNAVAILABLE
 - Adjacent v4 sidecars are fail-closed; frames_spilled is valid, frames_dropped is degraded.
 
