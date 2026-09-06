@@ -78,8 +78,9 @@ A **Pro+** key sees its $25,000 baseline instead:
 <Note>
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
   wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
-  open API positions. Resets are **free and currently uncapped** — there is
-  no cooldown during the beta period (through 2026-08-31). See
+  open API positions. On a paid tier resets are **currently uncapped** — the
+  cooldown is `API_RESET_COOLDOWN_DAYS`, presently 0. **On Free it returns
+  `402 UPGRADE_REQUIRED`**; the $100 budget is non-renewable. See
   [Wallets](/account/wallets) for the full reset semantics.
 </Note>
 

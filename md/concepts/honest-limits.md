@@ -70,7 +70,7 @@ graph TD
 | Public market data, cold key lookup | **10 req/s**, **600 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
-| API wallet | Pro **$10,000**, Pro+ **$25,000** | Free keys have **no** API wallet and cannot trade. MAIN ($1,000) is never used by API keys. |
+| API wallet | Free **$100**, Pro **$10,000**, Pro+ **$25,000** | Free CAN trade — $100 is a small, deliberately **non-renewable** budget, and `reset-api-balance` returns `402 UPGRADE_REQUIRED` on Free. MAIN ($1,000) is never used by API keys. |
 | Tick sizes | `0.1` / `0.01` / `0.001` / `0.0001` | Market-aware. Off-grid limits return `INVALID_ORDER_MIN_TICK_SIZE`. |
 | String numerics | JSON **strings** for prices, sizes, balances | Polymarket-parity exceptions: `GET /v1/tick-size/{token_id}` `minimum_tick_size` and `GET /v1/markets/updown` `live_price.buy/sell` are JSON **numbers**. See [String Numerics](/concepts/string-numerics). |
 
