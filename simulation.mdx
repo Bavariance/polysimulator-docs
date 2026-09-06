@@ -6,19 +6,20 @@ description: "Historical fill simulation, archive coverage, and curated backtest
 
 # Simulation API
 
-The `/v1/simulation` surface is a **feature-dark** historical fill and
-backtest contract. It is compiled into the public OpenAPI document so
-clients can generate typed methods, but the live router returns **404**
-until an operator sets `FEATURE_SIMULATION_API_ENABLED=true`.
+The `/v1/simulation` surface is a **live**, key-gated historical fill and
+backtest contract. Without a key it returns **401**, not 404 — the endpoints
+exist and are serving. `FEATURE_SIMULATION_API_ENABLED` defaults to `true`; it
+is a kill switch an operator can throw, not an activation step you must wait for.
 
 <Warning>
-  This page documents a dark surface. It does **not** activate
-  commercial backtesting, flip the feature flag, or claim a Telonex /
-  vendor-validated SKU. Volume caps below are plan-matrix numbers, not
-  a live product offer.
+  Live does not mean unlimited. Access is gated on your plan's
+  `analytics.backtesting` entitlement and metered in simulated market-hours, so
+  a call can still be refused on entitlement or quota rather than on auth. The
+  volume caps below are plan-matrix numbers. This page does not claim a Telonex
+  or vendor-validated SKU.
 </Warning>
 
-## First successful call (when the flag is on)
+## First successful call
 
 `simulateFill` is the hook: one condition, one timestamp, one memorable
 VWAP. Do not start with a backtest.
