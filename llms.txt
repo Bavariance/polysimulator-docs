@@ -62,9 +62,10 @@ Manage additional keys via POST /v1/keys (body: name, tier, permissions), GET /v
 
 ## Rate Limits
 Authoritative source: GET /v1/keys/tiers (if a value here disagrees, the endpoint wins).
-- Free: 2 req/sec (burst) / 120 req/min (sustained), 1 WebSocket connection, batch size 1
-- Pro: 10 req/sec / 600 req/min, 3 WebSocket connections, batch size 5
-- Pro+ (pro_plus): 30 req/sec / 1,800 req/min, 10 WebSocket connections, batch size 10
+- Anonymous (no key): 10 req/sec (burst) / 600 req/min (sustained), no WebSocket, READ-ONLY
+- Free: 10 req/sec (burst) / 600 req/min (sustained), 1 WebSocket connection, batch size 1
+- Pro: 30 req/sec / 1,800 req/min, 3 WebSocket connections, batch size 5
+- Pro+ (pro_plus): 60 req/sec / 3,600 req/min, 10 WebSocket connections, batch size 10
 - Enterprise: 100 req/sec / 6,000 req/min, 50 WebSocket connections, batch size 25
 Legacy cohort keys (`api_keys.beta_until` set), if any remain, run at the enterprise tier until the cutoff, then auto-downgrade to free + read-only.
 Rate limit headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Tier

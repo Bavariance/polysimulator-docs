@@ -2334,13 +2334,14 @@ graph TD
 | Claim | Exact number | Exception |
 | --- | --- | --- |
 | Matching loop | ~**1 second** | Loop cadence is best-effort. A busy replica can skip a cycle; do not treat 1.000 s as a hard SLA. |
-| Free REST | **2 req/s**, **120 req/min** | Burst can use the 2 req/s bucket first; sustained load hits the 120/min bucket. Authoritative: `GET /v1/keys/tiers`. |
-| Pro REST | **10 req/s**, **600 req/min** | Same two-bucket model. |
-| Pro+ REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
+| Anonymous REST | **10 req/s**, **600 req/min** | Same ceiling as Free, but **read-only** — no order placement, key management or account mutation. |
+| Free REST | **10 req/s**, **600 req/min** | Burst can use the 10 req/s bucket first; sustained load hits the 600/min bucket. Authoritative: `GET /v1/keys/tiers`. |
+| Pro REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
+| Pro+ REST | **60 req/s**, **3,600 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
 | Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account). |
 | Overlapping writes, one account | `409 LOCK_BUSY_RETRY` / `503 DB_CONTENTION_RETRY` | The API returns a bounded error rather than queueing you. Both carry `Retry-After` (1 s on placement, 5 s on cancellation). Placement 503s state the order was **not** placed. |
-| Public market data, cold key lookup | **2 req/s**, **120 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
+| Public market data, cold key lookup | **10 req/s**, **600 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
 | API wallet | Pro **$10,000**, Pro+ **$25,000** | Free keys have **no** API wallet and cannot trade. MAIN ($1,000) is never used by API keys. |
