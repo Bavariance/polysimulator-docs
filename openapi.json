@@ -2459,15 +2459,83 @@
             "type": "integer",
             "title": "Month To Date",
             "description": "Sum over the current UTC calendar month"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/UsageHour"
+            },
+            "type": "array",
+            "title": "Hours",
+            "description": "Hourly buckets, oldest first, over the requested `hours` window"
+          },
+          "latency": {
+            "$ref": "#/components/schemas/LatencySummary",
+            "description": "Approximate latency over the same window"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/RecentRequest"
+            },
+            "type": "array",
+            "title": "Recent",
+            "description": "Most recent requests for this key, newest first"
           }
         },
         "type": "object",
         "required": [
           "key_prefix",
           "days",
-          "month_to_date"
+          "month_to_date",
+          "latency"
         ],
         "title": "KeyUsage"
+      },
+      "LatencySummary": {
+        "properties": {
+          "samples": {
+            "type": "integer",
+            "title": "Samples",
+            "description": "Requests with a latency bucket in the window"
+          },
+          "p50_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50 Ms",
+            "description": "Upper bound of the bucket holding the p50; null if >= 1000 ms or no samples"
+          },
+          "p99_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P99 Ms",
+            "description": "Upper bound of the bucket holding the p99; null if >= 1000 ms or no samples"
+          },
+          "buckets": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Buckets",
+            "description": "Counts per bucket, keyed by exclusive upper bound in ms ('50', '100', '250', '500', '1000') plus 'inf' for >= 1000 ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "samples"
+        ],
+        "title": "LatencySummary",
+        "description": "Approximate latency over the returned hourly window.\n\nSix fixed counters, not a histogram, so the percentiles are **bucket upper\nbounds** rather than measured values: ``p50_ms: 250`` means \"the median is\nat most 250 ms\". ``null`` means the percentile falls in the >= 1000 ms\noverflow bucket, where there is no upper bound, or that there were no\nsamples. ``buckets`` is returned so a client can render the true range\ninstead of inferring a false precision from a single number."
       },
       "LeakageDisclosure": {
         "properties": {
@@ -5682,6 +5750,44 @@
         ],
         "title": "ReadinessResponse"
       },
+      "RecentRequest": {
+        "properties": {
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "HTTP status code"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "HTTP method"
+          },
+          "route": {
+            "type": "string",
+            "title": "Route",
+            "description": "Route template, e.g. /v1/markets/{condition_id} \u2014 never the raw path, so no request identifiers are retained"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms",
+            "description": "Server-side duration in milliseconds"
+          },
+          "at": {
+            "type": "string",
+            "title": "At",
+            "description": "When the request completed, ISO-8601 UTC to the second"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "method",
+          "route",
+          "latency_ms",
+          "at"
+        ],
+        "title": "RecentRequest"
+      },
       "RecentTrade": {
         "properties": {
           "order_id": {
@@ -7486,6 +7592,32 @@
           "requests"
         ],
         "title": "UsageDay"
+      },
+      "UsageHour": {
+        "properties": {
+          "hour": {
+            "type": "string",
+            "title": "Hour",
+            "description": "Start of the UTC hour, ISO-8601 (YYYY-MM-DDTHH:00:00Z)"
+          },
+          "requests": {
+            "type": "integer",
+            "title": "Requests",
+            "description": "Requests counted against this key in that hour"
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors",
+            "description": "Responses with status >= 400 in that hour"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hour",
+          "requests",
+          "errors"
+        ],
+        "title": "UsageHour"
       },
       "VersionResponse": {
         "properties": {
@@ -36001,7 +36133,7 @@
           "API Keys"
         ],
         "summary": "Get Key Usage",
-        "description": "Per-key request counts, one bucket per UTC day.\n\nBacks the console's Requests panel. The counter is written by\n``auth._check_rate_limit`` on the pipeline that already runs for every\nkeyed request, so this reads state that exists rather than deriving an\nestimate.\n\n**Only the caller's own keys.** The prefixes are read from ``api_keys``\nfiltered by ``user_id`` and never from user input, so there is no way to\naddress another tenant's counter by asking for it.\n\nFails SOFT: a Redis outage yields zeroes, not a 500. This is a dashboard\npanel \u2014 a broken chart must not take down the page that also shows someone\ntheir API key. A zero here is visibly a zero; it is not presented as a\nmeasured absence of traffic.",
+        "description": "Everything the console's Requests page draws, per key.\n\nFour series, all read from counters that already exist rather than derived\nfrom an estimate:\n\n* ``days`` / ``month_to_date`` \u2014 the daily counter written by\n  ``auth._check_rate_limit`` on the pipeline that already runs for every\n  keyed request. Backs the 30-day view and the monthly quota.\n* ``hours`` \u2014 the hourly request and error counters, for the traffic chart\n  and its error strip.\n* ``latency`` \u2014 six fixed buckets summed over the same hourly window.\n  Percentiles are bucket UPPER BOUNDS, never interpolated; see\n  :class:`LatencySummary`.\n* ``recent`` \u2014 the per-key ring of the last ``RECENT_MAX`` requests, newest\n  first. Route TEMPLATES only, so no request identifiers are retained.\n\n**Only the caller's own keys.** The prefixes are read from ``api_keys``\nfiltered by ``user_id`` and never from user input, so there is no way to\naddress another tenant's telemetry by asking for it.\n\nFails SOFT: a Redis outage yields zeroes and empty lists, not a 500. This is\na dashboard panel \u2014 a broken chart must not take down the page that also\nshows someone their API key. A zero here is visibly a zero; it is not\npresented as a measured absence of traffic.",
         "operationId": "getKeyUsage",
         "parameters": [
           {
@@ -36012,6 +36144,26 @@
               "type": "integer",
               "default": 30,
               "title": "Days"
+            }
+          },
+          {
+            "name": "hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 24,
+              "title": "Hours"
+            }
+          },
+          {
+            "name": "recent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Recent"
             }
           },
           {
