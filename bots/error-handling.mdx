@@ -12,21 +12,42 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-By default, the `/v1/*` surface returns the **Polymarket-shape**
-single-field envelope — one `error` key holding a human-readable
-description:
+Every `/v1/*` error returns a **two-field** envelope. `error` holds a stable,
+machine-matchable code; `message` holds the human-readable prose:
 
 ```json
-{"error": "Account balance $12.50 insufficient for order cost $25.00"}
+{"error": "INVALID_TOKEN", "message": "Invalid token"}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Human-readable description. For PM-shape parity, the machine-readable short code is carried out-of-band in the `X-Polysim-Code` response header (e.g. `INSUFFICIENT_BALANCE`, `RATE_LIMIT_EXCEEDED`). |
+| `error` | string | Stable short code. Branch on this. |
+| `message` | string | Human-readable description. For humans and logs — do **not** branch on it, the wording can change. |
 
-For stable error handling, **branch on the `X-Polysim-Code` header**, not
-on the body text — the body holds the prose, the header holds the code.
-The `X-Request-Id` header echoes the request id for log correlation.
+The same code is mirrored in the **`X-Polysim-Code`** response header, so you can
+branch on either. The header is useful when you do not want to parse a body (a
+`HEAD` request, or a proxy layer); the `error` field is usually simpler.
+
+`X-Request-Id` echoes the request id for log correlation — include it when you
+contact us about a specific failure.
+
+Verified against production on 2026-09-05:
+
+```
+$ curl -sD - -H "Authorization: Bearer nope" https://api.polysimulator.com/v1/me
+HTTP/2 401
+x-polysim-code: INVALID_TOKEN
+
+{"error":"INVALID_TOKEN","message":"Invalid token"}
+```
+
+<Note>
+An earlier version of this page described a single-field
+`{"error": "&lt;prose&gt;"}` envelope and told you to branch on the header rather
+than the body, because the body supposedly held prose. That was wrong: `error`
+has always held the code. If you wrote a handler against that description, it
+would never have matched. Corrected 2026-09-05.
+</Note>
 
 **`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
 its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
