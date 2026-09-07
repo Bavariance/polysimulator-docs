@@ -324,39 +324,6 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 }
 ```
 
-### Outcome Labels vs Token IDs
-
-PolySimulator's `POST /v1/orders` endpoint accepts the human-readable **outcome label** in the `outcome` field (e.g. `"Yes"`, `"No"`, or custom labels like `"Trump"`, `"Harris"`, `"Up"`, `"Down"`), **NOT** Polymarket's 77-digit decimal token ID.
-
-If you are migrating from Polymarket's CLOB SDK (which is token-id-native) and have a `token_id`:
-1. Use `GET /v1/markets-by-token/{token_id}` to resolve the token ID to its `condition_id` and outcome label (`outcomes[].label`).
-2. Or use the token-native endpoints `POST /v1/order` (Polymarket nested `{order: {tokenId: ...}}` shape) or `POST /v1/clob/order` (`tokenId`-keyed flat shape).
-
-#### Worked Examples
-
-**1. Binary market (Yes/No):**
-```json
-{
-  "market_id": "0x0f49db970d47fe90c606ab5f171cb61d497c41bc227582eb7d8c47f3b8ddf594",
-  "side": "BUY",
-  "outcome": "Yes",
-  "quantity": "10",
-  "order_type": "limit",
-  "price": "0.55"
-}
-```
-
-**2. Categorical / multi-outcome market:**
-```json
-{
-  "market_id": "0x1b48e3e4a2c0f64c12d45c613e55c68b75e2f3d45c613e55c68b75e2f3d45c61",
-  "side": "BUY",
-  "outcome": "Trump",
-  "quantity": "10",
-  "order_type": "limit",
-  "price": "0.48"
-}
-```
 ### Time in Force
 
 | Value | Description | Polymarket Equivalent |
