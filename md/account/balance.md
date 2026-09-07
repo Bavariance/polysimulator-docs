@@ -43,8 +43,8 @@ curl -H "X-API-Key: $API_KEY" \
   "balance": "9745.20",
   "currency": "USD",
   "starting_balance": "10000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "9757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "9757.50000000000000000"
 }
 ```
 
@@ -55,8 +55,8 @@ A **Pro+** key sees its $25,000 baseline instead:
   "balance": "24745.20",
   "currency": "USD",
   "starting_balance": "25000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "24757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "24757.50000000000000000"
 }
 ```
 
@@ -71,11 +71,16 @@ A **Pro+** key sees its $25,000 baseline instead:
   Your **total portfolio value** = `balance` + market value of open positions.
   Use the [Portfolio](/account/portfolio) endpoint for a complete snapshot.
 
+  **Numeric & Decimal Precision:** Cash fields (`balance`, `starting_balance`) are
+  formatted to 2 decimal places. P&L-derived fields (`unrealized_pnl`, `total_value`)
+  preserve full Decimal precision (up to 19+ decimal places) from internal position
+  accounting. Always parse monetary fields with `Decimal(str_value)` (Python) or a
+  bignumber library, never cast to IEEE-754 `float`.
+
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
   wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
-  open API positions. On a paid tier resets are **currently uncapped** — the
-  cooldown is `API_RESET_COOLDOWN_DAYS`, presently 0. **On Free it returns
-  `402 UPGRADE_REQUIRED`**; the $100 budget is non-renewable. See
+  open API positions. Resets are **free and currently uncapped** — there is
+  no cooldown during the beta period (through 2026-08-31). See
   [Wallets](/account/wallets) for the full reset semantics.
 
 ---

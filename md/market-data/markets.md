@@ -24,9 +24,9 @@ Returns markets with attached live prices from Polymarket's CLOB.
 | `offset` | int | 0 | Pagination offset |
 | `hot_only` | bool | false | Only high-volume markets |
 | `active_only` | bool | — | PM-shape alias: when `true`, only return markets where `active=true AND closed=false`. |
-| `category` | string | — | Filter to a single category (e.g. `crypto`, `sports`, `politics`). Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
+| `category` | string | — | Filter to a single category. Supported category enum matching `/categories`: `crypto`, `sports`, `politics`, `world`, `technology`, `science`, `general`. Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
 | `q` | string | — | Free-text search over `question` and `slug` (case-insensitive substring). Empty string is ignored. |
-| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{data, next_cursor}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
+| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{limit, count, next_cursor, data}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
 
   `sort` is **not** supported — the underlying list is volume-ordered
   server-side. For domain-specific ordering, fetch a wide page

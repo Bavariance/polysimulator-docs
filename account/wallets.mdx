@@ -15,7 +15,7 @@ authenticated**.
 
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: **$100**, Pro: $10,000, Pro+: $25,000) | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
+| **API** | Plan-dependent baseline (Free: none — read-only, Pro: $10,000, Pro+: $25,000) | Free reset; no cooldown during the beta period (through 2026-08-31) | Any request authenticated with `X-API-Key` |
 | **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
 | **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
@@ -69,43 +69,59 @@ The reset response carries four fields:
 | `cooldown_days` | integer | Days until the next reset is allowed (`0` during the beta period) |
 
 <Tip>
-  **On a paid tier, API wallet resets are currently uncapped** — the cooldown
-  is `API_RESET_COOLDOWN_DAYS`, presently 0, and a daily cooldown may be
-  enabled later. Use them freely to test strategies from a clean baseline.
-
-  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the $100
-  free budget is deliberately non-renewable, so spending it is the upgrade
-  prompt rather than a reset away.
+  **API wallet resets are free and currently uncapped** — there is no
+  cooldown during the beta period (through 2026-08-31). After that a daily
+  cooldown may apply, but resets stay included with the API tier. Use them
+  aggressively to test new strategies from a clean baseline.
 </Tip>
 
 ## Scoping account reads to a wallet
 
-The account read endpoints accept a `wallet_id` query parameter with three
+The account and order endpoints accept a `wallet_id` query parameter with three
 forms (case-insensitive keywords):
 
 | Value | Meaning |
 |---|---|
-| *(omitted)* | **Your API wallet** — the default on every account read |
+| *(omitted)* | **Your API wallet** — the default on account reads (and legacy merged behaviour on `/v1/orders`) |
 | `api` | Your API wallet, explicitly (includes legacy rows recorded before per-wallet attribution) |
 | `all` | Every wallet you own — UI MAIN/SANDBOX/COMPETITION included |
 | `<integer id>` | One specific wallet you own (ids from `GET /v1/me/wallets`); 404 `WALLET_NOT_FOUND` otherwise. MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution |
 
-Supported on [Positions](/account/positions),
-[Trade History](/account/trade-history),
-[Profile Analysis](/account/profile-analysis),
-[Portfolio](/account/portfolio) and [Equity Curve](/account/equity-curve).
-[Balance](/account/balance) is always API-wallet scoped. Any other
-`wallet_id` value returns 422 `VALIDATION_FAILED`.
+Supported on:
+- [`GET /v1/orders`](/trading/order-management)
+- [`GET /v1/account/positions`](/account/positions)
+- [`GET /v1/account/history`](/account/trade-history)
+- [`GET /v1/account/profile-analysis`](/account/profile-analysis)
+- [`GET /v1/account/portfolio`](/account/portfolio)
+- [`GET /v1/account/equity`](/account/equity-curve)
+
+Note that [`GET /v1/account/balance`](/account/balance) is always API-wallet scoped (`wallet_id` is a no-op). Any invalid
+`wallet_id` string returns 422 `VALIDATION_FAILED`.
 
 ```bash
 # Default — API wallet only
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/positions
 
+# Specific wallet ID
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "https://api.polysimulator.com/v1/orders?wallet_id=1327"
+
 # Everything you own, including UI wallets
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   "https://api.polysimulator.com/v1/account/positions?wallet_id=all"
 ```
+
+### Multi-wallet querying
+
+To enumerate all wallets associated with your account and discover their numeric IDs, call:
+
+```bash
+curl -H "Authorization: Bearer $SUPABASE_JWT" \
+  https://api.polysimulator.com/v1/me/wallets
+```
+
+This returns your complete wallet roster (`id`, `name`, `type`, `balance`). You can then pass any of your wallet IDs as `?wallet_id=<id>` to inspect positions, trade history, orders, or equity for that specific wallet.
 
 <Warning>
   **Migration note (2026-06-10):** `GET /v1/account/positions`,
@@ -114,7 +130,6 @@ curl -H "X-API-Key: $POLYSIM_API_KEY" \
   Since 2026-06-10 they default to the **API wallet**, consistent with
   Balance/Portfolio/Equity. Pass `wallet_id=all` to keep the old behaviour.
 </Warning>
-
 ## Why the wallets are separate
 
 The split exists so that:

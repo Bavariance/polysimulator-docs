@@ -139,6 +139,8 @@ Source: /quickstart
     
 
     
+      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
+
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
@@ -238,4 +240,4 @@ Source: /quickstart
 - [Authentication deep dive](/authentication) — Key management, security, permissions
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
 - [Build a trading bot](/bots/example-trading-bot) — Complete Python example
-- [Simulation API](/simulation) — Historical fill / coverage. **Live and key-gated**: 401 without a key, not 404. Also needs your plan's `analytics.backtesting` entitlement.
+- [Simulation API](/simulation) — Historical fill / coverage (feature-dark; 404 until the operator flag is on)

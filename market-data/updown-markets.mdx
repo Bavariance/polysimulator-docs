@@ -94,23 +94,11 @@ curl -H "X-API-Key: $API_KEY" \
         "sell": 0.45,
         "updated_at": "2026-03-15T13:44:58Z"
       },
-      "group_item_threshold": "98500.50",
+      "group_item_threshold": null,
       "image": "https://polymarket.com/images/btc.png",
       "icon": "https://polymarket.com/icons/btc.svg"
     }
   ],
-  "grouped_by_asset": {
-    "BTC": ["...(same shape as markets[])"],
-    "ETH": ["..."]
-  },
-  "grouped_by_interval": {
-    "1H": ["..."],
-    "4H": ["..."]
-  },
-  "grouped_nested": {
-    "BTC": { "1H": ["..."], "4H": ["..."] },
-    "ETH": { "1H": ["..."] }
-  },
   "total": 42,
   "interval_counts": { "5M": 0, "15M": 0, "1H": 12, "4H": 8, "daily": 6 },
   "asset_counts": { "BTC": 10, "ETH": 8, "SOL": 6 },
@@ -128,9 +116,6 @@ curl -H "X-API-Key: $API_KEY" \
 | Field | Description |
 |-------|-------------|
 | `markets` | Array of market entries (see fields below) |
-| `grouped_by_asset` | Markets grouped by asset symbol (same shape as `markets[]`) |
-| `grouped_by_interval` | Markets grouped by time interval |
-| `grouped_nested` | Markets nested by `asset` → `interval` |
 | `total` | Total number of markets returned |
 | `interval_counts` | Count of active markets per interval |
 | `asset_counts` | Count of active markets per asset |
@@ -138,6 +123,12 @@ curl -H "X-API-Key: $API_KEY" \
 | `available_assets` | Assets that have at least one active market |
 | `crypto_prices` | Current reference prices for tracked assets |
 | `cache_hit` | Whether the result was served from cache |
+
+<Info>
+  `markets` is the canonical market list. Group it client-side by each entry's
+  `asset` and `interval` fields; the API does not duplicate full market objects
+  into precomputed grouping trees.
+</Info>
 
 ### Market Entry Fields
 
@@ -154,7 +145,7 @@ curl -H "X-API-Key: $API_KEY" \
 | `end_date` | Resolution time (ISO 8601) |
 | `markets` | Nested array with `condition_id`, `question`, `outcomes`, `outcome_prices`, `token_ids`. Note: `outcome_prices` is a JSON-encoded **string** (e.g. `"[\"0.55\", \"0.45\"]"`) — parse it with a second `json.loads`. This differs from `live_price.buy`/`sell`, which are bare JSON numbers. |
 | `live_price` | Object with `buy`, `sell`, `updated_at` — updated in real time. **Note:** `buy`/`sell` here are JSON **numbers** (floats), unlike the string prices used everywhere else — see the caveat below. |
-| `group_item_threshold` | Strike price parsed from the event title |
+| `group_item_threshold` | Strike price parsed from the event title — **usually `null` on intraday markets.** Measured 2026-09-06: 66 of 69 live BTC up/down markets returned `null`. The `5m` and `15m` intervals settle against the price at interval start, so there is no strike in the title to parse; only the daily `...-up-or-down-<date>` markets carry one. **Do not build a strike-distance signal on this field without a null check** — it is absent on exactly the markets a 5-minute bot trades. |
 
 ---
 
