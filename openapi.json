@@ -41675,7 +41675,10 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Streamed RFC-4180 CSV of the caller's positions (one row per position), newest first by id. Header row then data rows. UTC ISO-8601 timestamps; string-encoded numerics. No positions \u2192 header-only.",
+            "content": {
+              "text/csv": {}
+            },
             "headers": {
               "X-RateLimit-Limit": {
                 "description": "Requests permitted in the current minute window for this key's tier.",
