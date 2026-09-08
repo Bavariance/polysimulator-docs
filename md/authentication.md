@@ -21,7 +21,7 @@ where there's no browser session.
 The Polymarket-CLOB-compatible read endpoints (e.g. `/v1/book`,
 `/v1/midpoint`, `/v1/spread`, `/v1/markets-by-token`) are **public**
 and don't require a key. For convenience, PolySimulator also accepts
-the single-value header aliases `POLY_API_KEY` and
+the single-value header aliases `POLY_API_KEY`, `Poly-API-Key`, and
 `Authorization: Bearer ps_live_…`, each carrying the whole `ps_live_`
 key, on authenticated routes (`X-API-Key` takes precedence when
 several are sent).
@@ -33,6 +33,10 @@ curl -H "X-API-Key: ps_live_abc123..." \
 
 # Equivalent — single-value POLY_API_KEY alias (PolySimulator convenience)
 curl -H "POLY_API_KEY: ps_live_abc123..." \
+     https://api.polysimulator.com/v1/markets
+
+# Equivalent — single-value Poly-API-Key (dashed form)
+curl -H "Poly-API-Key: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
 ```
 
@@ -55,7 +59,7 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
   `GET /v1/midpoint*`, the websocket connect URL, and
   `GET /v1/account/{balance,positions,portfolio,history,equity}`
-  all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
+  all require `X-API-Key` (or the `POLY_API_KEY` / `Poly-API-Key` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
 
@@ -194,7 +198,6 @@ Keys support granular permissions:
 | `401 Unauthorized` | Invalid, expired, or deactivated API key | Typo in key, key was revoked, key expired |
 | `403 Forbidden` | Key lacks required permission for the endpoint | Using a `read`-only key to place trades |
 | `429 Too Many Requests` | Rate limit exceeded | Too many requests per second/minute for your tier |
-| `503 Service Unavailable` | Polymarket is down and immediate orders are paused | See `VENUE_UNAVAILABLE` below |
 
 All `/v1/*` errors return a structured envelope with a stable machine code
 in `error` and human-readable prose in `message`. Branch on `error`, never on
@@ -238,63 +241,8 @@ Common auth/permission codes — branch on the response body's `error`:
 | `TIER_REQUIRES_UPGRADE` | 403 | A free caller requested `trade` on key creation. Free keys are read-only; upgrade to Pro / Pro+ to trade. |
 | `INSUFFICIENT_PERMISSION` | 403 | Key lacks `trade` / other scope |
 | `RATE_LIMIT_EXCEEDED` | 429 | Per-key or per-IP burst exceeded |
-| `VENUE_UNAVAILABLE` | 503 | Polymarket is down. Market orders and IOC / FOK / FAK orders are paused; limit orders are still accepted and still rest. |
 
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
-
-### Venue outage — `VENUE_UNAVAILABLE`
-
-PolySim fills your orders against Polymarket's live order book. When
-Polymarket itself is down, that book stops moving — so an order that has to
-execute *now* could only be filled at a frozen price. Rather than invent a
-fill, we pause those order shapes for the duration of the outage:
-
-- **Paused:** market orders, and limit orders with `time_in_force` of `IOC`,
-  `FOK` or `FAK`. They return `503 VENUE_UNAVAILABLE`.
-- **Still accepted:** ordinary limit orders (`GTC`, `GTD`). They rest as
-  usual and report `hold_reason: "venue_outage"` in `GET /v1/orders` until the
-  venue recovers, at which point matching resumes on its own — you do not
-  need to re-place them.
-- **Unchanged:** cancellation, listing, market data, and account reads. A
-  resting order can still be cancelled during an outage, and time-bound
-  (Up/Down) orders still expire at their window close exactly as they would
-  otherwise.
-
-```http
-HTTP/1.1 503 Service Unavailable
-X-Polysim-Code: VENUE_UNAVAILABLE
-Retry-After: 60
-Content-Type: application/json
-```
-
-```json
-{"error": "VENUE_UNAVAILABLE",
- "message": "Polymarket is down; market orders are paused. Limit orders still rest.",
- "retry_after": 60}
-```
-
-`retry_after` is in the default body as well as the `Retry-After` header —
-this is one of two documented exceptions to the single-field envelope (the
-other is `402 UPGRADE_REQUIRED`), because an outage can last hours and the
-back-off interval is the one thing every caller needs.
-
-Back off on `retry_after` rather than retrying immediately: this 503 is a
-deliberate halt, not a transient failure, and it clears when Polymarket does.
-The Python SDK raises a dedicated `VenueUnavailableError` (carrying
-`.retry_after`) and deliberately does **not** consume its retry budget on it:
-
-```python
-from polysim_sdk import PolySimClient, VenueUnavailableError
-
-client = PolySimClient(api_key="ps_live_...")
-try:
-    client.place_order(market_id=..., side="BUY", outcome="Yes",
-                       quantity="10", order_type="market", price="0.68")
-except VenueUnavailableError as exc:
-    # Rest a limit order instead — it keeps resting, and matching
-    # resumes when the venue recovers.
-    print(f"Polymarket is down; retry in {exc.retry_after:.0f}s")
-```
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` to add diagnostic
   `details` and an in-body `request_id`:
