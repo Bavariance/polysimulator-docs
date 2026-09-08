@@ -60,8 +60,8 @@ graph TD
 | Claim | Exact number | Exception |
 | --- | --- | --- |
 | Matching loop | ~**1 second** | Loop cadence is best-effort. A busy replica can skip a cycle; do not treat 1.000 s as a hard SLA. |
-| Anonymous REST | **10 req/s**, **600 req/min** | Same ceiling as Free, but **read-only** — no order placement, key management or account mutation. |
-| Free REST | **10 req/s**, **600 req/min** | Burst can use the 10 req/s bucket first; sustained load hits the 600/min bucket. Authoritative: `GET /v1/keys/tiers`. |
+| Anonymous REST | **10 req/s**, **600 req/min** | **Read-only** — no order placement, key management or account mutation. Note this is now *higher* than an authenticated Free key (2 req/s): it is an IP-based bucket (`IP_RATE_LIMIT_RPS`), shared by everyone behind one egress IP, and it buys you no write access. |
+| Free REST | **2 req/s**, **120 req/min** | Burst can use the 2 req/s bucket first; sustained load hits the 120/min bucket. Authoritative: `GET /v1/keys/tiers`. |
 | Pro REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
 | Pro+ REST | **60 req/s**, **3,600 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
