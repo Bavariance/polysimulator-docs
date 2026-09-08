@@ -92,14 +92,20 @@ valid hour.
 
 | Key | free | pro | pro_plus |
 | --- | --- | --- | --- |
-| `simulation.backtests_per_month` | 10 | 100 | 9999 |
+| `simulation.backtests_per_month` | 10 | 100 | unlimited |
 | `simulation.backtest_max_days` | 7 | 30 | 90 |
 | `simulation.backtest_max_markets` | 5 | 25 | 100 |
-| `simulation.market_hours_monthly` | 24 | 720 | 9999 |
+| `simulation.market_hours_monthly` | 5,000 | 75,000 | unlimited |
 
 `analytics.backtesting` remains `false` for free/pro. `depth_walk_depletion`
 and signed exports still require `dataset.historical_full`. Do not treat
 these numbers as a live commercial SKU.
+
+A tier's monthly budget always exceeds one maximum-size backtest
+(`max_days x 24 x max_markets`) by at least 3x — otherwise the plan would
+advertise a run it then refuses to meter. `backend/tests/test_backtest_
+budget_invariant.py` asserts that for every tier. `unlimited` is a real
+absence of a limit, not a large number.
 
 ## SDK
 
