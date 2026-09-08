@@ -44,6 +44,18 @@ tier limit long before the ceiling.
 
 ---
 
+## `POST /v1/prices/batch` vs `POST /v1/prices`
+
+PolySimulator provides two batch price lookup endpoints tailored for condition IDs vs token IDs:
+
+| Endpoint | Input Shape | Identifiers | Return Shape |
+|---|---|---|---|
+| `POST /v1/prices/batch` | `{"market_ids": ["0x..."]}` | 0x hex condition IDs | Array of `{condition_id, buy, sell, outcomes}` objects |
+| `POST /v1/prices` | `[{"token_id": "...", "side": "BUY"}]` or `{"token_ids": [...]}` | 77-digit decimal token IDs | Map `{token_id: {side: price}}` or `{token_id: price}` |
+
+For convenience, `POST /v1/prices/batch` also accepts the token-based shapes as aliases, avoiding footgun errors when porting between SDKs.
+---
+
 ## Response
 
 ```json
