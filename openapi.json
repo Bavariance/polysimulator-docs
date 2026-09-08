@@ -2502,6 +2502,11 @@
             "title": "Month To Date",
             "description": "Sum over the current UTC calendar month"
           },
+          "monthly_request_cap": {
+            "type": "integer",
+            "title": "Monthly Request Cap",
+            "description": "Requests this key may make in one UTC calendar month, from its rate-limit tier. Reported so a caller can see the headroom before it matters; NOT enforced yet."
+          },
           "hours": {
             "items": {
               "$ref": "#/components/schemas/UsageHour"
@@ -2528,6 +2533,7 @@
           "key_prefix",
           "days",
           "month_to_date",
+          "monthly_request_cap",
           "latency"
         ],
         "title": "KeyUsage"
