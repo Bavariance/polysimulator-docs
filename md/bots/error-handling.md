@@ -243,8 +243,8 @@ The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 | Tier | Req/sec | Req/min | WS conns | Max batch |
 |------|:-------:|:-------:|:--------:|:---------:|
 | Free | 2 | 120 | 1 | 1 |
-| Pro | 10 | 600 | 3 | 5 |
-| Pro+ | 30 | 1,800 | 10 | 10 |
+| Pro | 30 | 1,800 | 3 | 5 |
+| Pro+ | 60 | 3,600 | 10 | 10 |
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 Legacy cohort keys (if any remain) run at the enterprise tier until

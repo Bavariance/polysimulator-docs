@@ -13,7 +13,7 @@ authenticated**.
 
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: none — read-only, Pro: $10,000, Pro+: $25,000) | Free reset; no cooldown during the beta period (through 2026-08-31) | Any request authenticated with `X-API-Key` |
+| **API** | Plan-dependent baseline (Free: **$100**, Pro: $10,000, Pro+: $25,000) | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
 | **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
 | **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
@@ -64,10 +64,13 @@ The reset response carries four fields:
 | `positions_closed` | integer | Number of open API positions force-closed by the reset |
 | `cooldown_days` | integer | Days until the next reset is allowed (`0` during the beta period) |
 
-  **API wallet resets are free and currently uncapped** — there is no
-  cooldown during the beta period (through 2026-08-31). After that a daily
-  cooldown may apply, but resets stay included with the API tier. Use them
-  aggressively to test new strategies from a clean baseline.
+  **On a paid tier, API wallet resets are currently uncapped** — the cooldown
+  is `API_RESET_COOLDOWN_DAYS`, presently 0, and a daily cooldown may be
+  enabled later. Use them freely to test strategies from a clean baseline.
+
+  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the $100
+  free budget is deliberately non-renewable, so spending it is the upgrade
+  prompt rather than a reset away.
 
 ## Scoping account reads to a wallet
 

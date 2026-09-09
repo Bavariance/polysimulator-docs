@@ -26,8 +26,8 @@ current clock second and clock minute, and resets on the tick.
 | Tier | Requests/sec | Requests/min | Max WS Connections | Max Batch Size |
 |------|:-----------:|:------------:|:------------------:|:--------------:|
 | `free` | 2 | 120 | 1 | 1 |
-| `pro` | 10 | 600 | 3 | 5 |
-| `pro_plus` | 30 | 1,800 | 10 | 10 |
+| `pro` | 30 | 1,800 | 3 | 5 |
+| `pro_plus` | 60 | 3,600 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
   The `free` tier allows up to 2 requests in any one clock second, and is

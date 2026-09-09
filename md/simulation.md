@@ -4,17 +4,18 @@ Source: /simulation
 
 # Simulation API
 
-The `/v1/simulation` surface is a **feature-dark** historical fill and
-backtest contract. It is compiled into the public OpenAPI document so
-clients can generate typed methods, but the live router returns **404**
-until an operator sets `FEATURE_SIMULATION_API_ENABLED=true`.
+The `/v1/simulation` surface is a **live**, key-gated historical fill and
+backtest contract. Without a key it returns **401**, not 404 — the endpoints
+exist and are serving. `FEATURE_SIMULATION_API_ENABLED` defaults to `true`; it
+is a kill switch an operator can throw, not an activation step you must wait for.
 
-  This page documents a dark surface. It does **not** activate
-  commercial backtesting, flip the feature flag, or claim a Telonex /
-  vendor-validated SKU. Volume caps below are plan-matrix numbers, not
-  a live product offer.
+  Live does not mean unlimited. Access is gated on your plan's
+  `analytics.backtesting` entitlement and metered in simulated market-hours, so
+  a call can still be refused on entitlement or quota rather than on auth. The
+  volume caps below are plan-matrix numbers. This page does not claim a Telonex
+  or vendor-validated SKU.
 
-## First successful call (when the flag is on)
+## First successful call
 
 `simulateFill` is the hook: one condition, one timestamp, one memorable
 VWAP. Do not start with a backtest.
@@ -87,14 +88,20 @@ valid hour.
 
 | Key | free | pro | pro_plus |
 | --- | --- | --- | --- |
-| `simulation.backtests_per_month` | 10 | 100 | 9999 |
+| `simulation.backtests_per_month` | 10 | 100 | unlimited |
 | `simulation.backtest_max_days` | 7 | 30 | 90 |
 | `simulation.backtest_max_markets` | 5 | 25 | 100 |
-| `simulation.market_hours_monthly` | 24 | 720 | 9999 |
+| `simulation.market_hours_monthly` | 5,000 | 75,000 | unlimited |
 
 `analytics.backtesting` remains `false` for free/pro. `depth_walk_depletion`
 and signed exports still require `dataset.historical_full`. Do not treat
 these numbers as a live commercial SKU.
+
+A tier's monthly budget always exceeds one maximum-size backtest
+(`max_days x 24 x max_markets`) by at least 3x — otherwise the plan would
+advertise a run it then refuses to meter. `backend/tests/test_backtest_
+budget_invariant.py` asserts that for every tier. `unlimited` is a real
+absence of a limit, not a large number.
 
 ## SDK
 

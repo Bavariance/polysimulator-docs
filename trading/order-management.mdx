@@ -100,6 +100,7 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 | `filled_at` | string \| null | ISO-8601 fill timestamp (null if unfilled) |
 | `fill_price` | string \| null | Execution price (null if unfilled) |
 | `cancelled_at` | string \| null | ISO-8601 cancellation timestamp |
+| `hold_reason` | string \| null | Why an open order is not being matched right now. `venue_outage` means Polymarket is down and matching is paused — the order keeps its place, and matching resumes when the venue recovers, with nothing to re-place. It is still an ordinary resting order in the meantime, so it can expire (GTD), be cancelled, or be swept if its market resolves before that happens. `null` whenever matching is running normally, which is the usual case. See [`VENUE_UNAVAILABLE`](/authentication#venue-outage-venue-unavailable). |
 
 ### Examples
 

@@ -372,12 +372,122 @@ and example prompts.
 
 ---
 
+## Run your first backtest
+
+Backtesting is the reason most people come to the API, and it was reachable from
+here only as a link. This is the whole path, in four calls.
+
+Needs your plan's `analytics.backtesting` entitlement. Every call takes
+`X-API-Key`.
+
+### 1. Check what you have left
+
+```bash
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  $POLYSIM_BASE_URL/v1/simulation/quota
+```
+
+Backtests are metered in **market-hours** — window length x number of markets. A
+10-market, 3-day run costs `10 x 72 = 720` market-hours, not "one backtest".
+Check here before a large run rather than discovering the cap mid-request.
+
+### 2. Check the market has the data
+
+```bash
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "$POLYSIM_BASE_URL/v1/simulation/coverage?condition_id=$MARKET_ID&start=2026-09-07T12:00:00Z&end=2026-09-07T18:00:00Z"
+```
+
+**Do this first.** A backtest is refused outright when book coverage for the
+window is below the minimum (80% by default), and the refusal names the
+percentage. Checking coverage turns a confusing rejection into a window you can
+adjust. `confidence` and `missing_periods` in the response tell you which hours
+are thin.
+
+### 3. Submit the run
+
+Save the request body first — the next step reuses it:
+
+```bash
+cat > backtest.json <<JSON
+{
+    "condition_ids": ["$MARKET_ID"],
+    "start": "2026-09-07T12:00:00Z",
+    "end":   "2026-09-07T18:00:00Z",
+    "initial_bankroll": "1000",
+    "strategy": {
+      "spec_version": "1",
+      "side": "BUY",
+      "outcome": "Yes",
+      "size": "10",
+      "fill_model": "depth_walk",
+      "entry": [{"field": "price", "op": "lte", "value": "0.40"}],
+      "exit":  [{"field": "price", "op": "gte", "value": "0.60"}]
+    }
+}
+JSON
+
+JOB_ID=$(curl -s -X POST $POLYSIM_BASE_URL/v1/simulation/backtests \
+  -H "X-API-Key: $POLYSIM_API_KEY" -H "Content-Type: application/json" \
+  -d @backtest.json | python3 -c 'import sys,json;print(json.load(sys.stdin)["job_id"])')
+echo "$JOB_ID"
+```
+
+**Submit once.** Each successful POST charges the window's market-hours and one
+job against your monthly count. Re-running this block starts a *second* backtest;
+it does not re-read the first.
+
+Worth knowing before you size a run: **both endpoints count**. The 12:00→18:00
+window above is **7 market-hours, not 6** — 12:00, 13:00 … 18:00 is seven hour
+marks. Multiply by the number of markets.
+
+Buy 10 shares of Yes whenever it trades at or below 40c, sell at or above 60c.
+`depth_walk` walks the real order book rather than assuming you fill at the top —
+see [Fill models](/simulation) for what each one assumes.
+
+You get back a `job_id` and `status: "pending"`. The run is **charged at
+submission**; a run that fails is refunded.
+
+### 4. Poll for the result
+
+```bash
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  $POLYSIM_BASE_URL/v1/simulation/backtests/$JOB_ID
+```
+
+When `status` is `completed`, the summary carries `total_pnl`,
+`total_return_pct`, and — read these — `tick_mode`, `ticks_evaluated`,
+`tick_degraded` and `tick_notice`. **`tick_degraded: true` means the run
+evaluated at a coarser resolution than requested**, and `tick_notice` says why.
+
+They do **not**, on their own, tell you the data was complete. Those two describe
+the evaluation GRID; coverage describes the DATA. A window can clear the 80%
+coverage gate with an hour missing, and if that hour held the only entry your
+rules would have matched, the run completes with zero trades, `tick_degraded:
+false`, and nothing obviously wrong. **Zero trades is a result to investigate,
+not a finding** — check `missing_periods` from step 2 before concluding a
+strategy does not trade.
+
+Then:
+
+```bash
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  $POLYSIM_BASE_URL/v1/simulation/backtests/$JOB_ID/trades
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  $POLYSIM_BASE_URL/v1/simulation/backtests/$JOB_ID/equity
+```
+
+`settlement_scored: false` in the summary means the window ended before the
+market resolved: any position still open was marked to its last observed price
+rather than to a payout. That is the normal case for a sub-interval backtest and
+not an error.
+
 ## What's Next?
 
 - [Authentication deep dive](/authentication) — Key management, security, permissions
 - [Rate Limits](/concepts/rate-limits) — Understand your tier's request budget
 - [Build a trading bot](/bots/example-trading-bot) — Complete Python example
-- [Simulation API](/simulation) — Historical fill / coverage (feature-dark; 404 until the operator flag is on)
+- [Simulation API](/simulation) — Historical fill / coverage. **Live and key-gated**: 401 without a key, not 404. Also needs your plan's `analytics.backtesting` entitlement.
 
 
 # Python SDK
@@ -934,6 +1044,7 @@ Keys support granular permissions:
 | `401 Unauthorized` | Invalid, expired, or deactivated API key | Typo in key, key was revoked, key expired |
 | `403 Forbidden` | Key lacks required permission for the endpoint | Using a `read`-only key to place trades |
 | `429 Too Many Requests` | Rate limit exceeded | Too many requests per second/minute for your tier |
+| `503 Service Unavailable` | Polymarket is down and immediate orders are paused | See `VENUE_UNAVAILABLE` below |
 
 All `/v1/*` errors return a structured envelope with a stable machine code
 in `error` and human-readable prose in `message`. Branch on `error`, never on
@@ -977,8 +1088,63 @@ Common auth/permission codes — branch on the response body's `error`:
 | `TIER_REQUIRES_UPGRADE` | 403 | A free caller requested `trade` on key creation. Free keys are read-only; upgrade to Pro / Pro+ to trade. |
 | `INSUFFICIENT_PERMISSION` | 403 | Key lacks `trade` / other scope |
 | `RATE_LIMIT_EXCEEDED` | 429 | Per-key or per-IP burst exceeded |
+| `VENUE_UNAVAILABLE` | 503 | Polymarket is down. Market orders and IOC / FOK / FAK orders are paused; limit orders are still accepted and still rest. |
 
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
+
+### Venue outage — `VENUE_UNAVAILABLE`
+
+PolySim fills your orders against Polymarket's live order book. When
+Polymarket itself is down, that book stops moving — so an order that has to
+execute *now* could only be filled at a frozen price. Rather than invent a
+fill, we pause those order shapes for the duration of the outage:
+
+- **Paused:** market orders, and limit orders with `time_in_force` of `IOC`,
+  `FOK` or `FAK`. They return `503 VENUE_UNAVAILABLE`.
+- **Still accepted:** ordinary limit orders (`GTC`, `GTD`). They rest as
+  usual and report `hold_reason: "venue_outage"` in `GET /v1/orders` until the
+  venue recovers, at which point matching resumes on its own — you do not
+  need to re-place them.
+- **Unchanged:** cancellation, listing, market data, and account reads. A
+  resting order can still be cancelled during an outage, and time-bound
+  (Up/Down) orders still expire at their window close exactly as they would
+  otherwise.
+
+```http
+HTTP/1.1 503 Service Unavailable
+X-Polysim-Code: VENUE_UNAVAILABLE
+Retry-After: 60
+Content-Type: application/json
+```
+
+```json
+{"error": "VENUE_UNAVAILABLE",
+ "message": "Polymarket is down; market orders are paused. Limit orders still rest.",
+ "retry_after": 60}
+```
+
+`retry_after` is in the default body as well as the `Retry-After` header —
+this is one of two documented exceptions to the single-field envelope (the
+other is `402 UPGRADE_REQUIRED`), because an outage can last hours and the
+back-off interval is the one thing every caller needs.
+
+Back off on `retry_after` rather than retrying immediately: this 503 is a
+deliberate halt, not a transient failure, and it clears when Polymarket does.
+The Python SDK raises a dedicated `VenueUnavailableError` (carrying
+`.retry_after`) and deliberately does **not** consume its retry budget on it:
+
+```python
+from polysim_sdk import PolySimClient, VenueUnavailableError
+
+client = PolySimClient(api_key="ps_live_...")
+try:
+    client.place_order(market_id=..., side="BUY", outcome="Yes",
+                       quantity="10", order_type="market", price="0.68")
+except VenueUnavailableError as exc:
+    # Rest a limit order instead — it keeps resting, and matching
+    # resumes when the venue recovers.
+    print(f"Polymarket is down; retry in {exc.retry_after:.0f}s")
+```
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` to add diagnostic
   `details` and an in-body `request_id`:
@@ -1860,8 +2026,8 @@ current clock second and clock minute, and resets on the tick.
 | Tier | Requests/sec | Requests/min | Max WS Connections | Max Batch Size |
 |------|:-----------:|:------------:|:------------------:|:--------------:|
 | `free` | 2 | 120 | 1 | 1 |
-| `pro` | 10 | 600 | 3 | 5 |
-| `pro_plus` | 30 | 1,800 | 10 | 10 |
+| `pro` | 30 | 1,800 | 3 | 5 |
+| `pro_plus` | 60 | 3,600 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
   The `free` tier allows up to 2 requests in any one clock second, and is
@@ -2096,13 +2262,17 @@ graph TD
 | Claim | Exact number | Exception |
 | --- | --- | --- |
 | Matching loop | ~**1 second** | Loop cadence is best-effort. A busy replica can skip a cycle; do not treat 1.000 s as a hard SLA. |
+| Anonymous REST | **10 req/s**, **600 req/min** | **Read-only** — no order placement, key management or account mutation. Note this is now *higher* than an authenticated Free key (2 req/s): it is an IP-based bucket (`IP_RATE_LIMIT_RPS`), shared by everyone behind one egress IP, and it buys you no write access. |
 | Free REST | **2 req/s**, **120 req/min** | Burst can use the 2 req/s bucket first; sustained load hits the 120/min bucket. Authoritative: `GET /v1/keys/tiers`. |
-| Pro REST | **10 req/s**, **600 req/min** | Same two-bucket model. |
-| Pro+ REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
+| Pro REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
+| Pro+ REST | **60 req/s**, **3,600 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
+| Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account). |
+| Overlapping writes, one account | `409 LOCK_BUSY_RETRY` / `503 DB_CONTENTION_RETRY` | The API returns a bounded error rather than queueing you. Both carry `Retry-After` (1 s on placement, 5 s on cancellation). Placement 503s state the order was **not** placed. |
+| Public market data, cold key lookup | **10 req/s**, **600 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
-| API wallet | Pro **$10,000**, Pro+ **$25,000** | Free keys have **no** API wallet and cannot trade. MAIN ($1,000) is never used by API keys. |
+| API wallet | Free **$100**, Pro **$10,000**, Pro+ **$25,000** | Free CAN trade — $100 is a small, deliberately **non-renewable** budget, and `reset-api-balance` returns `402 UPGRADE_REQUIRED` on Free. MAIN ($1,000) is never used by API keys. |
 | Tick sizes | `0.1` / `0.01` / `0.001` / `0.0001` | Market-aware. Off-grid limits return `INVALID_ORDER_MIN_TICK_SIZE`. |
 | String numerics | JSON **strings** for prices, sizes, balances | Polymarket-parity exceptions: `GET /v1/tick-size/{token_id}` `minimum_tick_size` and `GET /v1/markets/updown` `live_price.buy/sell` are JSON **numbers**. See [String Numerics](/concepts/string-numerics). |
 
@@ -2147,7 +2317,7 @@ In live markets, large orders consume liquidity and shift the market price again
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
 * **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
   per-second bucket and a per-minute bucket, each keyed on the current clock
-  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 10 RPS / 600 RPM).
+  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 30 RPS / 1,800 RPM).
 
   
   A fixed window has a **boundary burst**: because the counter resets at each
@@ -4143,6 +4313,7 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 | `filled_at` | string \| null | ISO-8601 fill timestamp (null if unfilled) |
 | `fill_price` | string \| null | Execution price (null if unfilled) |
 | `cancelled_at` | string \| null | ISO-8601 cancellation timestamp |
+| `hold_reason` | string \| null | Why an open order is not being matched right now. `venue_outage` means Polymarket is down and matching is paused — the order keeps its place, and matching resumes when the venue recovers, with nothing to re-place. It is still an ordinary resting order in the meantime, so it can expire (GTD), be cancelled, or be swept if its market resolves before that happens. `null` whenever matching is running normally, which is the usual case. See [`VENUE_UNAVAILABLE`](/authentication#venue-outage-venue-unavailable). |
 
 ### Examples
 
@@ -6548,17 +6719,18 @@ print(con.fetchall())
 
 # Simulation API
 
-The `/v1/simulation` surface is a **feature-dark** historical fill and
-backtest contract. It is compiled into the public OpenAPI document so
-clients can generate typed methods, but the live router returns **404**
-until an operator sets `FEATURE_SIMULATION_API_ENABLED=true`.
+The `/v1/simulation` surface is a **live**, key-gated historical fill and
+backtest contract. Without a key it returns **401**, not 404 — the endpoints
+exist and are serving. `FEATURE_SIMULATION_API_ENABLED` defaults to `true`; it
+is a kill switch an operator can throw, not an activation step you must wait for.
 
-  This page documents a dark surface. It does **not** activate
-  commercial backtesting, flip the feature flag, or claim a Telonex /
-  vendor-validated SKU. Volume caps below are plan-matrix numbers, not
-  a live product offer.
+  Live does not mean unlimited. Access is gated on your plan's
+  `analytics.backtesting` entitlement and metered in simulated market-hours, so
+  a call can still be refused on entitlement or quota rather than on auth. The
+  volume caps below are plan-matrix numbers. This page does not claim a Telonex
+  or vendor-validated SKU.
 
-## First successful call (when the flag is on)
+## First successful call
 
 `simulateFill` is the hook: one condition, one timestamp, one memorable
 VWAP. Do not start with a backtest.
@@ -6631,14 +6803,20 @@ valid hour.
 
 | Key | free | pro | pro_plus |
 | --- | --- | --- | --- |
-| `simulation.backtests_per_month` | 10 | 100 | 9999 |
+| `simulation.backtests_per_month` | 10 | 100 | unlimited |
 | `simulation.backtest_max_days` | 7 | 30 | 90 |
 | `simulation.backtest_max_markets` | 5 | 25 | 100 |
-| `simulation.market_hours_monthly` | 24 | 720 | 9999 |
+| `simulation.market_hours_monthly` | 5,000 | 75,000 | unlimited |
 
 `analytics.backtesting` remains `false` for free/pro. `depth_walk_depletion`
 and signed exports still require `dataset.historical_full`. Do not treat
 these numbers as a live commercial SKU.
+
+A tier's monthly budget always exceeds one maximum-size backtest
+(`max_days x 24 x max_markets`) by at least 3x — otherwise the plan would
+advertise a run it then refuses to meter. `backend/tests/test_backtest_
+budget_invariant.py` asserts that for every tier. `unlimited` is a real
+absence of a limit, not a large number.
 
 ## SDK
 
@@ -6672,7 +6850,7 @@ authenticated**.
 
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: none — read-only, Pro: $10,000, Pro+: $25,000) | Free reset; no cooldown during the beta period (through 2026-08-31) | Any request authenticated with `X-API-Key` |
+| **API** | Plan-dependent baseline (Free: **$100**, Pro: $10,000, Pro+: $25,000) | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
 | **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
 | **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
@@ -6723,10 +6901,13 @@ The reset response carries four fields:
 | `positions_closed` | integer | Number of open API positions force-closed by the reset |
 | `cooldown_days` | integer | Days until the next reset is allowed (`0` during the beta period) |
 
-  **API wallet resets are free and currently uncapped** — there is no
-  cooldown during the beta period (through 2026-08-31). After that a daily
-  cooldown may apply, but resets stay included with the API tier. Use them
-  aggressively to test new strategies from a clean baseline.
+  **On a paid tier, API wallet resets are currently uncapped** — the cooldown
+  is `API_RESET_COOLDOWN_DAYS`, presently 0, and a daily cooldown may be
+  enabled later. Use them freely to test strategies from a clean baseline.
+
+  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the $100
+  free budget is deliberately non-renewable, so spending it is the upgrade
+  prompt rather than a reset away.
 
 ## Scoping account reads to a wallet
 
@@ -6899,8 +7080,9 @@ A **Pro+** key sees its $25,000 baseline instead:
 
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
   wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
-  open API positions. Resets are **free and currently uncapped** — there is
-  no cooldown during the beta period (through 2026-08-31). See
+  open API positions. On a paid tier resets are **currently uncapped** — the
+  cooldown is `API_RESET_COOLDOWN_DAYS`, presently 0. **On Free it returns
+  `402 UPGRADE_REQUIRED`**; the $100 budget is non-renewable. See
   [Wallets](/account/wallets) for the full reset semantics.
 
 ---
@@ -9992,8 +10174,8 @@ The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 | Tier | Req/sec | Req/min | WS conns | Max batch |
 |------|:-------:|:-------:|:--------:|:---------:|
 | Free | 2 | 120 | 1 | 1 |
-| Pro | 10 | 600 | 3 | 5 |
-| Pro+ | 30 | 1,800 | 10 | 10 |
+| Pro | 30 | 1,800 | 3 | 5 |
+| Pro+ | 60 | 3,600 | 10 | 10 |
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 Legacy cohort keys (if any remain) run at the enterprise tier until
@@ -10775,8 +10957,8 @@ each one with side-by-side request/response examples.
 | Tier | Burst (req/s) | Sustained (req/min) | WebSockets | Batch size |
 |------|---------------|---------------------|------------|------------|
 | Free | 2 | 120 | 1 | 1 |
-| Pro | 10 | 600 | 3 | 5 |
-| Pro+ | 30 | 1,800 | 10 | 10 |
+| Pro | 30 | 1,800 | 3 | 5 |
+| Pro+ | 60 | 3,600 | 10 | 10 |
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`
