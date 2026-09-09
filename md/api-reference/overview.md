@@ -119,8 +119,8 @@ each one with side-by-side request/response examples.
 | Tier | Burst (req/s) | Sustained (req/min) | WebSockets | Batch size |
 |------|---------------|---------------------|------------|------------|
 | Free | 2 | 120 | 1 | 1 |
-| Pro | 30 | 1,800 | 3 | 5 |
-| Pro+ | 60 | 3,600 | 10 | 10 |
+| Pro | 10 | 600 | 3 | 5 |
+| Pro+ | 30 | 1,800 | 10 | 10 |
 | Enterprise | 100 | 6,000 | 50 | 25 |
 
 `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`

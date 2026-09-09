@@ -14,7 +14,7 @@ by changing a single environment variable.
     Get your API key and place your first trade in under 2 minutes.
   
   
-    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` or py-sdk bot? Drop-ins included.
+    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` **v1** or py-sdk bot? Drop-ins included.
   
   
     Interactive playground — test every endpoint with your API key.

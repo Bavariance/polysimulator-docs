@@ -38,7 +38,7 @@ Mirror of Polymarket's [`POST /order`](https://docs.polymarket.com/clob/post-ord
     "makerAmount": "500000",
     "takerAmount": "1000000",
     "side": "BUY",
-    "expiration": "0",
+    "expiration": 0,
     "salt": 1234567890,
     "maker": "0x0000000000000000000000000000000000000000",
     "signer": "0x0000000000000000000000000000000000000000",
@@ -238,7 +238,7 @@ Polymarket-shaped `OrdersResponse`:
       "size_matched": "0.2480",
       "price": "0.5000",
       "outcome": "Yes",
-      "expiration": "0",
+      "expiration": 0,
       "order_type": "GTC",
       "associate_trades": [],
       "created_at": 1778103749
