@@ -109,12 +109,12 @@ with PolySimClient() as client:            # POLYSIM_API_KEY from env
     fill = client.place_order(
         market_id=cid,
         side="BUY",
-        outcome="YES",
+        outcome="Yes",                     # match the market's own `outcomes` label
         quantity=10,
         order_type="market",
         price="0.99",                      # slippage cap: the worst price you'll accept.
-                                           #   For a YES market BUY, 0.99 is "fill at any price"
-                                           #   (a YES share can never cost more than $1).
+                                           #   For a Yes market BUY, 0.99 is "fill at any price"
+                                           #   (a Yes share can never cost more than $1).
     )
     print(f"filled {fill['status']} @ {fill.get('price')}")
 ```
