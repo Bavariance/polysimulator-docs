@@ -3887,7 +3887,8 @@
                 "type": "null"
               }
             ],
-            "title": "Cancelled Reason"
+            "title": "Cancelled Reason",
+            "description": "Why a CANCELLED order was cancelled (e.g. 'gtd_expired', 'reset'). Only populated for orders that RESTED on the book; an order accepted and cancelled within the same request always reports null here, as do non-cancelled statuses and legacy rows. Do not branch on this field to detect cancellation - branch on `status`."
           },
           "price_source": {
             "anyOf": [
@@ -4394,6 +4395,94 @@
           "outcome"
         ],
         "title": "PlaceOrderRequest"
+      },
+      "PlanDenialError": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "description": "Stable machine-readable error code; also returned in X-Polysim-Code."
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Human-readable error description. Never branch on this value."
+          },
+          "details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Additional context populated for verbose responses."
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id",
+            "description": "Support correlation id; always returned in X-Request-Id."
+          },
+          "feature_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Key",
+            "description": "Entitlement key the caller's plan lacks."
+          },
+          "upgrade_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upgrade Url",
+            "description": "Where to upgrade; carries ?feature=<feature_key>."
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit",
+            "description": "The plan cap that was hit."
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "PlanDenialError",
+        "description": "403 body for a plan-imposed cap, carrying the fields that make it actionable.\n\nA subclass rather than three new fields on ``ApiError``: that model is the\nerror shape for EVERY ``/v1`` endpoint, and widening it would publish\n``upgrade_url`` and ``limit`` on routes that have nothing to do with plans.\nSubclassing keeps all four base fields, so nothing changes for existing\nconsumers, and scopes the new three to the responses that actually carry\nthem."
       },
       "PlayerLineupEntry": {
         "properties": {
@@ -54346,7 +54435,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -55204,7 +55293,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -56019,7 +56108,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -56896,7 +56985,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -57737,7 +57826,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -58578,7 +58667,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -59402,7 +59491,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -60224,7 +60313,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -61076,7 +61165,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -61928,7 +62017,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -62753,7 +62842,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
@@ -63569,7 +63658,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "$ref": "#/components/schemas/PlanDenialError"
                 }
               }
             },
