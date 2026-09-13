@@ -16,13 +16,6 @@ API leaves beta.
 
 - `/v1/*` errors now expose the stable machine code in the JSON `error` field,
   with human prose in `message`; `X-Polysim-Code` carries the same code.
-  **Clarification only (no runtime change):** this two-field envelope was
-  already the deployed behavior. Earlier pages incorrectly described the
-  Polymarket single-field `{"error": "<message>"}` shape. Clients should
-  branch on body `error` or the identical `X-Polysim-Code`, not on `message`.
-- The public error catalog now documents `TRADE_IN_PROGRESS`, `SERVER_BUSY`,
-  `DEADLINE_OVERSHOT_BUT_PERSISTED`, and `PERSISTENCE_UNKNOWN`, including
-  which responses are safe to retry and which require an order lookup first.
 - Invalid account `side`, position `status`, and malformed price-history token
   filters now fail with 4xx errors instead of returning misleading empty data.
 - Successful order-book and market-by-slug responses explicitly use

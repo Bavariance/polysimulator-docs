@@ -139,8 +139,6 @@ Source: /quickstart
     
 
     
-      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
-
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
@@ -152,13 +150,9 @@ Source: /quickstart
 
     
       ```bash cURL
-      # 1. grab a TRADEABLE market_id (jq)
-      #    /v1/markets has no tradeability filter and ignores unknown query
-      #    params, so select client-side: a market can be returned with
-      #    closed=true, and an order against it is cancelled rather than filled.
+      # 1. grab a live market_id (jq)
       MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
-        "$POLYSIM_BASE_URL/v1/markets?limit=20" \
-        | jq -r '[.[] | select(.closed == false)][0].condition_id')
+        "$POLYSIM_BASE_URL/v1/markets?limit=1" | jq -r '.[0].condition_id')
 
       # 2. place the trade
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
@@ -173,10 +167,7 @@ Source: /quickstart
       h = {"X-API-Key": key, "Content-Type": "application/json"}
 
       # resolve a live market, then trade
-      # /v1/markets has no tradeability filter, so pick an open one client-side:
-      # a closed market is returned like any other and the order is cancelled.
-      markets = requests.get(f"{base}/v1/markets?limit=20", headers=h).json()
-      market_id = next(m for m in markets if not m["closed"])["condition_id"]
+      market_id = requests.get(f"{base}/v1/markets?limit=1", headers=h).json()[0]["condition_id"]
       resp = requests.post(f"{base}/v1/orders", headers=h, json={
           "market_id": market_id, "side": "BUY", "outcome": "Yes",
           "quantity": "10", "order_type": "market",
@@ -189,14 +180,11 @@ Source: /quickstart
       const base = process.env.POLYSIM_BASE_URL, key = process.env.POLYSIM_API_KEY;
       const h = { "X-API-Key": key, "Content-Type": "application/json" };
 
-      // /v1/markets has no tradeability filter, so pick an open one client-side:
-      // a closed market is returned like any other and the order is cancelled.
-      const markets = await (await fetch(`${base}/v1/markets?limit=20`, { headers: h })).json();
-      const market = markets.find((m) => !m.closed);
+      const markets = await (await fetch(`${base}/v1/markets?limit=1`, { headers: h })).json();
       const resp = await fetch(`${base}/v1/orders`, {
         method: "POST", headers: h,
         body: JSON.stringify({
-          market_id: market.condition_id, side: "BUY", outcome: "Yes",
+          market_id: markets[0].condition_id, side: "BUY", outcome: "Yes",
           quantity: "10", order_type: "market",
           price: "0.99",  // worst-price limit (slippage cap)
         }),
