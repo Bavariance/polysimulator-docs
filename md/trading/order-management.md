@@ -14,7 +14,7 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 
 | Endpoint | Best For | Time-in-force Field | Supported Values |
 |----------|----------|-----------------------|------------------|
-| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `FOK` (default for market), `IOC`, `FAK` (normalised to `IOC`); `GTD` rolling out |
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `IOC` (default for market), `FAK` (normalised to `IOC`), `FOK`, `GTD` (limit only, requires `expiration`) |
 | `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC` (default), `FOK`, `GTD` (rolling out — treated as `GTC` until activation). `IOC`/`FAK` are **not** accepted here |
 
   **Key difference**: The native `/v1/orders` endpoint uses `order_type` for
@@ -76,7 +76,7 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `order_id` | int | Unique order identifier |
+| `order_id` | int | Order identifier. Orders and fill rows use separate id sequences, so the same number can exist in both; see [Get a Single Order](#get-a-single-order). |
 | `market_id` | string | Market condition_id |
 | `side` | string | `BUY` or `SELL` |
 | `outcome` | string | Outcome label (e.g. `Yes`, `No`) |
@@ -170,6 +170,25 @@ iterate.
   avoids page drift when new orders
   arrive between requests. Pass the `next_cursor` value from the previous
   response back as the `cursor` (or `next_cursor`) parameter.
+
+---
+
+## Get a Single Order
+
+```
+GET /v1/orders/{order_id}
+```
+
+Returns one row in the same shape as `GET /v1/orders`.
+
+  `order_id` values come from two separate sequences: orders (the id `POST /v1/orders` returns) and fill rows,
+  for example the fill of a partially filled `IOC` order, whose `client_order_id` ends in
+  `:p_...`. The same number can exist in both. By default the lookup tries orders first and
+  falls back to fills, so a bare lookup can return an unrelated row. `source` names the table the id came
+  from: `?source=pending` for an order, `?source=filled` for a fill row. Most ids `POST /v1/orders` returns are
+  orders; a market order with `time_in_force: "FOK"` returns its fill row's id instead, so look that one up with
+  `?source=filled`. Confirm the row by its `client_order_id`, and do not use `order_type` to tell orders from
+  fills: immediate market orders are stored as orders with `order_type: "market"` too.
 
 ---
 

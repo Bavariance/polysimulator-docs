@@ -106,8 +106,9 @@ values = [float(e["total_value"]) for e in equity]
 plt.figure(figsize=(12, 6))
 plt.plot(times, values)
 # Starting balance = your API-wallet baseline, NOT the $1,000 UI MAIN
-# wallet: Pro = 10_000, Pro+ = 25_000 (Free keys are read-only). Set it
-# to your tier's baseline so the reference line is meaningful.
+# wallet: Free = 100 (keys issued on/after 2026-09-05), Pro = 10_000,
+# Pro+ = 25_000. Set it to your tier's baseline so the reference line
+# is meaningful.
 API_WALLET_BASELINE = 10_000  # Pro; use 25_000 on Pro+
 plt.axhline(y=API_WALLET_BASELINE, color="gray", linestyle="--", label="Starting balance")
 plt.title("Portfolio Equity Curve")

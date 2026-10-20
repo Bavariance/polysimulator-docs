@@ -13,9 +13,9 @@
 
 # PolySimulator HFT API v1
 
-Build, test, and deploy prediction market trading bots in a risk-free environment
-powered by **real-time Polymarket data**. When you're ready, switch to live trading
-by changing a single environment variable.
+Build and test prediction market trading bots against **real-time Polymarket data**,
+with simulated money only. PolySimulator does not place orders on Polymarket or on any
+other venue: every order you send here is filled against a simulated paper account.
 
   
 
@@ -23,7 +23,7 @@ by changing a single environment variable.
     Get your API key and place your first trade in under 2 minutes.
   
   
-    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` or py-sdk bot? Drop-ins included.
+    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` **v1** or py-sdk bot? Drop-ins included.
   
   
     Interactive playground — test every endpoint with your API key.
@@ -45,7 +45,7 @@ by changing a single environment variable.
 | **Batch Orders** | Tier-dependent batch size (free 1, pro 5, pro+ 10, enterprise 25; see `GET /v1/keys/tiers`) |
 | **WebSocket Feeds** | Real-time price ticks and execution notifications |
 | **OHLCV Candles** | Historical candlestick data for backtesting |
-| **CLOB-Compatible** | `/v1/clob/order` mirrors Polymarket's schema — URL-swap migration |
+| **CLOB-Compatible** | `/v1/clob/order` mirrors Polymarket's order schema — easier to port a bot later |
 | **String Numerics** | All price/size/balance values are strings — no float precision loss |
 
 ---
@@ -55,9 +55,10 @@ by changing a single environment variable.
 Your bot talks to a single endpoint. The API streams **live order books, prices,
 and markets from Polymarket's CLOB and Gamma feeds** and serves them from an
 **in-memory cache (Redis)** — so your strategy reads current market data with
-low latency, without a database round-trip on the hot path. Orders execute
-against your **simulated paper account**, and the wire contract is identical to
-live Polymarket, so going live is a config change — not a rewrite.
+low latency, without a database round-trip on the hot path. Orders are filled
+only against your **simulated paper account**; nothing is sent to Polymarket.
+Request shapes follow Polymarket's API closely (see
+[CLOB Compatibility](/concepts/clob-compatibility)).
 
 ```mermaid
 flowchart TD
@@ -89,23 +90,28 @@ Keep the base URL **without** `/v1` so each path can prepend its own
 
 ---
 
-## One Config Change to Go Live
+## From Simulation to Polymarket
 
   
-    Develop and test your bot against the virtual API. Free keys are
-    read-only (no API wallet). Paid Pro / Pro+ keys trade a simulated
-    API wallet ($10,000 on Pro, $25,000 on Pro+).
+    Develop and test your bot against the virtual API. Free keys issued
+    on or after 2026-09-05 trade a \$100 non-renewable API wallet (free
+    keys issued earlier are read-only). Paid Pro / Pro+ keys trade a
+    simulated API wallet of \$10,000 / \$25,000.
   
   
-    Review your portfolio, trade history, and equity curve to confirm your edge.
+    Review your portfolio, trade history, and equity curve. These results are
+    simulated and say nothing about results with real money.
   
   
-    Set `TRADING_MODE=live` and add your Polymarket credentials. Same API, real money.
+    PolySimulator never sends orders to Polymarket. If you decide to trade on Polymarket, you do that
+    with your own Polymarket account, wallet and API credentials, and your code talks to Polymarket's
+    API directly. PolySimulator is not involved in those trades. The
+    [porting guide](/deployment/live-migration) shows what changes in your code.
   
 
-  The `/v1/clob/order` endpoint uses the same schema as Polymarket's real CLOB API.
-  When migrating to live, you can even point your bot directly at `clob.polymarket.com`
-  with zero code changes.
+  The `/v1/clob/order` endpoint accepts the same order fields as Polymarket's CLOB API.
+  Polymarket's API needs its own credentials and signed orders, so porting a bot changes
+  its client setup and authentication.
 
 ---
 
@@ -143,18 +149,22 @@ and example prompts.
 
   
     1. Sign up at [polysimulator.com/signin](https://polysimulator.com/signin).
-    2. Open [polysimulator.com/api-keys](https://polysimulator.com/api-keys).
-    3. Click **Create your first API key**, give it a name, and copy
-       the `ps_live_…` value shown once.
+    2. Open the developer console at [polysimulator.com/console](https://polysimulator.com/console).
+    3. Click **Create a free API key** (on a paid plan the button names your
+       plan) and copy the `ps_live_…` value shown once.
 
     
       **Open beta.** Anyone can mint a key from the dashboard or
-      `POST /v1/keys/bootstrap`. A **free** key is **read-only**
-      (`permissions: ["read"]`) — use it to explore markets, books, and
-      account reads. **Paid Pro / Pro+** keys are trade-capable
-      (`["read", "trade"]`) against an isolated API wallet. See
-      [API Keys](/concepts/api-keys) and
-      [Authentication](/authentication#open-beta).
+      `POST /v1/keys/bootstrap`. **A free key issued on or after
+      2026-09-05 can trade**: it is minted with `["read", "trade"]` and
+      places orders against a **\$100 API wallet** that cannot be reset
+      or topped up, capped at **100 order placements per UTC day** per
+      account. **A free key issued before 2026-09-05 is read-only**
+      (`["read"]`) — `trade` is stripped on every request even if the
+      key was stored with it; create a new key to get a trade-capable
+      one. **Paid Pro / Pro+** keys trade against a \$10,000 / \$25,000
+      API wallet with no daily cap. See [API Keys](/concepts/api-keys)
+      and [Authentication](/authentication#open-beta).
     
 
     
@@ -193,20 +203,23 @@ and example prompts.
         "key_prefix": "ps_live_kJ9mNx2p",
         "name": "my-first-bot",
         "rate_limit_tier": "free",
-        "permissions": ["read"],
-        "created_at": "2026-03-04T12:00:00Z"
+        "permissions": ["read", "trade"],
+        "created_at": "2026-09-12T12:00:00Z"
       }
       ```
 
-      A free-tier key is **read-only** (`["read"]`); trading needs a
-      paid tier. See [API Keys](/concepts/api-keys#create-a-key).
+      A free-tier key issued on or after **2026-09-05** carries
+      `["read", "trade"]` and trades against the \$100 free API wallet;
+      one issued before 2026-09-05 is read-only (`["read"]`). A
+      paid tier lifts the \$100 budget and the daily order cap. See
+      [API Keys](/concepts/api-keys#create-a-key).
 
       | Status | Meaning |
       |--------|--------|
       | `201` | Key created — save `raw_key` |
       | `400` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` instead |
       | `401` | Invalid or expired Supabase JWT |
-      | `403` | `TIER_REQUIRES_UPGRADE` if a free caller requested `trade`, or a residual issuance/runtime gate — branch on `X-Polysim-Code`. See [Authentication](/authentication#open-beta). |
+      | `403` | `TIER_REQUIRES_UPGRADE` if a free caller asked for a paid `tier` it is not subscribed to, for `admin`, or for `trade` while holding an expired paid grant; or a residual issuance/runtime gate — branch on `X-Polysim-Code`. See [Authentication](/authentication#open-beta). |
       | `429` | Bootstrap rate limit hit — wait and retry |
 
       `Authorization: Bearer` is accepted on the dashboard surface
@@ -259,7 +272,8 @@ and example prompts.
     from polysim_sdk import PolySimClient
 
     with PolySimClient() as client:                 # reads POLYSIM_API_KEY from env
-        market = client.list_markets(limit=1)[0]   # an actively-traded market
+        # active_only=True skips closed markets: an order on one is cancelled, not filled
+        market = client.list_markets(limit=20, active_only=True)[0]
         fill = client.place_order(
             market_id=market["condition_id"],
             side="BUY",
@@ -276,6 +290,8 @@ and example prompts.
     
 
     
+      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
+
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
@@ -287,9 +303,13 @@ and example prompts.
 
     
       ```bash cURL
-      # 1. grab a live market_id (jq)
+      # 1. grab a TRADEABLE market_id (jq)
+      #    Without active_only=true, /v1/markets also returns closed markets,
+      #    and an order against one is cancelled rather than filled. The jq
+      #    select is a second guard.
       MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
-        "$POLYSIM_BASE_URL/v1/markets?limit=1" | jq -r '.[0].condition_id')
+        "$POLYSIM_BASE_URL/v1/markets?limit=20&active_only=true" \
+        | jq -r '[.[] | select(.closed == false)][0].condition_id')
 
       # 2. place the trade
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
@@ -304,7 +324,10 @@ and example prompts.
       h = {"X-API-Key": key, "Content-Type": "application/json"}
 
       # resolve a live market, then trade
-      market_id = requests.get(f"{base}/v1/markets?limit=1", headers=h).json()[0]["condition_id"]
+      # active_only=true skips closed markets (an order on one is cancelled);
+      # the client-side check below is a second guard.
+      markets = requests.get(f"{base}/v1/markets?limit=20&active_only=true", headers=h).json()
+      market_id = next(m for m in markets if not m["closed"])["condition_id"]
       resp = requests.post(f"{base}/v1/orders", headers=h, json={
           "market_id": market_id, "side": "BUY", "outcome": "Yes",
           "quantity": "10", "order_type": "market",
@@ -317,11 +340,14 @@ and example prompts.
       const base = process.env.POLYSIM_BASE_URL, key = process.env.POLYSIM_API_KEY;
       const h = { "X-API-Key": key, "Content-Type": "application/json" };
 
-      const markets = await (await fetch(`${base}/v1/markets?limit=1`, { headers: h })).json();
+      // active_only=true skips closed markets (an order on one is cancelled);
+      // the client-side check below is a second guard.
+      const markets = await (await fetch(`${base}/v1/markets?limit=20&active_only=true`, { headers: h })).json();
+      const market = markets.find((m) => !m.closed);
       const resp = await fetch(`${base}/v1/orders`, {
         method: "POST", headers: h,
         body: JSON.stringify({
-          market_id: markets[0].condition_id, side: "BUY", outcome: "Yes",
+          market_id: market.condition_id, side: "BUY", outcome: "Yes",
           quantity: "10", order_type: "market",
           price: "0.99",  // worst-price limit (slippage cap)
         }),
@@ -349,11 +375,12 @@ and example prompts.
 
     
       `account_balance` is your **API wallet** balance after the fill,
-      not the dashboard MAIN wallet. API keys start at $10,000 (Pro) or
-      $25,000 (Pro+); Free-tier keys are read-only with no API wallet.
-      Here a $6.50 fill plus the $0.09 taker fee (PM-V2 per-category
-      schedule — see [Trading Fees](/trading/fees)) against the $10,000
-      Pro wallet leaves $9,993.41.
+      not the dashboard MAIN wallet. API wallets start at \$100 (Free,
+      keys issued on or after 2026-09-05 — non-renewable), \$10,000 (Pro)
+      or \$25,000 (Pro+); a free key issued before 2026-09-05 is read-only
+      and cannot place this order. Here a \$6.50 fill plus the \$0.09 taker
+      fee (PM-V2 per-category schedule — see [Trading Fees](/trading/fees))
+      against the \$10,000 Pro wallet leaves \$9,993.41.
     
   
 
@@ -508,7 +535,7 @@ most developers want; jump to [Install](#install) below.
 from polysim_sdk import PolySimClient   # pip install polysimulator
 
 with PolySimClient() as client:                              # POLYSIM_API_KEY from env
-    market = client.list_markets(limit=1)[0]  # an actively-traded market
+    market = client.list_markets(limit=20, active_only=True)[0]  # an open market
     fill = client.place_order(market_id=market["condition_id"], side="BUY",
                               outcome="Yes", quantity=10, order_type="market", price="0.99")
     print(fill["status"])                                    # FILLED
@@ -521,6 +548,26 @@ with PolySimClient() as client:                              # POLYSIM_API_KEY f
   | You already use… | Import | How to port |
   | --- | --- | --- |
   | [`py-clob-client`](https://github.com/Polymarket/py-clob-client) **v1** | `polysim_clob_client` | Drop-in mirror — change the import path, host, and auth call. See the [CLOB migration map](/concepts/clob-compatibility). |
+
+  
+  **On CLOB V1 vs V2.** Polymarket has archived
+  [`py-clob-client`](https://github.com/Polymarket/py-clob-client) (v1) and moved
+  production to CLOB V2, with
+  [`py-clob-client-v2`](https://github.com/Polymarket/py-clob-client-v2) as the
+  current client. Our drop-in mirrors the **v1** surface, so it is the right tool
+  for porting an existing v1 bot — and it is *not* a V2 client.
+
+  **And V2 is not where Polymarket is pointing new projects either.**
+  `py-clob-client-v2`'s own package README says *"We recommend Polymarket/py-sdk
+  for new projects"* — the unified SDK published on PyPI as `polymarket-client`.
+  So porting to V2 CLOB would be porting to something already being sidelined.
+
+  If you are starting fresh today and may port the bot to Polymarket later, use
+  `polysim_polymarket` — our paper-mode mirror of that unified SDK — and treat
+  the move to Polymarket as a real port rather than a base-URL swap. Check its
+  pinned version against `polymarket-client` before relying on a specific method:
+  the mirror tracks a release, not upstream HEAD.
+  
   | Polymarket's unified **[py-sdk](https://pypi.org/project/polymarket-client/)** (`polymarket-client`) | `polysim_polymarket` | Paper-mode mirror of `PublicClient` / `SecureClient` — swap the import prefix + host + auth. See the [py-sdk Mirror overview](/sdk-polymarket) + [compatibility](/concepts/py-sdk-compatibility). |
 
 Because PolySimulator is paper trading, there is **no on-chain anything** — no private
@@ -565,18 +612,18 @@ with PolySimClient() as client:            # POLYSIM_API_KEY from env
     me = client.me()
     print(me["balance"])                   # your trading balance
 
-    market = client.list_markets(limit=1)[0]
+    market = client.list_markets(limit=20, active_only=True)[0]  # skip closed markets
     cid = market["condition_id"]
 
     fill = client.place_order(
         market_id=cid,
         side="BUY",
-        outcome="YES",
+        outcome="Yes",                     # match the market's own `outcomes` label
         quantity=10,
         order_type="market",
         price="0.99",                      # slippage cap: the worst price you'll accept.
-                                           #   For a YES market BUY, 0.99 is "fill at any price"
-                                           #   (a YES share can never cost more than $1).
+                                           #   For a Yes market BUY, 0.99 is "fill at any price"
+                                           #   (a Yes share can never cost more than $1).
     )
     print(f"filled {fill['status']} @ {fill.get('price')}")
 ```
@@ -835,8 +882,8 @@ PolySimulator uses **two auth methods, scoped to different jobs**:
 | **API key** (primary) | `X-API-Key: ps_live_…` | Everything bots touch: trading, market data, websockets, balance/positions/history reads |
 | **Supabase Bearer JWT** (dashboard / one-time) | `Authorization: Bearer …` | Self-service surfaces the dashboard reads with your signed-in session: `POST /v1/keys/bootstrap`, key management (`GET/POST/DELETE /v1/keys`, `/v1/keys/tiers`, `/v1/keys/ws-token`), `GET /v1/me`, `/v1/account/me/entitlements`, and `/v1/me/wallets/*` |
 
-Most users only ever see the API key — the dashboard at
-[polysimulator.com/api-keys](https://polysimulator.com/api-keys)
+Most users only ever see the API key — the developer console at
+[polysimulator.com/console](https://polysimulator.com/console)
 handles the Bearer-JWT bootstrap with your signed-in Supabase
 session, so you click a button and copy the `ps_live_…` value.
 The Bearer-JWT API path exists for headless setups (CI, dev tooling)
@@ -845,7 +892,7 @@ where there's no browser session.
 The Polymarket-CLOB-compatible read endpoints (e.g. `/v1/book`,
 `/v1/midpoint`, `/v1/spread`, `/v1/markets-by-token`) are **public**
 and don't require a key. For convenience, PolySimulator also accepts
-the single-value header aliases `POLY_API_KEY` and
+the single-value header aliases `POLY_API_KEY`, `Poly-API-Key`, and
 `Authorization: Bearer ps_live_…`, each carrying the whole `ps_live_`
 key, on authenticated routes (`X-API-Key` takes precedence when
 several are sent).
@@ -857,6 +904,10 @@ curl -H "X-API-Key: ps_live_abc123..." \
 
 # Equivalent — single-value POLY_API_KEY alias (PolySimulator convenience)
 curl -H "POLY_API_KEY: ps_live_abc123..." \
+     https://api.polysimulator.com/v1/markets
+
+# Equivalent — single-value Poly-API-Key (dashed form)
+curl -H "Poly-API-Key: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
 ```
 
@@ -879,7 +930,7 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
   `GET /v1/midpoint*`, the websocket connect URL, and
   `GET /v1/account/{balance,positions,portfolio,history,equity}`
-  all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
+  all require `X-API-Key` (or the `POLY_API_KEY` / `Poly-API-Key` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
 
@@ -948,9 +999,9 @@ Keys support granular permissions:
   (`POST`/`GET`/`PATCH`/`DELETE /v1/keys`, `/v1/keys/{id}/rotate`) only
   require a valid credential for your account — any active `ps_live_` key
   (even a read-only one) or your dashboard Supabase JWT. You don't need a
-  `trade`-scoped key to manage keys. (Free-tier keys are still read-only
-  for trading and can't be created *with* `trade` — that's enforced at
-  creation, see below.)
+  `trade`-scoped key to manage keys. (Whether a free key can *trade*
+  depends on when it was issued — on or after 2026-09-05 it can, earlier
+  it is read-only; see [Open Beta](#open-beta) below.)
 
 ---
 
@@ -1059,9 +1110,10 @@ Common auth/permission codes — branch on the response body's `error`:
 | `ACCESS_RESTRICTED` | 403 | Residual runtime gate: an already-issued key (or Bearer JWT) whose account is flagged or under review. Not the default open-beta path. |
 | `CLOSED_BETA` | 403 | Residual emergency issuance close (`CLOSED_BETA_MODE=true`). Default open beta does **not** return this. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout code. Default open beta does **not** return this for paying Pro / Pro+ — they self-serve trade-capable keys. |
-| `TIER_REQUIRES_UPGRADE` | 403 | A free caller requested `trade` on key creation. Free keys are read-only; upgrade to Pro / Pro+ to trade. |
+| `TIER_REQUIRES_UPGRADE` | 403 | On key creation, a free caller asked for a paid `tier` it is not subscribed to, for `admin`, or for `trade` while holding an expired paid grant. Plain free + `trade` is allowed for keys issued on or after 2026-09-05. |
 | `INSUFFICIENT_PERMISSION` | 403 | Key lacks `trade` / other scope |
 | `RATE_LIMIT_EXCEEDED` | 429 | Per-key or per-IP burst exceeded |
+| `FREE_TIER_DAILY_LIMIT` | 429 | A free key has placed its 100 accepted orders for the UTC day. Counted per user across all of the account's keys; resets at `00:00Z`, and `Retry-After` carries the wait. Rejected orders and idempotent replays do not count. The body carries `upgrade_url` and `next_tier`; `limit`, `used` and `resets_at` are in `details` with `X-Polysim-Verbose: true`. See [Rate Limits → Free-tier daily order cap](/concepts/rate-limits#free-tier-daily-order-cap). |
 | `VENUE_UNAVAILABLE` | 503 | Polymarket is down. Market orders and IOC / FOK / FAK orders are paused; limit orders are still accepted and still rest. |
 
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
@@ -1131,9 +1183,9 @@ except VenueUnavailableError as exc:
 
 ## Bootstrap Flow (First-Time Setup)
 
-The recommended path is the dashboard at
-[polysimulator.com/api-keys](https://polysimulator.com/api-keys).
-Sign in, click **Create your first API key**, and copy the
+The recommended path is the developer console at
+[polysimulator.com/console](https://polysimulator.com/console).
+Sign in, click **Create a free API key**, and copy the
 `ps_live_…` value shown once. The dashboard handles the Supabase
 JWT exchange transparently.
 
@@ -1168,8 +1220,8 @@ elif resp.status_code == 401:
 elif resp.status_code == 403:
     code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
-        # Free self-serve keys are read-only. Drop "trade" or upgrade.
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Asked for a paid tier / "admin", or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     elif code == "ACCESS_RESTRICTED":
         # Residual runtime gate: flagged / under-review account.
         print("Access restricted — contact support")
@@ -1221,12 +1273,17 @@ key. The default path is self-serve:
 
 | Account | First key (`POST /v1/keys/bootstrap`) | Trading |
 | --- | --- | --- |
-| Free | Read-only (`permissions: ["read"]`, no API wallet) | Markets, books, and account reads only |
-| Active Pro / Pro+ | Trade-capable (`["read", "trade"]`) against an isolated API wallet | Paper trading at the paid tier's rate limits |
+| Free, key issued **on or after 2026-09-05** | Trade-capable (`permissions: ["read", "trade"]`) against a **\$100** API wallet | Paper trading at free-tier rate limits. The \$100 cannot be reset or topped up, and placements are capped at **100 per UTC day** per account (`429 FREE_TIER_DAILY_LIMIT`) |
+| Free, key issued **before 2026-09-05** | Read-only (`["read"]`) — `trade` is stripped on every request even if the stored key carries it | Markets, books, and account reads only. Create a new key to get a trade-capable one |
+| Active Pro / Pro+ | Trade-capable (`["read", "trade"]`) against an isolated \$10,000 / \$25,000 API wallet | Paper trading at the paid tier's rate limits, no daily cap |
 
-Free + `trade` is rejected as `403 TIER_REQUIRES_UPGRADE`. Paying
-subscribers are not blocked by a waitlist or `API_PRO_COMING_SOON` on
-the default path.
+The cutoff is the key's `created_at` (UTC). A free account whose paid grant
+has expired stays read-only regardless of the date, and `admin` is never
+self-issued at any tier. Free + `trade` is no longer rejected;
+`403 TIER_REQUIRES_UPGRADE` is now returned only when a free caller asks for
+a paid `tier`, for `admin`, or for `trade` on an expired paid grant. Paying
+subscribers are not blocked by a waitlist or `API_PRO_COMING_SOON` on the
+default path.
 
 `CLOSED_BETA` and `API_PRO_COMING_SOON` remain valid `X-Polysim-Code`
 values for a residual emergency close or a leftover cohort grant, but
@@ -1244,7 +1301,8 @@ if resp.status_code == 201:
 elif resp.status_code == 403:
     code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Paid tier / "admin" requested, or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     else:
         print(f"403 [{code}]: {resp.json().get('error')}")
 ```
@@ -1311,10 +1369,38 @@ integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
 
+## 2026-09-05 — Free keys can trade (keys issued from this date)
+
+- **Free API keys issued on or after 2026-09-05 (UTC) are trade-capable.**
+  `POST /v1/keys` and `POST /v1/keys/bootstrap` now mint `["read", "trade"]`
+  at every self-serve tier, free included. Free trading is bounded by a
+  **\$100 API wallet** that cannot be reset (`POST /v1/account/reset-api-balance`
+  returns `402 UPGRADE_REQUIRED`) or topped up, and by **100 order placements
+  per UTC day per account** (`429 FREE_TIER_DAILY_LIMIT`, with `Retry-After`,
+  `limit`, `used` and `resets_at`).
+- **Free keys issued before 2026-09-05 are unchanged: read-only.** The
+  `trade` permission is stripped on every request even where the stored key
+  carries it, and rotating such a key preserves its read-only scope. Create a
+  new key to get a trade-capable one.
+- A free account whose paid grant has expired stays read-only regardless of
+  the key's issue date; `admin` is never self-issued at any tier.
+- `403 TIER_REQUIRES_UPGRADE` on key creation is now returned only for a paid
+  `tier` you are not subscribed to, for `admin`, or for `trade` on an expired
+  paid grant — no longer for plain free + `trade`. See
+  [Authentication → Open Beta](/authentication#open-beta) and
+  [Wallets](/account/wallets).
+
 ## 2026-08-29 — Structured errors and cache-safe market data
 
 - `/v1/*` errors now expose the stable machine code in the JSON `error` field,
   with human prose in `message`; `X-Polysim-Code` carries the same code.
+  **Clarification only (no runtime change):** this two-field envelope was
+  already the deployed behavior. Earlier pages incorrectly described the
+  Polymarket single-field `{"error": ""}` shape. Clients should
+  branch on body `error` or the identical `X-Polysim-Code`, not on `message`.
+- The public error catalog now documents `TRADE_IN_PROGRESS`, `SERVER_BUSY`,
+  `DEADLINE_OVERSHOT_BUT_PERSISTED`, and `PERSISTENCE_UNKNOWN`, including
+  which responses are safe to retry and which require an order lookup first.
 - Invalid account `side`, position `status`, and malformed price-history token
   filters now fail with 4xx errors instead of returning misleading empty data.
 - Successful order-book and market-by-slug responses explicitly use
@@ -1341,8 +1427,10 @@ API leaves beta.
 
 - **Key issuance is self-serve.** Sign in, mint a key from the dashboard or
   `POST /v1/keys/bootstrap`. Free keys are read-only; active Pro / Pro+ keys
-  are trade-capable. `CLOSED_BETA` / `API_PRO_COMING_SOON` are residual codes,
-  not the default path. See [Authentication → Open Beta](/authentication#open-beta).
+  are trade-capable. *(Superseded for free keys issued on or after 2026-09-05
+  — see that entry above.)* `CLOSED_BETA` / `API_PRO_COMING_SOON` are residual
+  codes, not the default path. See
+  [Authentication → Open Beta](/authentication#open-beta).
 - **Honest limits** now include the full V2 fee table (including the 5%
   unknown-category fallback) and numeric exceptions. See
   [Honest Limits](/concepts/honest-limits) and [Fees](/trading/fees).
@@ -1397,7 +1485,7 @@ actual) and by 91x on `will-adanech-abiebie-be-the-next-prime-minis…` (77,573,
   you get `null` rather than a number from the wrong window. As before, `null` means
   "no data" and `"0"` means a real zero — a market that traded nothing in 24 hours
   reports `volume_24h: "0"`, not `null`.
-- **`is_hot` is unchanged.** Its $5,000 threshold reads the cumulative figure and
+- **`is_hot` is unchanged.** Its \$5,000 threshold reads the cumulative figure and
   always did, so no market changes hotness because of this release, and `hot_only=true`
   returns the same set it did yesterday.
 - **`live_price.volume` is unchanged** and is an all-time figure — it now says so in
@@ -1746,6 +1834,25 @@ After connecting, ask your assistant things like *"how do I place a FOK order on
 PolySimulator?"* or *"what's the rate limit for the beta tier?"* and it will
 query these docs directly.
 
+## Trading MCP server: let the agent paper-trade
+
+The docs server above answers questions. To let an agent **act** (find the current
+BTC Up/Down round, read the book, place and cancel paper orders, check positions),
+run the trading MCP server from the repository (`mcp/trading/polysim_trading_mcp.py`). Fills are
+simulated against Polymarket's real order book; no real money moves.
+
+```bash
+pip install "mcp>=1.2" httpx
+claude mcp add polysimulator-trading \
+  --env POLYSIMULATOR_API_KEY=ps_live_... \
+  -- python mcp/trading/polysim_trading_mcp.py
+```
+
+Tools: `find_markets`, `updown_round`, `order_book`, `spot_price` (no key needed),
+plus `place_order`, `cancel_order`, `open_orders`, `positions`, `balance` and
+`trade_history` (key needed; a free key trades a \$100 API wallet, 100 orders per UTC
+day). Create a key at [polysimulator.com/console](https://polysimulator.com/console).
+
 ## One-click: open any page in ChatGPT or Claude
 
 Every docs page has a **Copy / View / Open in ChatGPT / Open in Claude** menu in
@@ -1786,10 +1893,16 @@ up-to-date library and API documentation.
 
 API keys are the primary authentication mechanism for the PolySimulator API. Each key is tied to a user account, has configurable permissions, and can be revoked instantly.
 
-  **Open beta.** Anyone can mint a key. Free keys are **read-only**
-  (`["read"]`); paid Pro / Pro+ keys are trade-capable. See
-  [Authentication → Open Beta](/authentication#open-beta) for the
-  default path and residual `CLOSED_BETA` / `ACCESS_RESTRICTED` codes.
+  **Open beta.** Anyone can mint a key. **Free keys issued on or after
+  2026-09-05 can trade** (`["read", "trade"]`, against a \$100
+  non-renewable API wallet, capped at 100 order placements per UTC day
+  per account). **Free keys issued before 2026-09-05 are read-only**
+  (`["read"]`) — `trade` is stripped on every request even if the stored
+  key carries it; create a new key to get a trade-capable one. Paid
+  Pro / Pro+ keys trade against a \$10,000 / \$25,000 API wallet with no
+  daily cap. See [Authentication → Open Beta](/authentication#open-beta)
+  for the default path and residual `CLOSED_BETA` / `ACCESS_RESTRICTED`
+  codes.
 
 ---
 
@@ -1823,11 +1936,13 @@ key_data = resp.json()
 print(f"Save this key: {key_data['raw_key']}")
 ```
 
-  **Free-tier keys are read-only.** A `free` key requesting `trade`
-  returns `403 TIER_REQUIRES_UPGRADE` — so a `["read", "trade"]` key
-  needs a paid tier (`pro` / `pro_plus` / `enterprise`). Omit
-  `permissions` to take the per-tier default (`free` → `["read"]`,
-  paid → `["read", "trade"]`).
+  **The default permission set is `["read", "trade"]` at every
+  self-serve tier, `free` included** (free since 2026-09-05). Omit
+  `permissions` to take it. What still returns
+  `403 TIER_REQUIRES_UPGRADE`: asking for a paid `tier` (`pro` /
+  `pro_plus` / `enterprise`) you are not subscribed to, asking for
+  `admin` (never self-issued), or asking for `trade` while your account
+  holds an expired paid grant (such keys stay read-only).
 
 **Response (201 Created):**
 
@@ -1920,7 +2035,7 @@ curl -X DELETE -H "X-API-Key: $API_KEY" \
 | `400` | `POST /v1/keys/bootstrap` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` |
 | `401` | Any | Invalid, expired, or deactivated API key |
 | `401` | `POST /v1/keys/bootstrap` | Invalid or expired Supabase JWT |
-| `403` | `POST /v1/keys`, `POST /v1/keys/bootstrap` | `TIER_REQUIRES_UPGRADE` if a free key requested `trade`. Residual `CLOSED_BETA` / `API_PRO_COMING_SOON` only on an emergency close. Branch on `X-Polysim-Code`. |
+| `403` | `POST /v1/keys`, `POST /v1/keys/bootstrap` | `TIER_REQUIRES_UPGRADE` if a free caller asked for a paid `tier` it is not subscribed to, for `admin`, or for `trade` while holding an expired paid grant. Plain free + `trade` is **not** refused (keys issued on or after 2026-09-05 may trade). Residual `CLOSED_BETA` / `API_PRO_COMING_SOON` only on an emergency close. Branch on `X-Polysim-Code`. |
 
 ```python
 # Robust key creation with error handling
@@ -1943,9 +2058,9 @@ elif resp.status_code == 403:
     # (the body's `error` is the human message).
     code = resp.headers.get("X-Polysim-Code")
     if code == "TIER_REQUIRES_UPGRADE":
-        # Free tier is read-only: requesting ["read", "trade"] without a
-        # paid tier is rejected. Omit "trade" or upgrade first.
-        print("Free tier cannot create trade-scoped keys — upgrade or drop 'trade'")
+        # A paid tier you are not subscribed to, "admin", or "trade" on an
+        # expired paid grant. Plain free + "trade" is allowed (since 2026-09-05).
+        print("Requested tier or permission needs an upgrade — see /pricing")
     elif code == "INSUFFICIENT_PERMISSION":
         print("Key lacks the required permission for this endpoint")
     elif code == "CLOSED_BETA":
@@ -1971,34 +2086,20 @@ else:
 
 # Rate Limits
 
-Rate limits are enforced **per API key** using Redis **fixed-window** counters with both
-per-second (RPS) and per-minute (RPM) buckets.
+Rate limits are enforced **per API key** using **fixed-window** counters with
+both per-second (RPS) and per-minute (RPM) buckets. Each bucket is keyed on the
+current clock second and clock minute, and resets on the tick.
 
-  **Fixed window, not sliding — and what that means for you.** Each bucket is keyed
-  to a wall-clock second (and a wall-clock minute) and resets at the boundary. A
-  client that happens to align with the boundary can therefore send up to **twice**
-  its per-second allowance in a very short interval: at a 2 RPS tier, two requests
-  at `t = 0.999s` and two at `t = 1.001s` are four requests in two milliseconds and
-  all four are admitted. Sustained throughput is still capped by the per-minute
-  bucket. Do not build a strategy on that burst — it is an artefact of the window
-  shape, it is not part of the contract, and it may be removed without a breaking
-  change. `X-RateLimit-Reset` tells you when the current minute bucket resets.
+  Because the windows are fixed rather than sliding, there is a **boundary
+  burst**: a client aligned to the clock second can send its full per-second
+  allowance just before the tick and again just after, briefly reaching about
+  twice the nominal RPS. We do not treat that as abuse, but it is a property of
+  the window rather than a documented allowance — do not design around it.
 
-  An environment may instead run a **weighted sliding approximation** over the
-  same buckets, which is strictly *stricter*: the boundary burst above is
-  rejected, `Retry-After` is solved from how much of the previous bucket is
-  still counted rather than being a flat 1 s, and `X-RateLimit-Reset` names the
-  instant your next request would actually be served rather than the wall-clock
-  boundary. A client that honours `Retry-After` and `X-RateLimit-Reset` is
-  correct under both; a client that assumes the boundary burst is not.
-
-  **If Redis is unavailable, the limiter fails open.** Counters live in Redis; when
-  Redis errors, the API admits the request rather than rejecting it, because an
-  unavailable cache should not take the whole API down. Enforcement is therefore
-  best-effort during a Redis incident — you may briefly see no limits at all, or a
-  reduced fallback budget where that has been enabled. Your client should still
-  honour 429 and `Retry-After` at all times; do not treat a period without limits as
-  a licence to raise your send rate.
+  The limiter also **fails open**: if Redis is unreachable the check returns
+  full headroom instead of rejecting, so during a cache outage the stated limits
+  are not enforced. That is a deliberate availability trade, stated here so the
+  guarantee you are buying is the guarantee you actually get.
 
 ---
 
@@ -2011,224 +2112,86 @@ per-second (RPS) and per-minute (RPM) buckets.
 | `pro_plus` | 60 | 3,600 | 10 | 10 |
 | `enterprise` | 100 | 6,000 | 50 | 25 |
 
-  The `free` tier allows short bursts (up to 2 requests inside one wall-clock
-  second) and is capped at 120 requests inside one wall-clock minute, so the
-  per-minute bucket is the one you'll hit first under sustained load. Both
-  buckets are fixed windows keyed to the clock rather than rolling ones: the
-  minute bucket resets at the top of each minute, and `x-ratelimit-reset` tells
-  you when. Use `POST /v1/prices/batch` and the WebSocket feeds (which don't
-  count against the REST limit) to stay well inside it.
+  The `free` tier allows up to 2 requests in any one clock second, and is
+  also capped at 120 requests per clock minute, so the per-minute bucket is
+  the one you'll hit first under sustained load. Use `POST /v1/prices/batch` and the WebSocket feeds
+  (which don't count against the REST limit) to stay well inside it.
 
   The authoritative source for tier limits is `GET /v1/keys/tiers`. If a doc
   page ever disagrees with that endpoint, the endpoint wins.
 
+  **Trade Write Serialization vs. Rate Limits**: Rate limits apply per API key to general REST requests. In addition, order-writing endpoints (`POST /v1/orders`, `POST /v1/orders/batch`, `DELETE /v1/orders/{id}`, etc.) are serialized **per user** via an internal lock to prevent balance and position races. A second concurrent write for the same user waits cooperatively up to 2 seconds; if the first write is still in flight when the wait window expires, it returns `409 TRADE_IN_PROGRESS` with `Retry-After: 1`. **Using multiple API keys for the same account does not bypass this lock.** Callers should honor `Retry-After` and retry with the same `client_order_id`. See [Placing Orders](/trading/placing-orders#per-user-trade-write-serialization) and [Error Handling](/bots/error-handling#deadline-busy-and-concurrency-errors).
+
 ---
 
-## Order writes are serialised per account
+## Free-tier daily order cap
 
-Tier limits bound **requests**. They do not bound **order writes on one account**.
-Every order write on an account is serialised behind two locks, and the ceiling
-that falls out is roughly **3–4 order writes per second per account — on every
-tier, including `enterprise`**.
+On top of the per-key rate limits above, a `free` key can place up to
+**100 accepted orders per UTC calendar day**. This is a placement cap, not a
+request cap — reads, cancels and rejected orders do not count — and it is the
+one limit on this page that is counted **per user**, not per key.
 
-The two locks, in series, on `POST /v1/orders`, `POST /v1/orders/batch`,
-`POST /v1/clob/order` and `DELETE /v1/orders/{order_id}`:
+| | |
+|---|---|
+| **Cap** | 100 accepted orders per day. Not (yet) reported by `GET /v1/keys/tiers`. |
+| **Scope** | Per **user**. Every free key on the account shares one counter. |
+| **Window** | UTC calendar day. Resets at `00:00:00Z` — a fixed boundary, not a rolling 24 h. |
+| **What counts** | An order the API **accepted**: a resting limit, a fill, a partial fill, or a V2 ack. One accepted order is one unit whatever happens to it afterwards. Each accepted entry of `POST /v1/orders/batch` counts on its own. |
+| **What does not count** | Any rejected order (`400` / `404` / `409` / `503`), and an idempotent replay of a `client_order_id` that was already accepted. |
+| **Applies to** | `POST /v1/orders`, `POST /v1/order`, `POST /v1/clob/order`, and per entry `POST /v1/orders/batch`. |
+| **Paid tiers** | No daily order cap on `pro`, `pro_plus` or `enterprise`. |
 
-1. **A per-account advisory lock** (`trade:lock:user:{user_id}` in Redis), held
-   across the whole write — tick resolution, validation, the balance statement,
-   and commit. One holder at a time across every API worker and container.
-2. **The `accounts` row lock** — `SELECT … FROM accounts WHERE user_id = … FOR
-   UPDATE`. This is the authoritative anti-double-spend primitive and it stays
-   in place; the advisory lock in front of it exists so contenders wait in the
-   application instead of pinning a database connection.
+  The cap is per user deliberately. Keys are free, so a per-key cap would be
+  defeated by minting hundreds of keys and rotating through them. The rate
+  limit bounds how fast one key can act; the daily cap bounds how much free
+  trading one person can do.
 
-Measured on 2026-09-02, the advisory lock's **p95 hold time was 200–294 ms** and
-it stayed flat from 1 to 16 concurrent traders. Flat means it is not congestion —
-it is the intrinsic cost of one order write. `1 / 0.253 s ≈ 4/s`, and a single
-trader measured **3.3 order writes per second** sustained, which is what a 294 ms
-hold predicts.
+When the day's orders are spent, the order endpoints answer `429` **before
+validating the order**, so a spent quota surfaces as itself rather than as a
+`400` about a field you would fix and resend for nothing:
 
-  **An `enterprise` key is sold at 100 req/s. On the order-write path a single
-  account reaches about 4/s — roughly 25× less.** That is not a bug and buying a
-  higher tier will not move it. A higher tier buys you more *requests* (market
-  data, order status, positions, lookups); it does not buy a faster lock. If your
-  design needs 40 order writes per second, it needs about ten accounts, not a
-  bigger plan.
-
-### Throughput scales with accounts, not with tier
-
-| Accounts | Sustained order writes/sec (approx.) |
-|---:|---:|
-| 1 | 3–4 |
-| 4 | 12–16 |
-| 16 | 48–64 |
-| N | N × 3–4 |
-
-Sixteen independent accounts sustained **51.8 req/s of order traffic with zero
-errors** in the same measurement — 1,185 place/cancel round trips plus 386
-synchronous fills in 60 seconds — so the per-account ceiling is genuinely
-per-account, and the shared path behind it has headroom.
-
-The practical rule: **one account per strategy, per participant, or per funded
-trader.** A prop-firm evaluation is already shaped this way — each candidate gets
-their own account, and the firm's aggregate throughput is the sum. A single
-account driven by a fan-out of threads is the shape that hits the ceiling.
-
-### What happens when you overlap writes on one account
-
-The API does **not** queue you behind the lock indefinitely. It waits a bounded
-amount of time and then returns a bounded, retryable error:
-
-| Condition | HTTP | `error_code` | `Retry-After` |
-|---|:---:|---|:---:|
-| Another write for the same account is in flight and the 2 s cooperative wait elapsed | `409` | `LOCK_BUSY_RETRY` (body `error`: `TRADE_IN_PROGRESS`) | `1` |
-| The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired, on **placement** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
-| Same, on **cancellation** | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `5` |
-| The write exceeded the server-side placement deadline | `503` | `DB_CONTENTION_RETRY` (body `error`: `SERVER_BUSY`) | `1` |
-
-Every one of these is transient, and every one carries `Retry-After` in
-**seconds**. Read the header; do not hard-code the number — the placement and
-cancellation paths deliberately differ.
-
-  **`409 LOCK_BUSY_RETRY` is not a validation failure.** The body's `error` field
-  is `TRADE_IN_PROGRESS` and the machine-readable code is `LOCK_BUSY_RETRY`.
-  Unlike the other 409s in the trading taxonomy (`DUPLICATE_CLIENT_ORDER_ID`,
-  `IDEMPOTENCY_KEY_REUSE`), it means "your request was fine, it lost a lock
-  race" — it is **retryable**. Branch on `error_code`, not on the status alone.
-
-  **`503 DB_CONTENTION_RETRY` on placement means the order was NOT placed.** The
-  message says so explicitly; retry it. The 503s you must *not* auto-retry are
-  `PERSISTENCE_UNKNOWN` and `DEADLINE_OVERSHOT_BUT_PERSISTED`, which ship
-  **without** a `Retry-After` header precisely so a naive retry loop cannot
-  double-place — poll `GET /v1/orders` instead. Treating "carries `Retry-After`"
-  as the retry signal is correct for all of them.
-
-### The client pattern that avoids all of this
-
-  
-    Provision an account (and key) per strategy, participant, or funded trader.
-    This is the only lever that raises aggregate write throughput.
-  
-
-  
-    On a single account, serialise your own writes client-side: wait for the
-    placement response before issuing the cancel. Overlapping them is what
-    produces `LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` — you are contending
-    with yourself, and the API tells you so rather than queueing you.
-  
-
-  
-    Read the header, sleep that many seconds, retry. Do not retry immediately,
-    and do not retry a 503 that arrived without the header.
-  
-
-  
-    An `Idempotency-Key` header (or `client_order_id`) makes every retry above
-    safe: a replay of the same payload returns the original order instead of
-    double-placing. Retrying a write without one is how you get two positions.
-  
-
-```python
-import time
-import requests
-
-def place_order(session, url, payload, key, max_attempts=4):
-    """One account, one in-flight write, Retry-After honoured, idempotent."""
-    headers = {"X-API-Key": key, "Idempotency-Key": payload["client_order_id"]}
-
-    for attempt in range(max_attempts):
-        resp = session.post(url, headers=headers, json=payload)
-
-        # 409 LOCK_BUSY_RETRY / 503 DB_CONTENTION_RETRY / 429 all carry
-        # Retry-After in seconds. A 5xx without the header is NOT
-        # auto-retryable — the write may already be persisted.
-        if resp.status_code in (409, 429, 503):
-            retry_after = resp.headers.get("Retry-After")
-            code = resp.headers.get("X-Polysim-Code", "")
-            if retry_after is None:
-                raise RuntimeError(
-                    f"non-retryable {resp.status_code} {code}; poll GET /v1/orders"
-                )
-            time.sleep(int(retry_after))
-            continue
-
-        return resp
-
-    raise RuntimeError(f"still contended after {max_attempts} attempts")
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 14322
+X-Polysim-Code: FREE_TIER_DAILY_LIMIT
+X-Request-Id: a1b2c3d4-...
+Content-Type: application/json
 ```
 
-Batching helps only where the endpoint offers it: `POST /v1/orders/batch` is one
-request against your RPS/RPM budget, bounded by your tier's **Max Batch Size**
-(`free=1`, `pro=5`, `pro_plus=10`, `enterprise=25` — see the Tiers table above).
-It does not bypass the per-account lock: the orders inside the batch still write
-under it.
+```json
+{
+  "error": "FREE_TIER_DAILY_LIMIT",
+  "message": "free tier allows 100 orders per UTC day; 100 used, resets at 2026-09-19T00:00:00Z. Pro has no daily order cap: https://polysimulator.com/pricing",
+  "upgrade_url": "/pricing",
+  "next_tier": "pro"
+}
+```
 
----
+`Retry-After` is the whole number of seconds until the next UTC midnight
+(never below `1`), which is the machine-readable form of the reset. Send
+`X-Polysim-Verbose: true` and the body carries
+`"details": {"limit": 100, "used": 100, "resets_at": "2026-09-19T00:00:00Z", "upgrade_url": "/pricing", "next_tier": "pro"}`
+in place of the top-level `upgrade_url` and `next_tier`.
+Inside `POST /v1/orders/batch` a spent quota surfaces per entry as
+`"status": "REJECTED"` with `"error": "FREE_TIER_DAILY_LIMIT"`, and the batch
+call itself still returns `200`.
 
-## Per-key in-flight concurrency
+  Distinguish this from `RATE_LIMIT_EXCEEDED`: that clears within a second,
+  this clears at midnight UTC. Sleeping `Retry-After` on both is correct, but a
+  bot that hits `FREE_TIER_DAILY_LIMIT` should stop placing orders for the day
+  rather than spin — or move to a paid tier, which has no daily cap.
 
-Separate from the per-window rate limiter, a **per-key in-flight cap** bounds how
-many `/v1/*` requests one key may have executing *simultaneously* on a single API
-worker. The rate limiter counts requests per window; this counts requests in
-flight. A client can sit inside its tier's RPS and still pin a worker's database
-connections by holding many slow requests open at once — that is what this
-bounds.
-
-When it rejects, it does so immediately rather than queueing:
-
-| HTTP | `error_code` (also in `X-Polysim-Code`) | `Retry-After` | Extra headers |
-|:---:|---|:---:|---|
-| `429` | `API_KEY_CONCURRENCY_EXCEEDED` | `1` | `X-Concurrency-Key-Limit`, `X-Concurrency-Key-Remaining` |
-
-The per-tier caps are **derived from the live connection pool** rather than being
-fixed constants, so that one key at its cap can never take the last connection
-another tenant of that worker needs. On the current production pool the derived
-caps are `free=4`, `pro=9`, `pro_plus=12`, `enterprise=12`. Read
-`X-Concurrency-Key-Limit` for the value actually in force rather than hard-coding
-it — the number moves when the pool is resized.
-
-  This cap is **enforced in production** (since 2026-09-02). A client that already
-  branches on `429` + `Retry-After` needs no change. If you see
-  `API_KEY_CONCURRENCY_EXCEEDED`, you have more requests in flight on one key than
-  the cap allows: wait for `Retry-After` and reduce concurrency, or spread the work
-  across more accounts.
-
----
-
-## Read limits are separate, and one of them is per-IP
-
-The per-tier RPS/RPM budgets above govern the read path. One additional budget is
-easy to miss because it is **not keyed on your API key at all**.
-
-**Public market-data routes charge a shared per-IP budget of 2 requests/second
-(120/minute) when your key has to be resolved from cold.** Those routes resolve
-your key against a cache with a 120-second TTL; on a miss, the resolution itself
-is charged to a bucket keyed on the **source IP**, before your tier is known.
-
-This bites exactly one shape of client, and it is the prop-firm shape:
-
-- **Many keys behind one NAT egress IP share the same 2 rps budget.** The
-  resulting 429s have nothing to do with anyone's tier — a fleet of `enterprise`
-  keys at 3 rps each will still see them.
-- **Keys issued together expire together.** Cache entries minted in the same
-  second go cold in the same second, so cold lookups arrive as a burst every 120
-  seconds rather than spread across it. In measurement, sixteen keys minted
-  together produced **8–14 × 429 per 60-second run** at roughly 3 rps per key.
-- A cache flush or an API worker recycle makes every key cold at once, producing
-  the same burst.
-
-What helps today: stagger key creation so their TTLs do not align; keep traffic
-flowing on each key so its entry is refreshed rather than going cold; spread
-egress across more than one source IP; and back off on `429` with `Retry-After`
-as normal — the burst clears within a second or two.
+  Like the rate limiter, the daily cap **fails open**: if Redis is unreachable
+  the counter is neither enforced nor incremented, rather than blocking
+  trading. The stated cap is the cap you get whenever the cache is healthy.
 
 ---
 
 ## Rate Limit Response
 
 When you exceed your limit, the API returns **HTTP 429** with the
-Polymarket-shape single-field `error` envelope and a stable
-`X-Polysim-Code` response header:
+standard two-field error envelope and a stable `X-Polysim-Code`
+response header:
 
 ```http
 HTTP/1.1 429 Too Many Requests
@@ -2239,11 +2202,11 @@ Content-Type: application/json
 ```
 
 ```json
-{"error": "Rate limit exceeded. Retry after 1s."}
+{"error": "RATE_LIMIT_EXCEEDED", "message": "Rate limit exceeded. Retry after 1s."}
 ```
 
-Branch on `X-Polysim-Code === "RATE_LIMIT_EXCEEDED"` rather than the
-body prose, and read the `Retry-After` header for the exact wait time
+Branch on `error` or the identical `X-Polysim-Code` value, not on
+`message`, and read the `Retry-After` header for the exact wait time
 in seconds.
 
 ---
@@ -2260,9 +2223,9 @@ endpoints and flagged token resolver routes):
 | `x-ratelimit-tier` | string | Tier of the key making the call — `free` / `pro` / `pro_plus` / `enterprise` |
 | `x-ratelimit-limit` | int | Per-minute cap for the tier |
 | `x-ratelimit-limit-per-second` | int | Per-second cap for the tier |
-| `x-ratelimit-remaining` | int | Requests remaining in the current fixed one-minute window |
-| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current fixed one-second window |
-| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window rolls over |
+| `x-ratelimit-remaining` | int | Requests remaining in the current clock-minute window |
+| `x-ratelimit-remaining-per-second` | int | Requests remaining in the current clock-second window |
+| `x-ratelimit-reset` | int | Unix epoch seconds when the per-minute window resets |
 
   Every header above is **also** emitted under the PolySim-namespaced
   `x-polysim-ratelimit-*` prefix with identical values (e.g.
@@ -2282,7 +2245,7 @@ reset_at = int(resp.headers.get("x-ratelimit-reset", "0"))
 # If the per-second bucket is almost drained, sleep a beat
 if remaining_sec <= 1:
     time.sleep(1.0)
-# If the current minute bucket is almost drained, sleep until reset
+# If the per-minute bucket is almost drained, sleep until it resets
 elif remaining <= 5:
     sleep_for = max(0.0, reset_at - time.time())
     time.sleep(min(sleep_for, 60.0))
@@ -2388,7 +2351,7 @@ For lower fill latency, clients may listen to WebSocket execution channels along
 
 # Simulation Realism & Honest Limits
 
-PolySimulator is designed to provide **venue-compatible paper trading for bot development**: develop and validate a Polymarket trading bot against a compatible API (CLOB-compatible routes + drop-in SDK integration), with real-time prices and real accounting, without risking capital — then switch endpoints to go live.
+PolySimulator is designed to provide **venue-compatible paper trading for bot development**: develop and validate a Polymarket trading bot against a compatible API (CLOB-compatible routes + drop-in SDK integration), with real-time prices and real accounting, without risking capital. PolySimulator never places orders on Polymarket or on any other venue; trading on Polymarket is a separate step, done with your own Polymarket account and Polymarket's API.
 
 This page documents exactly what PolySimulator **does** and **does not** simulate. Transparent execution boundaries build reliable trading systems.
 
@@ -2417,7 +2380,7 @@ graph TD
 
 ### 2. Live-Price Fill Source
 
-* Every fill executes against **live Polymarket venue prices** sampled in real time from the Polymarket CLOB WebSocket and REST feeds.
+* Every simulated fill is priced from **live Polymarket venue prices** sampled in real time from the Polymarket CLOB WebSocket and REST feeds. No order is sent to Polymarket.
 * Fills evaluate prices through a priority cascade:
   1. **Order Book Walk (VWAP):** Size-aware execution walking the merged primary and complementary order books.
   2. **Top of Book (Best Bid/Ask):** Best available touch price with complement-aware merging.
@@ -2449,12 +2412,12 @@ graph TD
 | Pro REST | **30 req/s**, **1,800 req/min** | Same two-bucket model. |
 | Pro+ REST | **60 req/s**, **3,600 req/min** | Same two-bucket model. |
 | Enterprise REST | **100 req/s**, **6,000 req/min** | Same two-bucket model. |
-| Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account). |
+| Order writes, one account | **~3–4 per second** | Applies on **every** tier, `enterprise` included — about 25× below the 100 req/s an enterprise key is sold at. Order writes are serialised per account by a lock held **200–294 ms (p95)**. Throughput scales by adding accounts, not tier. See [Trade Write Serialization](/trading/placing-orders#per-user-trade-write-serialization). |
 | Overlapping writes, one account | `409 LOCK_BUSY_RETRY` / `503 DB_CONTENTION_RETRY` | The API returns a bounded error rather than queueing you. Both carry `Retry-After` (1 s on placement, 5 s on cancellation). Placement 503s state the order was **not** placed. |
 | Public market data, cold key lookup | **10 req/s**, **600 req/min** — **per source IP** | Charged before your tier is known, so every key behind one NAT egress IP shares it. Cache TTL is 120 s and keys minted together expire together, so the 429s arrive in bursts. |
 | Fee formula | 5 decimal places | Amount **debited** is settled at **cent** precision (`Numeric(18,2)`). Sub-cent fees round to `$0.00`. |
 | Unknown category fee | **5% / 500 bps** | Applied when the market has no category. Not geopolitics (0%). |
-| API wallet | Free **$100**, Pro **$10,000**, Pro+ **$25,000** | Free CAN trade — $100 is a small, deliberately **non-renewable** budget, and `reset-api-balance` returns `402 UPGRADE_REQUIRED` on Free. MAIN ($1,000) is never used by API keys. |
+| API wallet | Free **\$100**, Pro **\$10,000**, Pro+ **\$25,000** | Free CAN trade — \$100 is a small, deliberately **non-renewable** budget, and `reset-api-balance` returns `402 UPGRADE_REQUIRED` on Free. MAIN (\$1,000) is never used by API keys. |
 | Tick sizes | `0.1` / `0.01` / `0.001` / `0.0001` | Market-aware. Off-grid limits return `INVALID_ORDER_MIN_TICK_SIZE`. |
 | String numerics | JSON **strings** for prices, sizes, balances | Polymarket-parity exceptions: `GET /v1/tick-size/{token_id}` `minimum_tick_size` and `GET /v1/markets/updown` `live_price.buy/sell` are JSON **numbers**. See [String Numerics](/concepts/string-numerics). |
 
@@ -2465,17 +2428,9 @@ graph TD
 ### No Queue-Position Modelling
 In a live matching engine, when you place a limit order at the current bid, your order joins the back of the queue at that price level and only fills after all orders placed before yours have been matched or canceled. 
 
-In PolySimulator paper trading, resting orders match whenever the venue price crosses your limit. If you place a limit BUY at $0.50 and the venue trades at $0.50, your order fills on the next loop iteration without simulating queue depletion ahead of you. 
+In PolySimulator paper trading, resting orders match whenever the venue price crosses your limit. If you place a limit BUY at \$0.50 and the venue trades at \$0.50, your order fills on the next loop iteration without simulating queue depletion ahead of you. 
 
   For realistic backtesting that models queue dynamics and historical book reconstruction, use the upcoming **Simulation SKU** rather than paper trading.
-
-### Order Writes Are Serialised Per Account
-
-Every order write on one account — place, batch place, and cancel — is serialised behind a per-account advisory lock and the account's `accounts` row lock. Measured on 2026-09-02, that lock is held for **200–294 ms at p95**, flat from 1 to 16 concurrent traders, because it is the intrinsic cost of one write rather than congestion. One account therefore sustains roughly **3–4 order writes per second**, and no tier changes that: an `enterprise` key is sold at 100 req/s and reaches about 4/s on the write path.
-
-The consequence is worth stating plainly rather than letting you discover it as errors. **Aggregate write throughput scales with the number of accounts, not with the size of the plan.** Sixteen independent accounts sustained 51.8 req/s of order traffic with zero errors in the same measurement. A prop firm running N funded traders on N accounts gets roughly N × 3–4 writes/s; the same firm fanning N threads at one account gets 3–4 and a stream of contention errors.
-
-When you do overlap writes on a single account, the API returns a bounded error rather than queueing you: `409 LOCK_BUSY_RETRY` once the 2 s cooperative wait elapses, or `503 DB_CONTENTION_RETRY` once the 200 ms database lock timeout fires. Both carry `Retry-After` in seconds, and with an `Idempotency-Key` the retry is safe. See [Rate Limits](/concepts/rate-limits#order-writes-are-serialised-per-account) for the full contract.
 
 ### No Self-Impact
 In live markets, large orders consume liquidity and shift the market price against the trader. In PolySimulator, your trades update your virtual portfolio and ledger, but do not affect external Polymarket order books. Size-aware VWAP book walking simulates the price you *would* receive given current book depth, but does not move the market for subsequent orders.
@@ -2489,7 +2444,7 @@ In live markets, large orders consume liquidity and shift the market price again
   
 
   
-    API keys trade exclusively against an isolated **API Sandbox Wallet** ($10,000 baseline for Pro, $25,000 for Pro+). The primary UI wallet (`MAIN`) is never modified by API trading.
+    API keys trade exclusively against an isolated **API Sandbox Wallet** (\$10,000 baseline for Pro, \$25,000 for Pro+). The primary UI wallet (`MAIN`) is never modified by API trading.
   
 
   
@@ -2505,9 +2460,27 @@ In live markets, large orders consume liquidity and shift the market price again
 ## Operational Boundaries & Beta SLA
 
 * **Beta Availability:** PolySimulator API Beta is a development and validation environment. While we aim for high uptime (>99.9%), the beta surface does not carry a formal financial SLA.
-* **Rate Limits:** Per-key rate limits are enforced via Redis **fixed-window** counters — one per-second bucket and one per-minute bucket (e.g. Free: 2 RPS / 120 RPM, Pro: 30 RPS / 1,800 RPM). A fixed window is not a sliding window: a client that aligns to the bucket boundary can briefly send up to **twice** its per-second allowance (two requests just before a second ticks over and two just after are four requests in milliseconds, and all four are admitted). We size tiers with that in mind and we would rather tell you than have you discover it. See [Rate Limits](/concepts/rate-limits) for the exact behaviour.
-* **Per-Account Write Ceiling:** Tier limits bound requests; they do not bound order writes on one account. One account sustains **~3–4 order writes per second on every tier** because each write holds a per-account lock for 200–294 ms. Size a deployment by accounts — one per strategy, participant, or funded trader — not by tier. Overlapping writes on one account return `409 LOCK_BUSY_RETRY` or `503 DB_CONTENTION_RETRY` with `Retry-After`, never an unbounded queue. See [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account).
-* **Rate Limiter Availability:** The limiter stores its counters in Redis, and it **fails open** — if Redis is unreachable, requests are admitted rather than rejected, so a cache outage degrades enforcement instead of taking the API down. That is a deliberate availability trade: we would rather serve you unlimited for a few minutes than 500 every request. A bounded fallback budget can be enabled per environment, and every such event is counted (`polysim_api_rate_limit_redis_error_total`) so a silently-disabled limiter is visible to us.
+* **Rate Limits:** Per-key rate limits are enforced with **fixed windows** — a
+  per-second bucket and a per-minute bucket, each keyed on the current clock
+  second/minute (e.g. Free: 2 RPS / 120 RPM, Pro: 30 RPS / 1,800 RPM).
+
+  
+  A fixed window has a **boundary burst**: because the counter resets at each
+  clock second, a client aligned to that boundary can send its full per-second
+  allowance just before the tick and again just after — briefly about **twice**
+  the nominal RPS. We do not treat that as abuse, but do not design around it
+  either: it is a property of the window, not a documented allowance, and
+  tightening it later would break a client that relied on it.
+  
+
+  
+  **The limiter fails open.** If Redis is unreachable the limit check returns
+  full headroom rather than rejecting your request, so during a cache outage
+  the stated limits are not enforced. This is a deliberate availability trade —
+  we would rather serve you unthrottled than fail your requests because *our*
+  cache is down — and it is stated here so the guarantee you are buying is the
+  guarantee you actually get.
+  
 * **Deprecation Policy:** Breaking API or schema changes during public beta will be communicated with at least **14 days notice** via email and documentation changelogs.
 
 
@@ -2681,21 +2654,22 @@ PolySimulator mirrors **Polymarket's real execution model**:
 - **The `price` field is the worst-price limit** — slippage protection built into the order, not a separate parameter
 - **FOK (Fill-or-Kill)** is the immediate-execution order type on this endpoint. Polymarket's real CLOB also supports **FAK (Fill-and-Kill)**; on PolySimulator, FAK lives on the PM-raw [`POST /v1/order`](/concepts/pm-raw-http) path, and `POST /v1/clob/order` accepts `GTC`/`FOK`/`GTD` only (see below)
 
-The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, enabling one-URL-swap migration from paper trading to live trading.
+The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, so a bot written for Polymarket's order fields can be tested here. PolySimulator never forwards these orders to Polymarket.
 
 ---
 
-## The Migration Promise
+## Porting to Polymarket
 
-  **Change only the base URL and credentials to go live** — the request and
-  response schemas are identical.
+  PolySimulator never forwards orders to Polymarket. To trade on Polymarket, your
+  own code sends orders to Polymarket's API with your own credentials and signed
+  orders. The order fields carry over; the client setup and authentication change.
 
-| Mode | `/clob/order` endpoint |
+| Where | `/clob/order` endpoint |
 |------|------------------------|
-| **Virtual** (PolySimulator) | `https://api.polysimulator.com/v1/clob/order` |
-| **Live** (Polymarket) | `https://clob.polymarket.com/order` |
+| **PolySimulator** (simulated) | `https://api.polysimulator.com/v1/clob/order` |
+| **Polymarket** (your own account, outside PolySimulator) | `https://clob.polymarket.com/order` |
 
-```python Virtual Mode (PolySimulator)
+```python PolySimulator (simulated)
 import requests
 
 BASE = "https://api.polysimulator.com/v1"
@@ -2710,7 +2684,7 @@ order = requests.post(f"{BASE}/clob/order", headers=headers, json={
 }).json()
 ```
 
-```python Live Mode (Polymarket)
+```python Polymarket (outside PolySimulator)
 from py_clob_client.client import ClobClient
 
 client = ClobClient("https://clob.polymarket.com", key=PRIVATE_KEY, chain_id=137)
@@ -2727,9 +2701,9 @@ order = client.create_and_post_order(OrderArgs(
 ```
 
   **Authentication difference**: PolySimulator uses the `X-API-Key` header.
-  Polymarket's live CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
+  Polymarket's CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
   derived from your wallet's private key via `py_clob_client`. See the
-  [Live Migration Guide](/deployment/live-migration) for full credential setup.
+  [porting guide](/deployment/live-migration) for full credential setup.
 
 ---
 
@@ -2945,7 +2919,7 @@ The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
 |----------|---------------------|
 | New bot development | `POST /v1/orders` — richer features, string numerics |
 | Porting existing Polymarket bot | `POST /v1/clob/order` — minimal code changes |
-| Planning to go live on Polymarket | `POST /v1/clob/order` — URL-swap ready |
+| Planning to port the bot to Polymarket later | `POST /v1/clob/order` — same order fields as Polymarket's CLOB |
 | Advanced features (batch, limit, slippage) | `POST /v1/orders` — full feature set |
 
 ---
@@ -2954,7 +2928,7 @@ The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
 
 - [Placing Orders](/trading/placing-orders) — Full-featured native order API
 - [Live Migration](/deployment/live-migration) — Step-by-step migration guide
-- [Polymarket Perfect-Fit Delta](/concepts/polymarket-perfect-fit-delta) — Exact endpoint and schema gaps to close for full Polymarket parity
+- [py-sdk Compatibility](/concepts/py-sdk-compatibility) — Published compatibility matrix and differences from live Polymarket
 
 
 # py-sdk Compatibility
@@ -3021,7 +2995,7 @@ deliberately diverges is enumerated here:
   On maker/taker: the sim classifies a marketable-at-placement GTC (one that
   crosses the book on submit) as a **taker** and charges the taker fee, matching
   Polymarket; only a genuinely-resting GTC that is filled later — when the market
-  moves into it — is booked as a $0-fee maker. This is a fidelity *match*, not a gap.
+  moves into it — is booked as a \$0-fee maker. This is a fidelity *match*, not a gap.
 
   **The market universe is PolySimulator's, NOT Polymarket's live universe.** Reads
   resolve against the markets PolySimulator carries, which is a curated subset of
@@ -3444,7 +3418,7 @@ Mirror of Polymarket's [`POST /order`](https://docs.polymarket.com/clob/post-ord
     "makerAmount": "500000",
     "takerAmount": "1000000",
     "side": "BUY",
-    "expiration": "0",
+    "expiration": 0,
     "salt": 1234567890,
     "maker": "0x0000000000000000000000000000000000000000",
     "signer": "0x0000000000000000000000000000000000000000",
@@ -3471,7 +3445,7 @@ for both USDC and outcome-token amounts:
 | `BUY`  | `round(price × qty × 1e6)` USDC | `round(qty × 1e6)` shares | `makerAmount / takerAmount` | `takerAmount / 1e6` |
 | `SELL` | `round(qty × 1e6)` shares | `round(price × qty × 1e6)` USDC | `takerAmount / makerAmount` | `makerAmount / 1e6` |
 
-Example: BUY 1 share at $0.50 ⇒ `makerAmount=500000`,
+Example: BUY 1 share at \$0.50 ⇒ `makerAmount=500000`,
 `takerAmount=1000000`.
 
 **On-chain fields are accepted and ignored:** `salt`, `maker`, `signer`,
@@ -3644,7 +3618,7 @@ Polymarket-shaped `OrdersResponse`:
       "size_matched": "0.2480",
       "price": "0.5000",
       "outcome": "Yes",
-      "expiration": "0",
+      "expiration": 0,
       "order_type": "GTC",
       "associate_trades": [],
       "created_at": 1778103749
@@ -3716,7 +3690,7 @@ the exact shape PM emits.
 | `GET /v1/markets-by-token/{token_id}` | Resolve `tokenId` → `(condition_id, outcome)` | (PolySim convenience; PM does not expose this directly) |
 | `GET /v1/midpoint?token_id=` | Midpoint price | `GET /midpoint` |
 | `POST /v1/midpoints` | Batch midpoints | `POST /midpoints` |
-| `GET /v1/spread?token_id=` | Bid/ask spread (capped at $0.10 per PM parity) | `GET /spread` |
+| `GET /v1/spread?token_id=` | Bid/ask spread (capped at \$0.10 per PM parity) | `GET /spread` |
 | `POST /v1/spreads` | Batch spreads | `POST /spreads` |
 | `GET /v1/book?token_id=` | L2 order book | `GET /book` |
 | `POST /v1/books` | Batch books | `POST /books` |
@@ -3734,7 +3708,7 @@ the exact shape PM emits.
     `{"server_time": ...}` object — this matches Polymarket's wire.
 
 **Spread cap:** PolySim mirrors Polymarket's documented behaviour of
-capping reported spread at $0.10. Markets with a `bid=0.001 ask=0.999`
+capping reported spread at \$0.10. Markets with a `bid=0.001 ask=0.999`
 book report `spread="0.10"`, not `0.998`. This stops arbitrage
 filters from treating every illiquid book as a free-money signal.
 
@@ -3884,16 +3858,13 @@ order = resp.json()
 
 ### FAK (Fill-and-Kill) Market Order
 
-`time_in_force: "FAK"` (alias `"IOC"`) is accepted. Engine behavior depends
-on the **PM-faithful order semantics** rollout (see the callout below):
-
-* **Legacy behavior (rollout off)**: FAK executes **atomically** — it fills
-  your full quantity at the touch price or cancels entirely.
-* **Rolling out**: Polymarket-faithful partial fills — the engine walks the
-  displayed order-book depth within your price limit, fills what's actually
-  available (VWAP across levels), and cancels the remainder. A partial fill
-  returns `status: "FILLED"` with `quantity` set to the filled slice and a
-  `partial_fill:…` entry in `warnings` naming filled vs requested size.
+`time_in_force: "FAK"` (alias `"IOC"`) is accepted, and it is the **default for
+market orders**. As on Polymarket, the engine walks the displayed order-book
+depth within your price limit, fills what's actually available (VWAP across
+levels), and cancels the remainder. A partial fill returns `status: "FILLED"`
+with `quantity` set to the filled slice and a `partial_fill:…` entry in
+`warnings` naming filled vs requested size. If nothing is fillable within your
+limit, the order comes back `CANCELLED`.
 
 ```json
 {
@@ -3909,15 +3880,15 @@ on the **PM-faithful order semantics** rollout (see the callout below):
 
   **Polymarket migration tip**: `FAK` and `IOC` are equivalent in
   PolySimulator. If your Polymarket bot uses FAK, it works here unchanged.
-  If you omit `time_in_force`, market orders default to **FOK** (Fill-or-Kill)
-  — the entire order fills or is cancelled.
+  If you omit `time_in_force`, market orders default to **FAK/IOC** (since
+  2026-08-21): what is available within your price limit fills and the rest
+  is cancelled. Send `"FOK"` when your bot needs all-or-nothing.
 
 ---
 
-  **Rolling out: PM-faithful order semantics.** A flag-gated engine upgrade
-  is rolling out that brings seven behaviors in line with real Polymarket.
-  While the rollout completes, behavior depends on the deployment flag —
-  the legacy behavior is documented alongside each. Once fully live:
+  **Live: PM-faithful order semantics.** Since 2026-06-16 the engine matches
+  real Polymarket on seven behaviors (the earlier legacy behavior is noted
+  where it differed):
 
   1. **FAK/IOC partial fills** — fill what's available within your limit
      against displayed depth (VWAP across levels), cancel the remainder.
@@ -3961,7 +3932,7 @@ on the **PM-faithful order semantics** rollout (see the callout below):
      *Legacy: resting orders filled at the later touch/VWAP price —
      systematically better than the maker's own limit.*
 
-  Watch the [changelog](/changelog) for the activation announcement.
+  See the [changelog](/changelog) entry for 2026-06-16.
 
 ## Limit Orders
 
@@ -4006,7 +3977,7 @@ order = resp.json()
 All-or-nothing immediate fill — matches Polymarket's FOK order type.
 If the full quantity can't fill at the limit price, the entire order is cancelled.
 
-With the PM-faithful semantics rollout (see the callout above), FOK is
+Since the PM-faithful semantics went live (see the callout above), FOK is
 **depth-aware**: the engine computes the fillable quantity within your limit
 across displayed book levels first, fills the whole order at the walked VWAP
 iff depth covers your size, and kills cleanly otherwise. (Legacy behavior
@@ -4090,7 +4061,7 @@ else:
   **When to use IOC**: Sniping a specific price level without the risk of stale orders sitting in the book.
   If the current market price is worse than your limit, the order cancels immediately.
 
-With the PM-faithful semantics rollout (see the callout above), IOC limit
+Since the PM-faithful semantics went live (see the callout above), IOC limit
 orders **partial-fill** like on real Polymarket: the available size within
 your limit fills at the depth-walk VWAP and the unfilled remainder is
 cancelled + refunded in the same request. (Legacy behavior was atomic
@@ -4113,10 +4084,10 @@ full-fill-or-cancel.)
 | `amount` | string | One of `quantity`/`amount` | **BUY market orders only.** USD amount to spend (Polymarket convention). Mutually exclusive with `quantity`. The handler derives `quantity = floor4(amount / price)` using your worst-price limit (the `price` field, not the eventual fill price) rounded down to 4 decimal places (the matching engine's share quantum), so the trade can't spend more than `amount` USD even at the worst acceptable price. |
 | `order_type` | string | No | `market` (default) or `limit` |
 | `price` | string | Yes | For limit orders: the limit price (0.01–0.99). For market orders: worst-price limit — required (Polymarket-style slippage protection) |
-| `time_in_force` | string | No | `GTC` (default for limit), `FOK` (default for market), `FAK`, or `IOC`. `GTD` is rolling out (flag-dependent — see the callout above); it requires `expiration`. |
+| `time_in_force` | string | No | `GTC` (default for limit), `FAK`/`IOC` (default for market), `FOK`, or `GTD` (limit only; requires `expiration` — see the callout above). |
 | `client_order_id` | string | No | Idempotency key |
-| `expiration` | string | With `GTD` | **Rolling out.** Unix-seconds timestamp at which a `GTD` resting limit auto-cancels. Must be strictly in the future at placement (`INVALID_ORDER_EXPIRATION` otherwise). Ignored for every other TIF. |
-| `post_only` | boolean | No | **Rolling out.** Polymarket's `postOnly`: the order must rest — rejected with `INVALID_POST_ONLY_ORDER` if marketable at placement. GTC/GTD limit orders only. Advisory (ignored) until the rollout activates. |
+| `expiration` | string | With `GTD` | Unix-seconds timestamp at which a `GTD` resting limit auto-cancels. Must be strictly in the future at placement (`INVALID_ORDER_EXPIRATION` otherwise). Ignored for every other TIF. |
+| `post_only` | boolean | No | Polymarket's `postOnly`: the order must rest — rejected with `INVALID_POST_ONLY_ORDER` if marketable at placement. GTC/GTD limit orders only; combined with FOK/FAK/IOC or a market order it is rejected with `INVALID_POST_ONLY_ORDER_TYPE`. |
 
 ### `quantity` (shares) vs `amount` (USD) — Polymarket parity
 
@@ -4125,7 +4096,7 @@ Polymarket's BUY market-order convention uses `amount` (USD) — the dollar amou
 PolySimulator accepts **either** field, with these rules:
 
 - **`quantity`** is shares for both BUY and SELL (the polysim-native convention). Always usable.
-- **`amount`** is USD for BUY market orders only. Sending `amount=5` with `side=BUY, order_type=market` means "spend up to $5"; the handler derives `quantity = floor4(amount / price)` — using your worst-price limit (the `price` field, not the eventual fill price) and rounding down to the matching engine's 4-decimal share quantum. Sending `amount` with `side=SELL` or `order_type=limit` returns 400.
+- **`amount`** is USD for BUY market orders only. Sending `amount=5` with `side=BUY, order_type=market` means "spend up to \$5"; the handler derives `quantity = floor4(amount / price)` — using your worst-price limit (the `price` field, not the eventual fill price) and rounding down to the matching engine's 4-decimal share quantum. Sending `amount` with `side=SELL` or `order_type=limit` returns 400.
 - Sending **both** `quantity` and `amount` returns 400 with `"Specify either quantity or amount, not both"`.
 
 Bots ported from Polymarket's SDK should keep using `amount` for BUY market orders unchanged. Bots written for PolySimulator can keep using `quantity` for everything.
@@ -4142,15 +4113,48 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 }
 ```
 
+### Outcome Labels vs Token IDs
+
+PolySimulator's `POST /v1/orders` endpoint accepts the human-readable **outcome label** in the `outcome` field (e.g. `"Yes"`, `"No"`, or custom labels like `"Trump"`, `"Harris"`, `"Up"`, `"Down"`), **NOT** Polymarket's 77-digit decimal token ID.
+
+If you are migrating from Polymarket's CLOB SDK (which is token-id-native) and have a `token_id`:
+1. Use `GET /v1/markets-by-token/{token_id}` to resolve the token ID to its `condition_id` and outcome label (`outcomes[].label`).
+2. Or use the token-native endpoints `POST /v1/order` (Polymarket nested `{order: {tokenId: ...}}` shape) or `POST /v1/clob/order` (`tokenId`-keyed flat shape).
+
+#### Worked Examples
+
+**1. Binary market (Yes/No):**
+```json
+{
+  "market_id": "0x0f49db970d47fe90c606ab5f171cb61d497c41bc227582eb7d8c47f3b8ddf594",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55"
+}
+```
+
+**2. Categorical / multi-outcome market:**
+```json
+{
+  "market_id": "0x1b48e3e4a2c0f64c12d45c613e55c68b75e2f3d45c613e55c68b75e2f3d45c61",
+  "side": "BUY",
+  "outcome": "Trump",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.48"
+}
+```
 ### Time in Force
 
 | Value | Description | Polymarket Equivalent |
 |-------|-------------|----------------------|
-| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired. Overridden to FOK for market orders. | GTC |
-| `FOK` | Fill-or-Kill — all-or-nothing immediate fill (default for market orders). Depth-aware with the PM-semantics rollout. | FOK |
-| `FAK` | Fill-and-Kill — fill available quantity, cancel remainder (Polymarket term). Partial fills land with the PM-semantics rollout; legacy behavior is atomic. | FAK |
+| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired. On a market order it is replaced by `IOC`. | GTC |
+| `FOK` | Fill-or-Kill — all-or-nothing immediate fill; fills only when displayed depth within your limit covers the full size. | FOK |
+| `FAK` | Fill-and-Kill — fill available quantity, cancel remainder (Polymarket term). **Default for market orders.** | FAK |
 | `IOC` | Immediate-or-Cancel — same behavior as FAK (PolySimulator alias) | FAK |
-| `GTD` | Good-Til-Date — resting limit auto-expiring at `expiration` (unix seconds). **Rolling out** (flag-dependent); until activation GTD routes through GTC on the PM-compat endpoints and is rejected here. | GTD |
+| `GTD` | Good-Til-Date — resting limit auto-expiring at `expiration` (unix seconds). Limit orders only; an `expiration` in the past is rejected with `INVALID_ORDER_EXPIRATION`. | GTD |
 
 ---
 
@@ -4187,8 +4191,8 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 
   **`fee` is a real per-category taker fee — not zero.** Every taker fill
   is charged Polymarket's V2 per-category schedule, and the charged amount is
-  price-dependent (it peaks near $0.50 and shrinks toward the price extremes).
-  The example above is a 10-share BUY at $0.65 on a crypto market, returned as
+  price-dependent (it peaks near \$0.50 and shrinks toward the price extremes).
+  The example above is a 10-share BUY at \$0.65 on a crypto market, returned as
   `0.16`. Always read `OrderResponse.fee` when computing realized PnL — see
   the canonical formula and full rate table on [Trading Fees](/trading/fees).
   Discover a market's rate programmatically via
@@ -4270,6 +4274,16 @@ If the same key is submitted twice, the second request returns the result of the
   Include a timestamp or sequence number in your idempotency key to make
   debugging easier: `"bot-alpha-20260206-001"`
 
+### Per-User Trade Write Serialization
+
+Order writes (`POST /v1/orders`, `POST /v1/orders/batch`, `DELETE /v1/orders/{id}`, etc.) are serialized per **user**, not per API key. If a second write arrives while a prior write for the same user is still executing:
+
+* The engine waits cooperatively up to 2 seconds for the first write to release the lock.
+* If the lock is still held when the wait window elapses, the second request returns **HTTP 409** with `X-Polysim-Code: TRADE_IN_PROGRESS` and `Retry-After: 1`.
+* **Separate API keys do not bypass this lock.** Multiple keys belonging to the same account contend on the same per-user lock.
+* Callers should wait for the duration specified in `Retry-After` (typically 1 second) and retry the same logical request with the **same `client_order_id`**.
+* **Validation timing note:** Syntactic/schema validation errors (e.g. invalid types or missing required schema fields) fail immediately with HTTP 422 before the lock is acquired. Semantic/business validation errors evaluated inside the trade transaction (such as missing worst-price limits or closed markets) occur after lock acquisition, so if another trade is in flight, the request returns 409 `TRADE_IN_PROGRESS` rather than a business validation error.
+
 ---
 
 ## Error Handling
@@ -4288,16 +4302,18 @@ codes most relevant to order placement:
 | `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
 | `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
 | `400` | `FOK_ORDER_NOT_FILLED_ERROR` | The order couldn't fill entirely at or beyond your worst-price limit (best available price moved past your cap). This is the worst-price rejection — there is **no** `409 LIMIT_PRICE_NOT_MET`. |
-| `400` | `INVALID_ORDER_EXPIRATION` | **Rolling out.** GTD order with a missing, unparseable, or past `expiration` (PM convention: unix seconds, strictly in the future) |
-| `400` | `INVALID_POST_ONLY_ORDER` (`X-Polysim-Code: POST_ONLY_WOULD_CROSS`) | **Rolling out.** `post_only` order is marketable at placement — it would cross the book instead of resting |
-| `400` | `INVALID_POST_ONLY_ORDER_TYPE` | **Rolling out.** `post_only` combined with a market order type (FOK/FAK/IOC or `order_type=market`) — GTC/GTD limits only |
-| `400` | `INVALID_ORDER_MIN_SIZE` (`X-Polysim-Code: ORDER_BELOW_MIN_SIZE`) | **Rolling out.** Order size below the market's minimum (the `min_order_size` that `GET /v1/book` advertises — 5 shares on standard binary markets) |
+| `400` | `INVALID_ORDER_EXPIRATION` | GTD order with a missing, unparseable, or past `expiration` (PM convention: unix seconds, strictly in the future) |
+| `400` | `INVALID_POST_ONLY_ORDER` (`X-Polysim-Code: POST_ONLY_WOULD_CROSS`) | `post_only` order is marketable at placement — it would cross the book instead of resting |
+| `400` | `INVALID_POST_ONLY_ORDER_TYPE` | `post_only` combined with a market order type (FOK/FAK/IOC or `order_type=market`) — GTC/GTD limits only |
+| `400` | `INVALID_ORDER_MIN_SIZE` (`X-Polysim-Code: ORDER_BELOW_MIN_SIZE`) | Order size below the market's minimum (the `min_order_size` that `GET /v1/book` advertises — 5 shares on standard binary markets) |
 | `401` | `INVALID_KEY` | API key is invalid, expired, or revoked (`MISSING_API_KEY` if the header is absent) |
 | `403` | `INSUFFICIENT_PERMISSION` | Key lacks `trade` permission |
 | `404` | `MARKET_NOT_FOUND` | Unknown `market_id` |
 | `409` | `DUPLICATE_CLIENT_ORDER_ID` | A new order reused a `client_order_id` already bound to a different order |
 | `409` | `IDEMPOTENCY_KEY_REUSE` | Same `Idempotency-Key` replayed with a different request body (an identical replay returns the original order) |
+| `409` | `TRADE_IN_PROGRESS` | Another trade for this user is already in flight. Order writes serialize per user (not per API key). Wait for `Retry-After: 1`, then retry the same logical request with the same `client_order_id`. |
 | `429` | `RATE_LIMITED` / `RATE_LIMIT_EXCEEDED` | Too many requests — both are 429; check `Retry-After`. See [Error Handling](/bots/error-handling#rate-limit-errors) for the two-code distinction. |
+| `429` | `FREE_TIER_DAILY_LIMIT` | Free tier only: the account's 100 accepted orders for the UTC day are spent (per user, all keys). Returned before the order is validated; rejected orders and replays never count. `Retry-After` is the wait until `00:00Z`. See [Rate Limits](/concepts/rate-limits#free-tier-daily-order-cap). |
 
 ```python
 resp = requests.post(
@@ -4324,9 +4340,13 @@ elif resp.status_code == 400:
     else:
         print(f"Order rejected [{code}]: {resp.json().get('error')}")
 elif resp.status_code == 409:
-    # Idempotency / client_order_id conflicts.
+    # Idempotency / client_order_id conflicts and trade concurrency.
     code = resp.headers.get("X-Polysim-Code")
-    if code in ("IDEMPOTENCY_KEY_REUSE", "DUPLICATE_CLIENT_ORDER_ID"):
+    if code == "TRADE_IN_PROGRESS":
+        retry_after = int(resp.headers.get("Retry-After", 1))
+        print(f"Trade in flight for user — back off {retry_after}s and retry same client_order_id")
+        time.sleep(retry_after)
+    elif code in ("IDEMPOTENCY_KEY_REUSE", "DUPLICATE_CLIENT_ORDER_ID"):
         print(f"Idempotency conflict [{code}] — reuse the original order, don't retry with a new body")
     else:
         print(f"Conflict [{code}]: {resp.json().get('error')}")
@@ -4361,7 +4381,7 @@ PolySimulator offers two order placement endpoints. Use the one that fits your w
 
 | Endpoint | Best For | Time-in-force Field | Supported Values |
 |----------|----------|-----------------------|------------------|
-| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `FOK` (default for market), `IOC`, `FAK` (normalised to `IOC`); `GTD` rolling out |
+| `POST /v1/orders` | New bots, full features | `time_in_force` | `GTC` (default for limit), `IOC` (default for market), `FAK` (normalised to `IOC`), `FOK`, `GTD` (limit only, requires `expiration`) |
 | `POST /v1/clob/order` | Polymarket migration | `order_type` | `GTC` (default), `FOK`, `GTD` (rolling out — treated as `GTC` until activation). `IOC`/`FAK` are **not** accepted here |
 
   **Key difference**: The native `/v1/orders` endpoint uses `order_type` for
@@ -4423,7 +4443,7 @@ Both types share the same `OrderItem` response shape. Supports offset and cursor
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `order_id` | int | Unique order identifier |
+| `order_id` | int | Order identifier. Orders and fill rows use separate id sequences, so the same number can exist in both; see [Get a Single Order](#get-a-single-order). |
 | `market_id` | string | Market condition_id |
 | `side` | string | `BUY` or `SELL` |
 | `outcome` | string | Outcome label (e.g. `Yes`, `No`) |
@@ -4517,6 +4537,25 @@ iterate.
   avoids page drift when new orders
   arrive between requests. Pass the `next_cursor` value from the previous
   response back as the `cursor` (or `next_cursor`) parameter.
+
+---
+
+## Get a Single Order
+
+```
+GET /v1/orders/{order_id}
+```
+
+Returns one row in the same shape as `GET /v1/orders`.
+
+  `order_id` values come from two separate sequences: orders (the id `POST /v1/orders` returns) and fill rows,
+  for example the fill of a partially filled `IOC` order, whose `client_order_id` ends in
+  `:p_...`. The same number can exist in both. By default the lookup tries orders first and
+  falls back to fills, so a bare lookup can return an unrelated row. `source` names the table the id came
+  from: `?source=pending` for an order, `?source=filled` for a fill row. Most ids `POST /v1/orders` returns are
+  orders; a market order with `time_in_force: "FOK"` returns its fill row's id instead, so look that one up with
+  `?source=filled`. Confirm the row by its `client_order_id`, and do not use `order_type` to tell orders from
+  fills: immediate market orders are stored as orders with `order_type: "market"` too.
 
 ---
 
@@ -4862,7 +4901,7 @@ Your limit:  $0.55
 
   **Polymarket migration**: This is identical to how Polymarket's `price`
   field works. Your existing slippage logic transfers directly to
-  PolySimulator — and vice versa when you migrate to live trading.
+  PolySimulator — and back again if you port the bot to Polymarket.
 
 ---
 
@@ -4885,15 +4924,16 @@ You always control the worst price you'll accept.
 
 ## Time in Force
 
-Market orders default to **FOK** (Fill-or-Kill), matching Polymarket.
-You can also use **FAK** (Fill-and-Kill), Polymarket's term for IOC.
+Market orders default to **FAK** (Fill-and-Kill, alias `IOC`): what is
+available within your price limit fills and the rest is cancelled. Send
+**FOK** (Fill-or-Kill) when you need all-or-nothing.
 
 | Value | Behavior | Polymarket Equivalent |
 |-------|----------|----------------------|
-| `FOK` | All-or-nothing — fill entirely or cancel (default for market orders) | FOK |
-| `FAK` | Fill available quantity, cancel remainder | FAK |
+| `FAK` | Fill available quantity, cancel remainder (default for market orders) | FAK |
 | `IOC` | Same as FAK (PolySimulator alias) | FAK |
-| `GTC` | Overridden to FOK for market orders | — |
+| `FOK` | All-or-nothing — fill entirely or cancel | FOK |
+| `GTC` | Replaced by `IOC` on market orders | — |
 
 ```json
 {
@@ -4907,8 +4947,8 @@ You can also use **FAK** (Fill-and-Kill), Polymarket's term for IOC.
 }
 ```
 
-  If you omit `time_in_force` on a market order, it defaults to FOK.
-  If you explicitly set `GTC`, it is overridden to FOK — market orders
+  If you omit `time_in_force` on a market order, it defaults to FAK/IOC.
+  If you explicitly set `GTC`, it is replaced by `IOC` — market orders
   never persist in the book.
 
 ---
@@ -4982,9 +5022,9 @@ today, from highest to lowest confidence:
 
 | Strategy | Approach |
 |----------|----------|
-| Scalping / HFT | `price` = best ask + $0.01 (tight limit, minimal overpay) |
-| Swing trading | `price` = best ask + $0.03 (moderate buffer) |
-| Bulk accumulation | `price` = best ask + $0.05 (wider buffer for fill certainty) |
+| Scalping / HFT | `price` = best ask + \$0.01 (tight limit, minimal overpay) |
+| Swing trading | `price` = best ask + \$0.03 (moderate buffer) |
+| Bulk accumulation | `price` = best ask + \$0.05 (wider buffer for fill certainty) |
 | Illiquid markets | Use **limit orders** (GTC) for price certainty |
 
   For illiquid markets with wide spreads, consider **limit orders** instead
@@ -4999,10 +5039,10 @@ today, from highest to lowest confidence:
 |---------|-----------|---------------|
 | Slippage protection | `price` field (worst-price limit) | `price` field (identical) |
 | Price required on market orders | Yes | Yes |
-| Default time-in-force (market) | FOK | FOK |
+| Default time-in-force (market) | FOK | FAK/IOC |
 | Execution model | BUY at best ask, SELL at best bid | BUY at best ask, SELL at best bid |
 | Price improvement | Yes — fill at best available | Yes — fill at best available |
-| Order types (`/v1/orders`) | FOK, FAK, GTC, GTD | GTC (default for limit), FOK (default for market), FAK, IOC; GTD rolling out |
+| Order types (`/v1/orders`) | FOK, FAK, GTC, GTD | GTC (default for limit), FAK/IOC (default for market), FOK, GTD |
 | Fees | Per-category taker fees | Per-category taker fees (PM-V2 schedule, mirrored) |
 
 ---
@@ -5061,14 +5101,14 @@ fee = C × feeRate × p × (1 − p)
 | `feeRate` | The market category's taker rate (table below) |
 | `p` | Fill price (0–1) |
 
-The `p × (1 − p)` factor makes the fee symmetric around $0.50 — it peaks
-there and shrinks toward the price extremes, so a fill at $0.99 pays a tiny
-fraction of what the same share count pays at $0.50. Fees are rounded to 5
+The `p × (1 − p)` factor makes the fee symmetric around \$0.50 — it peaks
+there and shrinks toward the price extremes, so a fill at \$0.99 pays a tiny
+fraction of what the same share count pays at \$0.50. Fees are rounded to 5
 decimal places; the smallest charged fee is 0.00001 USD (amounts below that
 round to zero). The amount actually debited from your balance is settled at
 cent precision.
 
-**Worked example** — 10-share BUY at $0.65 on a crypto market:
+**Worked example** — 10-share BUY at \$0.65 on a crypto market:
 
 ```
 fee = 10 × 0.07 × 0.65 × 0.35 = 0.15925 USD
@@ -5657,9 +5697,9 @@ Returns markets with attached live prices from Polymarket's CLOB.
 | `offset` | int | 0 | Pagination offset |
 | `hot_only` | bool | false | Only high-volume markets |
 | `active_only` | bool | — | PM-shape alias: when `true`, only return markets where `active=true AND closed=false`. |
-| `category` | string | — | Filter to a single category (e.g. `crypto`, `sports`, `politics`). Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
+| `category` | string | — | Filter to a single category. Supported category enum matching `/categories`: `crypto`, `sports`, `politics`, `world`, `technology`, `science`, `general`. Case-insensitive substring match against each market's category, which is derived from the parent event's tags. Use **unquoted** values: `?category=crypto`, NOT `?category="crypto"`. Leading/trailing single or double quotes are stripped defensively for users pasting from Postman. |
 | `q` | string | — | Free-text search over `question` and `slug` (case-insensitive substring). Empty string is ignored. |
-| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{data, next_cursor}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
+| `envelope` | bool | false | When `true`, wrap the response in a PM-shape `{limit, count, next_cursor, data}` envelope (recommended for `py-clob-client` / other PM-ported SDKs). Default `false` returns a bare array for back-compat. |
 
   `sort` is **not** supported — the underlying list is volume-ordered
   server-side. For domain-specific ordering, fetch a wide page
@@ -5842,7 +5882,7 @@ Each `tokens[]` entry (a `MarketToken`) carries:
 
 ## Hot Markets
 
-Markets with trading volume exceeding $5,000 are flagged as `is_hot: true`. Use `hot_only=true` to filter for actively traded markets — recommended for bots to ensure sufficient liquidity.
+Markets with trading volume exceeding \$5,000 are flagged as `is_hot: true`. Use `hot_only=true` to filter for actively traded markets — recommended for bots to ensure sufficient liquidity.
 
   The `is_hot` threshold reads **cumulative** volume — the same figure
   `volume_total` carries, not `volume_24h`. A long-running market that has
@@ -6064,9 +6104,9 @@ curl -H "X-API-Key: $API_KEY" \
           "id": "12345",
           "condition_id": "0xabc123...",
           "question": "Will Bitcoin go up or down in the next hour?",
-          "outcomes": ["Up", "Down"],
+          "outcomes": "[\"Up\", \"Down\"]",
           "outcome_prices": "[\"0.55\", \"0.45\"]",
-          "token_ids": "71321045...,82432156..."
+          "token_ids": "[\"71321045...\", \"82432156...\"]"
         }
       ],
       "live_price": {
@@ -6074,23 +6114,11 @@ curl -H "X-API-Key: $API_KEY" \
         "sell": 0.45,
         "updated_at": "2026-03-15T13:44:58Z"
       },
-      "group_item_threshold": "98500.50",
+      "group_item_threshold": null,
       "image": "https://polymarket.com/images/btc.png",
       "icon": "https://polymarket.com/icons/btc.svg"
     }
   ],
-  "grouped_by_asset": {
-    "BTC": ["...(same shape as markets[])"],
-    "ETH": ["..."]
-  },
-  "grouped_by_interval": {
-    "1H": ["..."],
-    "4H": ["..."]
-  },
-  "grouped_nested": {
-    "BTC": { "1H": ["..."], "4H": ["..."] },
-    "ETH": { "1H": ["..."] }
-  },
   "total": 42,
   "interval_counts": { "5M": 0, "15M": 0, "1H": 12, "4H": 8, "daily": 6 },
   "asset_counts": { "BTC": 10, "ETH": 8, "SOL": 6 },
@@ -6108,9 +6136,6 @@ curl -H "X-API-Key: $API_KEY" \
 | Field | Description |
 |-------|-------------|
 | `markets` | Array of market entries (see fields below) |
-| `grouped_by_asset` | Markets grouped by asset symbol (same shape as `markets[]`) |
-| `grouped_by_interval` | Markets grouped by time interval |
-| `grouped_nested` | Markets nested by `asset` → `interval` |
 | `total` | Total number of markets returned |
 | `interval_counts` | Count of active markets per interval |
 | `asset_counts` | Count of active markets per asset |
@@ -6118,6 +6143,10 @@ curl -H "X-API-Key: $API_KEY" \
 | `available_assets` | Assets that have at least one active market |
 | `crypto_prices` | Current reference prices for tracked assets |
 | `cache_hit` | Whether the result was served from cache |
+
+  `markets` is the canonical market list. Group it client-side by each entry's
+  `asset` and `interval` fields; the API does not duplicate full market objects
+  into precomputed grouping trees.
 
 ### Market Entry Fields
 
@@ -6132,61 +6161,65 @@ curl -H "X-API-Key: $API_KEY" \
 | `interval` | Time interval: `5M`, `15M`, `1H`, `4H`, `daily` |
 | `start_date` | Calculated interval start (ISO 8601) |
 | `end_date` | Resolution time (ISO 8601) |
-| `markets` | Nested array with `condition_id`, `question`, `outcomes`, `outcome_prices`, `token_ids`. Note: `outcome_prices` is a JSON-encoded **string** (e.g. `"[\"0.55\", \"0.45\"]"`) — parse it with a second `json.loads`. This differs from `live_price.buy`/`sell`, which are bare JSON numbers. |
+| `markets` | Nested array with `condition_id`, `question`, `outcomes`, `outcome_prices`, `token_ids`. Note: `outcomes`, `outcome_prices` **and `token_ids`** are JSON-encoded **strings** (e.g. `"[\"Up\", \"Down\"]"`), as in Polymarket's Gamma API — parse each with a second `json.loads`. Do not split `token_ids` on commas: the brackets and quotes stay attached. `token_ids[i]` is the CLOB token of `outcomes[i]`. This differs from `live_price.buy`/`sell`, which are bare JSON numbers. |
 | `live_price` | Object with `buy`, `sell`, `updated_at` — updated in real time. **Note:** `buy`/`sell` here are JSON **numbers** (floats), unlike the string prices used everywhere else — see the caveat below. |
-| `group_item_threshold` | Strike price parsed from the event title |
+| `group_item_threshold` | Strike price parsed from the event title — **usually `null` on intraday markets.** Measured 2026-09-06: 66 of 69 live BTC up/down markets returned `null`. The `5m` and `15m` intervals settle against the price at interval start, so there is no strike in the title to parse; only the daily `...-up-or-down-` markets carry one. **Do not build a strike-distance signal on this field without a null check** — it is absent on exactly the markets a 5-minute bot trades. |
 
 ---
 
 ## Trading Up/Down Markets
 
-Up/down markets work like any other market — use `POST /v1/orders`:
+Up/down markets trade like any other market through `POST /v1/orders`. The
+part bots get wrong is picking the round: the list holds the current round
+**and** upcoming ones, so select by time rather than taking `markets[0]`, and
+trade the nested `markets[0].condition_id`.
 
 ```python
-import requests, os
+import json, os, datetime as dt
+import requests
 
-API_KEY = os.environ["POLYSIM_API_KEY"]
 BASE = os.environ.get("POLYSIM_BASE_URL", "https://api.polysimulator.com")
-HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+HEADERS = {"X-API-Key": os.environ["POLYSIM_API_KEY"], "Content-Type": "application/json"}
 
-# 1. Find a BTC 1-hour market
-updown = requests.get(
-    f"{BASE}/v1/markets/updown",
-    headers=HEADERS,
-    params={"asset": "BTC", "interval": "1H"},
-).json()
+def ts(s):
+    return dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
 
-market = updown["markets"][0]
-live = market.get("live_price", {})
-print(f"{market['title']} — Up: {live.get('buy', 'N/A')}")
+# 1. The BTC 5-minute round that is open right now
+rounds = requests.get(f"{BASE}/v1/markets/updown", headers=HEADERS,
+                      params={"asset": "BTC", "interval": "5M"}).json()["markets"]
+now = dt.datetime.now(dt.timezone.utc)
+current = next(r for r in rounds if ts(r["start_date"]) <= now < ts(r["end_date"]))
+market = current["markets"][0]
+cid = market["condition_id"]
+outcomes = json.loads(market["outcomes"])       # ["Up", "Down"]
+token_ids = json.loads(market["token_ids"])     # same order as outcomes
+print(current["slug"], "ends", current["end_date"])
 
-# 2. Buy "Up" if price is undervalued
-#
-# IMPORTANT: market orders require a ``price`` field (worst-price
-# slippage cap, Polymarket-faithful). Without it, the API returns
-# 400 ``Market orders require a 'price' field``.
-#
-# Also note: ``live_price.buy`` / ``live_price.sell`` are emitted as
-# floats on ``/markets/updown`` — every other API surface uses string
-# prices (see /concepts/string-numerics).
-buy_price = float(live.get("buy", 1))
-if buy_price < 0.45:
-    # Worst-price BUY cap: 5% above live ask, hard-clamped at 0.99
-    worst_buy = min(0.99, buy_price * 1.05)
-    order = requests.post(
-        f"{BASE}/v1/orders",
-        headers=HEADERS,
-        json={
-            "market_id": market["condition_id"],
-            "side": "BUY",
-            "outcome": "Up",
-            "quantity": "10",
-            "order_type": "market",
-            "price": str(worst_buy),  # Required — worst-price slippage cap
-        },
-    ).json()
-    print(f"Order {order['order_id']}: {order['status']} @ {order['price']}")
+# 2. The Up book (the same levels Polymarket shows for that token)
+book = requests.get(f"{BASE}/v1/markets/{cid}/book", headers=HEADERS,
+                    params={"outcome": "Up"}).json()
+best_ask = min(float(level["price"]) for level in book["asks"])
+
+# 3. Buy 10 Up with a worst-price cap one tick above the ask.
+#    Market orders REQUIRE `price` (Polymarket-faithful slippage cap); without
+#    it the API returns 400 "Market orders require a 'price' field".
+order = requests.post(f"{BASE}/v1/orders", headers=HEADERS, json={
+    "market_id": cid, "side": "BUY", "outcome": "Up", "quantity": "10",
+    "order_type": "market", "price": f"{min(0.99, best_ask + 0.01):.2f}",
+}).json()
+print(order["order_id"], order["status"], order["price"], "fee", order.get("fee"))
 ```
+
+  Prices from `/book` and order responses are strings (see
+  [String Numerics](/concepts/string-numerics)); `live_price.buy` / `sell`
+  on this endpoint are floats and are a display summary, not a quote. Price
+  a bot off the book.
+
+With the SDK the same steps are `client.list_updown(asset="BTC", interval="5M")`,
+`client.get_book(cid, outcome="Up")` and `client.place_order(...)`. A ported
+`py-clob-client` bot can keep `get_order_book(token_id)` and
+`create_order` / `post_order` against `token_ids[outcomes.index("Up")]`
+(see [CLOB compatibility](/concepts/clob-compatibility)).
 
   Up/down markets have short lifespans (5 minutes to 24 hours). After expiry, prices may
   show invalid values (both outcomes at 100%). The API blocks BUY orders on expired markets
@@ -6284,7 +6317,7 @@ order-independently — see the warning below.
 | `neg_risk` | `boolean \| null` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
 | `last_trade_price` | `string \| null` | The most recent trade price for this token (string, e.g. `"0.65"`), or `null` if no trades yet. |
 | `mid` | `string \| null` | Average of best bid and best ask (Polysimulator extension, stringified). |
-| `spread` | `string \| null` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
+| `spread` | `string \| null` | Difference between best ask and best bid, **capped at \$0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
 | `stale` | `boolean \| null` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent (`null`) on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
 | `price` | `string` | Price level (inside a `bids`/`asks` entry; 0.00–1.00 implied probability, stringified). |
 | `size` | `string` | Total shares available at that price level (stringified).
@@ -6572,6 +6605,18 @@ The authoritative per-tier value is on the wire via `GET /v1/keys/tiers`
 since the highest tier (`enterprise`) caps at 25, you will hit your
 tier limit long before the ceiling.
 
+---
+
+## `POST /v1/prices/batch` vs `POST /v1/prices`
+
+PolySimulator provides two batch price lookup endpoints tailored for condition IDs vs token IDs:
+
+| Endpoint | Input Shape | Identifiers | Return Shape |
+|---|---|---|---|
+| `POST /v1/prices/batch` | `{"market_ids": ["0x..."]}` | 0x hex condition IDs | Array of `{condition_id, buy, sell, outcomes}` objects |
+| `POST /v1/prices` | `[{"token_id": "...", "side": "BUY"}]` or `{"token_ids": [...]}` | 77-digit decimal token IDs | Map `{token_id: {side: price}}` or `{token_id: price}` |
+
+For convenience, `POST /v1/prices/batch` also accepts the token-based shapes as aliases, avoiding footgun errors when porting between SDKs.
 ---
 
 ## Response
@@ -6973,9 +7018,9 @@ authenticated**.
 
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: **$100**, Pro: $10,000, Pro+: $25,000) | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
-| **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
-| **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
+| **API** | Plan-dependent baseline (Free: **\$100**, Pro: \$10,000, Pro+: \$25,000). On Free, only keys issued on or after 2026-09-05 can trade against it — earlier free keys are read-only | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
+| **MAIN** | \$1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
+| **SANDBOX** | Plan-dependent baseline (Free: \$0, Pro: \$10,000, Pro+: \$25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
 
   As an API user, you only need to think about the **API wallet**. The UI MAIN
@@ -6983,24 +7028,29 @@ authenticated**.
 
 ## The API wallet
 
-When you create your first key with `POST /v1/keys/bootstrap`, your account is
-seeded with your tier's API wallet baseline ($10,000 on Pro, $25,000 on Pro+;
-Free-tier API keys are read-only and have no API wallet seeded). Every order
+Your API wallet is seeded at your tier's baseline the first time it is needed
+— \$100 on Free, \$10,000 on Pro, \$25,000 on Pro+. On Free, the wallet is only
+reachable from a key issued on or after **2026-09-05**: a free key issued
+before that date is read-only (`["read"]`) and cannot place orders against
+it. The \$100 is a one-off budget — it cannot be reset or topped up — and free
+accounts are additionally capped at 100 order placements per UTC day
+(`429 FREE_TIER_DAILY_LIMIT`, with `Retry-After` and `resets_at`). Every order
 you place via `X-API-Key` debits this wallet — `GET /v1/account/balance`
 always reports the API wallet balance for API-authenticated requests.
 
 ```bash
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/balance
+# Free tier → {"balance": "94.10", "starting_balance": "100.00", ...}
 # Pro tier → {"balance": "9745.20", "starting_balance": "10000.00", ...}
 # Pro+ tier → {"balance": "24745.20", "starting_balance": "25000.00", ...}
 ```
 
 ### Resetting the API wallet
 
-You can reset the API wallet to your tier's starting balance at any time —
-this also closes any open API-sourced positions. Pro keys reset to $10,000;
-Pro+ keys reset to $25,000.
+On a paid tier you can reset the API wallet to your tier's starting balance at
+any time — this also closes any open API-sourced positions. Pro keys reset to
+\$10,000; Pro+ keys reset to \$25,000. Free cannot reset (see below).
 
 ```bash
 curl -X POST -H "X-API-Key: $POLYSIM_API_KEY" \
@@ -7028,38 +7078,59 @@ The reset response carries four fields:
   is `API_RESET_COOLDOWN_DAYS`, presently 0, and a daily cooldown may be
   enabled later. Use them freely to test strategies from a clean baseline.
 
-  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the $100
+  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the \$100
   free budget is deliberately non-renewable, so spending it is the upgrade
   prompt rather than a reset away.
 
 ## Scoping account reads to a wallet
 
-The account read endpoints accept a `wallet_id` query parameter with three
+The account endpoints accept a `wallet_id` query parameter with three
 forms (case-insensitive keywords):
 
 | Value | Meaning |
 |---|---|
-| *(omitted)* | **Your API wallet** — the default on every account read |
+| *(omitted)* | **Your API wallet** — the default on account reads. `GET /v1/orders` differs: omitted merges every wallet you own |
 | `api` | Your API wallet, explicitly (includes legacy rows recorded before per-wallet attribution) |
 | `all` | Every wallet you own — UI MAIN/SANDBOX/COMPETITION included |
 | `` | One specific wallet you own (ids from `GET /v1/me/wallets`); 404 `WALLET_NOT_FOUND` otherwise. MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution |
 
-Supported on [Positions](/account/positions),
-[Trade History](/account/trade-history),
-[Profile Analysis](/account/profile-analysis),
-[Portfolio](/account/portfolio) and [Equity Curve](/account/equity-curve).
-[Balance](/account/balance) is always API-wallet scoped. Any other
-`wallet_id` value returns 422 `VALIDATION_FAILED`.
+Supported on:
+- [`GET /v1/account/positions`](/account/positions)
+- [`GET /v1/account/history`](/account/trade-history)
+- [`GET /v1/account/profile-analysis`](/account/profile-analysis)
+- [`GET /v1/account/portfolio`](/account/portfolio)
+- [`GET /v1/account/equity`](/account/equity-curve)
+
+Note that [`GET /v1/account/balance`](/account/balance) is always API-wallet scoped (`wallet_id` is a no-op). On the account
+endpoints, any invalid `wallet_id` string returns 422 `VALIDATION_FAILED`.
+
+`GET /v1/orders` accepts only an **integer** `wallet_id` (404 `WALLET_NOT_FOUND` for a wallet you do not own). It does not
+accept the `api` or `all` keywords; a non-integer value returns 422. Omit `wallet_id` to get orders from every wallet you own.
 
 ```bash
 # Default — API wallet only
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/positions
 
+# Specific wallet ID
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "https://api.polysimulator.com/v1/orders?wallet_id=1327"
+
 # Everything you own, including UI wallets
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   "https://api.polysimulator.com/v1/account/positions?wallet_id=all"
 ```
+
+### Multi-wallet querying
+
+To enumerate all wallets associated with your account and discover their numeric IDs, call:
+
+```bash
+curl -H "Authorization: Bearer $SUPABASE_JWT" \
+  https://api.polysimulator.com/v1/me/wallets
+```
+
+This returns your complete wallet roster (`id`, `kind`, `label`, `balance`). You can then pass any of your wallet IDs as `?wallet_id=` to inspect positions, trade history, orders, or equity for that specific wallet.
 
   **Migration note (2026-06-10):** `GET /v1/account/positions`,
   `GET /v1/account/history` and `GET /v1/account/profile-analysis`
@@ -7072,13 +7143,13 @@ curl -H "X-API-Key: $POLYSIM_API_KEY" \
 The split exists so that:
 
 - **Bots can crash without nuking your UI portfolio.** A runaway loop that
-  blows the API wallet doesn't touch your $1,000 MAIN balance or any SANDBOX
+  blows the API wallet doesn't touch your \$1,000 MAIN balance or any SANDBOX
   experiment.
 - **The leaderboard stays clean.** Only MAIN-wallet trades count toward
   leaderboard ranking — bot performance is tracked separately on the API beta
   dashboard.
 - **Paid top-ups don't mix with sacred state.** Top-ups always credit
-  SANDBOX wallets; the MAIN $1,000 is preserved as the canonical
+  SANDBOX wallets; the MAIN \$1,000 is preserved as the canonical
   "fresh-account" baseline for any user.
 
 ## Top-ups (paid)
@@ -7089,10 +7160,10 @@ the API wallet.
 
 | SKU | Price | Credits |
 |---|---|---|
-| `topup_500` | $2.99 | $500 to SANDBOX |
-| `topup_2000` | $4.99 | $2,000 to SANDBOX |
-| `topup_10000` | $9.99 | $10,000 to SANDBOX |
-| `topup_main_reset` | $2.99 | Resets MAIN to its seed baseline ($1,000); credits no new funds (bypasses the reset cooldown) |
+| `topup_500` | \$2.99 | \$500 to SANDBOX |
+| `topup_2000` | \$4.99 | \$2,000 to SANDBOX |
+| `topup_10000` | \$9.99 | \$10,000 to SANDBOX |
+| `topup_main_reset` | \$2.99 | Resets MAIN to its seed baseline (\$1,000); credits no new funds (bypasses the reset cooldown) |
 
 If you only use the API, you can ignore this entire section.
 
@@ -7148,20 +7219,20 @@ curl -H "X-API-Key: $API_KEY" \
   "balance": "9745.20",
   "currency": "USD",
   "starting_balance": "10000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "9757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "9757.50000000000000000"
 }
 ```
 
-A **Pro+** key sees its $25,000 baseline instead:
+A **Pro+** key sees its \$25,000 baseline instead:
 
 ```json
 {
   "balance": "24745.20",
   "currency": "USD",
   "starting_balance": "25000.00",
-  "unrealized_pnl": "-242.50",
-  "total_value": "24757.50"
+  "unrealized_pnl": "-242.50000000000000000",
+  "total_value": "24757.50000000000000000"
 }
 ```
 
@@ -7176,11 +7247,17 @@ A **Pro+** key sees its $25,000 baseline instead:
   Your **total portfolio value** = `balance` + market value of open positions.
   Use the [Portfolio](/account/portfolio) endpoint for a complete snapshot.
 
+  **Numeric & Decimal Precision:** Cash fields (`balance`, `starting_balance`) are
+  formatted to 2 decimal places. P&L-derived fields (`unrealized_pnl`, `total_value`)
+  preserve full Decimal precision (up to 19+ decimal places) from internal position
+  accounting. Always parse monetary fields with `Decimal(str_value)` (Python) or a
+  bignumber library, never cast to IEEE-754 `float`.
+
   Need a clean slate? `POST /v1/account/reset-api-balance` resets the API
-  wallet to your tier baseline (Pro: $10,000; Pro+: $25,000) and closes all
+  wallet to your tier baseline (Pro: \$10,000; Pro+: \$25,000) and closes all
   open API positions. On a paid tier resets are **currently uncapped** — the
   cooldown is `API_RESET_COOLDOWN_DAYS`, presently 0. **On Free it returns
-  `402 UPGRADE_REQUIRED`**; the $100 budget is non-renewable. See
+  `402 UPGRADE_REQUIRED`**; the \$100 budget is non-renewable. See
   [Wallets](/account/wallets) for the full reset semantics.
 
 ---
@@ -7253,7 +7330,7 @@ accepted here.
 |-----------|------|---------|-------------|
 | `status` | string | — | Filter: `OPEN` or `CLOSED`. **Omit to return all positions.** `OPEN` returns positions with `quantity > 0`; `CLOSED` includes reset-archived (`CLOSED_BY_RESET`) positions. Any other value is ignored (treated as no filter). |
 | `wallet_id` | int \| `"all"` \| `"api"` | `api` | Wallet scope. An integer scopes to a single wallet you own (404 `WALLET_NOT_FOUND` otherwise). `api` scopes to your API wallet (including legacy rows recorded before per-wallet attribution). `all` returns every position across **all** your wallets, UI MAIN/SANDBOX included. Keywords are case-insensitive; any other value returns 422 `VALIDATION_FAILED`. **Omitted = `api`.** |
-| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "data": [...], "next_cursor": "" }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
+| `envelope` | bool | `false` | When `true`, wrap the response in the Polymarket-shape `{ "limit": N, "count": N, "next_cursor": "", "data": [...] }` envelope. `next_cursor` is always `""` because positions are unpaginated. Default `false` returns the bare array. |
 
   **Default changed on 2026-06-10.** Before 2026-06-10 the default (param
   omitted) returned positions across **all** wallets — UI MAIN/SANDBOX
@@ -7324,8 +7401,10 @@ With `envelope=true` the same rows are wrapped Polymarket-style:
 
 ```json
 {
-  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ],
-  "next_cursor": ""
+  "limit": 1,
+  "count": 1,
+  "next_cursor": "",
+  "data": [ { "id": 1, "market_id": "0x1a2b3c...", "outcome": "Yes", "quantity": "10.0", "avg_entry_price": "0.65", "current_price": "0.70", "market_value": "7.00", "unrealized_pnl": "0.50", "status": "OPEN", "market_question": "Will it rain tomorrow?" } ]
 }
 ```
 
@@ -7415,8 +7494,8 @@ GET /v1/account/portfolio
 Returns a complete portfolio snapshot combining balance, positions, and aggregate metrics.
 
 By default this endpoint reports the caller's **API wallet** (baseline Pro:
-$10,000 / Pro+: $25,000), so the nested `balance` object uses API-wallet
-figures — never the $1,000 UI MAIN wallet. `wallet_id` accepts
+\$10,000 / Pro+: \$25,000), so the nested `balance` object uses API-wallet
+figures — never the \$1,000 UI MAIN wallet. `wallet_id` accepts
 `all` / `api` / `` (404 `WALLET_NOT_FOUND` for ids you don't
 own) — see [Wallets → Scoping account reads](/account/wallets#scoping-account-reads-to-a-wallet).
 With `wallet_id=all`, positions and trade stats span every wallet you own
@@ -7620,7 +7699,7 @@ Orders are returned **most-recent first** (descending `filled_at`).
 | `price` | string | Fill price per share (string-encoded decimal) |
 | `quantity` | string | Number of shares filled (string-encoded decimal) |
 | `notional` | string | Total cash value of the fill (`price × quantity`), string-encoded decimal |
-| `fee` | string | Taker fee charged on the fill, string-encoded decimal (USD) — the per-category fee `C × feeRate × p × (1 − p)` (example: 10-share BUY at $0.65 on a 4% politics market → `10 × 0.04 × 0.65 × 0.35 = $0.09`). `0.00` for fee-free fills (maker fills, geopolitics markets, emergency exits). The stored `fee` is always the authoritative debited amount. See [Trading Fees](/trading/fees). |
+| `fee` | string | Taker fee charged on the fill, string-encoded decimal (USD) — the per-category fee `C × feeRate × p × (1 − p)` (example: 10-share BUY at \$0.65 on a 4% politics market → `10 × 0.04 × 0.65 × 0.35 = $0.09`). `0.00` for fee-free fills (maker fills, geopolitics markets, emergency exits). The stored `fee` is always the authoritative debited amount. See [Trading Fees](/trading/fees). |
 | `status` | string | Simulator order status. For trade history this is always `FILLED` (the endpoint returns filled orders only). See the note below on Polymarket parity. |
 | `price_source` | string \| null | How the fill price was sourced (e.g. `clob_midpoint_live`). The exact label set is non-stable — substring-match rather than hard-coding members. See [Slippage Protection](/trading/slippage-protection) for the documented labels and how to monitor fill quality. `null` on legacy rows. |
 | `price_age_ms` | int \| null | Age of the price data at execution time, in milliseconds; `null` when not recorded |
@@ -7773,8 +7852,9 @@ values = [float(e["total_value"]) for e in equity]
 plt.figure(figsize=(12, 6))
 plt.plot(times, values)
 # Starting balance = your API-wallet baseline, NOT the $1,000 UI MAIN
-# wallet: Pro = 10_000, Pro+ = 25_000 (Free keys are read-only). Set it
-# to your tier's baseline so the reference line is meaningful.
+# wallet: Free = 100 (keys issued on/after 2026-09-05), Pro = 10_000,
+# Pro+ = 25_000. Set it to your tier's baseline so the reference line
+# is meaningful.
 API_WALLET_BASELINE = 10_000  # Pro; use 25_000 on Pro+
 plt.axhline(y=API_WALLET_BASELINE, color="gray", linestyle="--", label="Starting balance")
 plt.title("Portfolio Equity Curve")
@@ -7895,7 +7975,7 @@ string, alongside these sections:
 | `ui_balance` | string | UI (MAIN) trading balance — always the MAIN wallet, regardless of `wallet_id` |
 | `api_balance` | string | Cash of the **scoped wallet** (the API wallet by default; the field name is historical) |
 | `starting_ui_balance` | string | UI baseline = seed + top-ups + grants |
-| `starting_api_balance` | string | PnL baseline of the **scoped wallet** — its actual `starting_balance` (tier-aware: Pro $10,000 / Pro+ $25,000) |
+| `starting_api_balance` | string | PnL baseline of the **scoped wallet** — its actual `starting_balance` (tier-aware: Pro \$10,000 / Pro+ \$25,000) |
 | `ui_pnl` | string | UI profit/loss (`ui_balance − starting_ui_balance`) |
 | `api_pnl` | string | Scoped-wallet profit/loss (`total_portfolio_value − starting_api_balance`) |
 | `ui_pnl_percentage` | string | UI P&L as percentage |
@@ -7941,10 +8021,10 @@ string, alongside these sections:
 - **API PnL %** = `api_pnl / starting_api_balance * 100`
 
 `starting_api_balance` is the scoped wallet's **actual** `starting_balance`
-(tier-aware: Pro $10,000 / Pro+ $25,000 for the API wallet; a specific
+(tier-aware: Pro \$10,000 / Pro+ \$25,000 for the API wallet; a specific
 wallet's own baseline when `wallet_id=`), so `api_pnl` here agrees with
 `GET /v1/account/balance` and `GET /v1/account/portfolio` for the same
-wallet. Before 2026-06-10 this endpoint used a fixed $10,000 baseline
+wallet. Before 2026-06-10 this endpoint used a fixed \$10,000 baseline
 regardless of tier — that caveat no longer applies.
 
 ### Open Position Valuation
@@ -8118,7 +8198,7 @@ See [Trade History](/account/trade-history) for the full per-trade semantics.
 
 A pre-computed human-readable summary of the profile:
 
-> "trader123 is a PolySimulator paper trader who joined 45 days ago. Current API balance: $9,750.00 (started at $10,000.00, P&L: -$250.00, -2.50%). Has made 127 trades across 34 markets over 22 active trading days. Win rate: 62.5%. Currently holding 5 open positions worth ~$1,100.00. Top categories: crypto (45.5%), sports (27.3%), politics (18.2%)."
+> "trader123 is a PolySimulator paper trader who joined 45 days ago. Current API balance: \$9,750.00 (started at \$10,000.00, P&L: -\$250.00, -2.50%). Has made 127 trades across 34 markets over 22 active trading days. Win rate: 62.5%. Currently holding 5 open positions worth ~\$1,100.00. Top categories: crypto (45.5%), sports (27.3%), politics (18.2%)."
 
 ## MCP Server
 
@@ -8383,7 +8463,7 @@ from polysim_sdk.ws import prices_stream
 
 prev = {}
 with PolySimClient() as client:                  # POLYSIM_API_KEY from env
-    cids = [m["condition_id"] for m in client.list_markets(limit=2)]
+    cids = [m["condition_id"] for m in client.list_markets(limit=20, active_only=True)][:2]
     for ev in prices_stream(client, condition_ids=cids):
         if ev.get("best_bid") is None:           # skip the subscribe ack
             continue
@@ -8843,6 +8923,11 @@ WS /v1/ws/executions?token=
 ```
 
 Receives automatic fill notifications when your limit orders are matched. No subscription required — all your executions are streamed automatically.
+
+  Fills are pushed here for **resting** limit orders: a `GTC`/`GTD` order that fills later, or one that is
+  marketable and fills as it is placed. An `IOC`/`FAK`/`FOK` order that fills immediately is **not** sent on
+  this stream; its fill comes back in the `POST /v1/orders` response. Treat that response (or `GET /v1/orders`)
+  as the record for immediate orders.
 
 ---
 
@@ -10037,46 +10122,33 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-Every `/v1/*` error returns a **two-field** envelope. `error` holds a stable,
-machine-matchable code; `message` holds the human-readable prose:
+By default, the `/v1/*` surface returns PolySimulator's stable two-field
+envelope: `error` holds the machine-readable code and `message` holds the
+human-readable description.
 
 ```json
-{"error": "INVALID_TOKEN", "message": "Invalid token"}
+{
+  "error": "INSUFFICIENT_BALANCE",
+  "message": "Account balance $12.50 insufficient for order cost $25.00"
+}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Stable short code. Branch on this. |
-| `message` | string | Human-readable description. For humans and logs — do **not** branch on it, the wording can change. |
+| `error` | string | Stable machine-readable short code, also carried in `X-Polysim-Code` (for example `INSUFFICIENT_BALANCE` or `RATE_LIMIT_EXCEEDED`). |
+| `message` | string | Human-readable description; do not branch on this prose. |
 
-The same code is mirrored in the **`X-Polysim-Code`** response header, so you can
-branch on either. The header is useful when you do not want to parse a body (a
-`HEAD` request, or a proxy layer); the `error` field is usually simpler.
+For stable error handling, branch on `error` or the identical
+`X-Polysim-Code` header, never on `message`. The `X-Request-Id` header
+echoes the request id for log correlation.
 
-`X-Request-Id` echoes the request id for log correlation — include it when you
-contact us about a specific failure.
+This is a documented PolySimulator extension to Polymarket's single-field
+`{"error": ""}` shape. The runtime envelope did not change when
+this documentation was corrected on 2026-08-29.
 
-Verified against production on 2026-09-05:
-
-```
-$ curl -sD - -H "Authorization: Bearer nope" https://api.polysimulator.com/v1/me
-HTTP/2 401
-x-polysim-code: INVALID_TOKEN
-
-{"error":"INVALID_TOKEN","message":"Invalid token"}
-```
-
-An earlier version of this page described a single-field
-`{"error": "&lt;prose&gt;"}` envelope and told you to branch on the header rather
-than the body, because the body supposedly held prose. That was wrong: `error`
-has always held the code. If you wrote a handler against that description, it
-would never have matched. Corrected 2026-09-05.
-
-**`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
-its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
-can render an upsell flow without an extra round-trip. Every other
-status code (401, 403, 404, 429, 5xx, …) sticks with the single-field
-shape and exposes the machine code via `X-Polysim-Code`.
+**`402 UPGRADE_REQUIRED` is the one enriched response**: its body also
+adds `feature_key` and `upgrade_url` so SDKs can render an upsell flow
+without an extra round-trip.
 
 ```json
 // 402 UPGRADE_REQUIRED — feature_key + upgrade_url at the root
@@ -10089,32 +10161,32 @@ shape and exposes the machine code via `X-Polysim-Code`.
 
 For the runtime allowlist gate (`ACCESS_RESTRICTED` — an already-issued
 key whose account isn't on the API v1 allowlist, or is flagged / under
-review), the body is PM-shape and the code is in the header:
+review), the body uses the same two-field envelope:
 
 ```json
 // 403 ACCESS_RESTRICTED (not on the allowlist / flagged account)
 // + headers: X-Polysim-Code: ACCESS_RESTRICTED
-{"error": "API access restricted. Contact support to request access."}
+{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
 ```
 
 The residual **key-issuance** codes use the same shape. Default open
-beta self-serves keys: free callers get a read-only key, paying Pro /
-Pro+ callers get a trade-capable key. `403 TIER_REQUIRES_UPGRADE` is
-the expected refusal when a free caller requests `trade`.
+beta self-serves keys: every self-serve tier, free included, gets a
+`["read", "trade"]` key (free keys issued on or after 2026-09-05 trade
+against a \$100 non-renewable API wallet; free keys issued before that
+date stay read-only). `403 TIER_REQUIRES_UPGRADE` is the expected
+refusal when a free caller asks for a paid `tier`, for `admin`, or for
+`trade` while holding an expired paid grant.
 `CLOSED_BETA` / `API_PRO_COMING_SOON` remain valid residual codes for
-an emergency close, with the machine code in `X-Polysim-Code` and the
-human message in the body's `error` field. The `feature_key` /
-`upgrade_url` hints are body fields **only on 402** responses, not these
-403s. See [Open Beta Errors](#open-beta-errors) below.
+an emergency close. The `feature_key` / `upgrade_url` hints are body
+fields **only on 402** responses, not these 403s. See
+[Open Beta Errors](#open-beta-errors) below.
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
-  request to get the legacy multi-field shape:
+  request to add diagnostic fields:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
-  Useful when writing or debugging an SDK; PM-shape is the default so
-  Polymarket-CLOB SDK ports work without translation.
 
 ---
 
@@ -10127,12 +10199,12 @@ human message in the body's `error` field. The `feature_key` /
 | `401` | Invalid or missing API key | No | Check `X-API-Key` header |
 | `403` | Insufficient permissions | No | Check key scopes |
 | `404` | Resource not found | No | Verify market ID or order ID |
-| `409` | Conflict — duplicate idempotency key, **or** `LOCK_BUSY_RETRY` | Depends | Duplicate key: use the original response. `LOCK_BUSY_RETRY`: retry after `Retry-After`. Branch on `error_code`. |
+| `409` | Conflict (duplicate idempotency key) | No | Use original response |
 | `422` | Validation error | No | Fix input fields |
 | `429` | Rate limited | **Yes** | Wait for `Retry-After` header |
 | `500` | Internal server error | **Yes** | Retry with backoff |
 | `502` | Upstream error | **Yes** | Retry with backoff |
-| `503` | Service unavailable | **Only with `Retry-After`** | Retry after `Retry-After`. A 503 **without** the header (`PERSISTENCE_UNKNOWN`, `DEADLINE_OVERSHOT_BUT_PERSISTED`) may already have persisted — poll `GET /v1/orders` instead of retrying. |
+| `503` | Service unavailable | **Yes** | Retry with backoff |
 
 ---
 
@@ -10148,7 +10220,7 @@ trading pages link here rather than restating the codes.
 | `INSUFFICIENT_BALANCE` | 400 | Not enough funds for order |
 | `INSUFFICIENT_POSITION` | 400 | Sell rejected — your position size for the chosen `token_id` is smaller than the requested `quantity`. PolySimulator does not support naked shorts: every SELL must be backed by an existing position. See **No naked shorts** below for the two-sided-quote workaround. |
 | `INSUFFICIENT_LIQUIDITY` | 400 | The order-book walk cannot source the requested quantity across resting liquidity. |
-| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Trades only execute against live Polymarket book depth. |
+| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Simulated trades are only priced against live Polymarket book depth. |
 | `STALE_QUOTE` | 400 | Fill rejected when the resolved price quote age exceeds the configured maximum age threshold (`TRADE_QUOTE_MAX_AGE_MS` when enforcement is enabled). Retry with a fresh quote. |
 | `INVALID_QUANTITY` | 400 | Non-positive `quantity` rejected by the execution engine. (A schema-level out-of-range value is caught earlier by Pydantic as `422 VALIDATION_FAILED` — see HTTP Status Codes above.) |
 | `PRICE_REQUIRED` | 400 | Market order submitted without the required `price` (worst-price limit). |
@@ -10163,22 +10235,43 @@ trading pages link here rather than restating the codes.
 | `DUPLICATE_CLIENT_ORDER_ID` | 409 | A new order reused a `client_order_id` already bound to a different order. |
 | `IDEMPOTENCY_KEY_REUSE` | 409 | The same `Idempotency-Key` was replayed with a **different** request body. (An identical replay instead returns the original order — see Idempotency below.) |
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
-| `LOCK_BUSY_RETRY` | 409 | **Retryable.** Another order write for the same account is already in flight, and the 2 s cooperative wait elapsed. Body `error` is `TRADE_IN_PROGRESS`. Carries `Retry-After: 1`. Order writes are serialised per account — see [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account). |
-| `DB_CONTENTION_RETRY` | 503 | **Retryable.** The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired. Body `error` is `SERVER_BUSY`, and the message states the order was **not** placed. `Retry-After: 1` on placement, `Retry-After: 5` on cancellation — read the header rather than assuming. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
 
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
 
-  **`LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` are self-inflicted in almost
-  every case.** They mean two order writes for the *same account* overlapped —
-  most often a client that fires a cancel without waiting for the preceding
-  placement to return. One account sustains about **3–4 order writes per
-  second** regardless of tier, because each write holds a per-account lock for
-  200–294 ms. Serialise your writes per account, and add accounts (not tier) to
-  go faster. Full contract: [Order writes are serialised per
-  account](/concepts/rate-limits#order-writes-are-serialised-per-account).
+### Deadline, busy, and concurrency errors
+
+Order writes are serialized per **user**, not per API key. A second write
+waits briefly for the first; if the lock is still held, it returns
+`409 TRADE_IN_PROGRESS` with `Retry-After: 1`. Separate keys for the same
+user do not bypass this lock. Wait, then retry the same logical request
+with the same `client_order_id`.
+
+| Error Code | HTTP | Persisted? | Client action |
+|-----------|------|------------|---------------|
+| `TRADE_IN_PROGRESS` | 409 | No new write started | Wait for `Retry-After`, then retry the same request. |
+| `SERVER_BUSY` | 503 | Persistence check confirmed no row | Safe to retry. For order placement, reuse the same `client_order_id` so idempotency deduplicates a late result. |
+| `DEADLINE_OVERSHOT_BUT_PERSISTED` | 503 | **Yes** | **Do not re-place.** Read `X-Polysim-Order-Id` and body `source`. For `source: "pending"`, poll `GET /v1/orders/{order_id}`. For `source: "filled"`, fetch `GET /v1/orders` and match your `client_order_id`; direct numeric ids can collide across the pending and filled tables. |
+| `PERSISTENCE_UNKNOWN` | 503 | Unknown | **Do not auto-retry.** Fetch recent `GET /v1/orders` results and scan for the same `client_order_id` before deciding whether to re-place. This response intentionally has no `Retry-After`. |
+
+```python
+import time
+
+code = response.headers.get("X-Polysim-Code")
+if code in {"TRADE_IN_PROGRESS", "SERVER_BUSY"}:
+    time.sleep(int(response.headers.get("Retry-After", "1")))
+    # Repeat the original request with the SAME client_order_id.
+elif code == "DEADLINE_OVERSHOT_BUT_PERSISTED":
+    order_id = response.headers["X-Polysim-Order-Id"]
+    source = response.json().get("source")
+    # Do not POST again. Poll by id only for a pending row; otherwise scan
+    # GET /v1/orders and match the original client_order_id.
+elif code == "PERSISTENCE_UNKNOWN":
+    # Do not POST again until GET /v1/orders confirms no matching order.
+    pass
+```
 
 ### Order status values
 
@@ -10241,34 +10334,26 @@ your inventory per `token_id` before submitting a SELL.
 | `ACCESS_RESTRICTED` | 403 | An already-issued key (or Bearer JWT) is not on the API v1 access list (or the account is flagged / under review). Returned on authenticated `/v1/*` requests. Body is PM-shape; check the `X-Polysim-Code` header. |
 | `CLOSED_BETA` | 403 | Residual emergency issuance close on `POST /v1/keys` / `POST /v1/keys/bootstrap`. **Not** the default open-beta outcome. Machine code in `X-Polysim-Code`. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout code. Default open beta does not return this for paying Pro / Pro+. |
-| `TIER_REQUIRES_UPGRADE` | 403 | Free caller requested `trade`. Free keys are read-only. |
+| `TIER_REQUIRES_UPGRADE` | 403 | Free caller asked for a paid `tier`, for `admin`, or for `trade` on an expired paid grant. Plain free + `trade` is allowed for keys issued on or after 2026-09-05. |
 | `UPGRADE_REQUIRED` | 402 | Pro-tier cap reached (sandbox count, etc.). **Only** 402 carries `feature_key` + `upgrade_url` at the root of the response body. |
 
 ### Rate Limit Errors
 
-The backend emits **three distinct 429 codes** (in the `X-Polysim-Code`
-header). All are retryable and all carry `Retry-After` — branch on
-whichever you need, or simply treat any 429 as a back-off signal:
+The backend emits **two distinct 429 codes** (in the `X-Polysim-Code`
+header). Both are retryable and both carry `Retry-After` — branch on
+either, or simply treat any 429 as a back-off signal:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
 | `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
-| `API_KEY_CONCURRENCY_EXCEEDED` | 429 | The **per-key in-flight cap**: too many `/v1/*` requests executing simultaneously for one key on one API worker — a limit on concurrency, not on rate. Carries `Retry-After: 1` plus `X-Concurrency-Key-Limit` and `X-Concurrency-Key-Remaining`. **Enforced in production**; see [Per-key in-flight concurrency](/concepts/rate-limits#per-key-in-flight-concurrency). |
+| `FREE_TIER_DAILY_LIMIT` | 429 | The **free-tier daily order cap** — 100 accepted orders per UTC day, counted per user across all keys. Rejected orders and idempotent replays do not count. `Retry-After` is the number of seconds until `00:00Z`; unlike the two codes above this does not clear in a second, so stop placing orders for the day rather than spin. Per entry inside a batch. The `429` body also carries `upgrade_url` (`/pricing`) and `next_tier` (`pro`, which has no daily cap). See [Rate Limits](/concepts/rate-limits#free-tier-daily-order-cap). |
 
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
   robust pattern is to back off on `resp.status_code == 429` regardless
-  of which code is in the header.
-
-  **Some 429s on public market data are charged per source IP, not per key.**
-  Resolving a key from cold on the public market-data routes charges a shared
-  budget of **2 requests/second (120/minute) keyed on the source IP**, before
-  your tier is known. Every key behind one NAT egress IP shares it, and keys
-  minted in the same second go cold together every 120 seconds, so the
-  rejections arrive in bursts that look unrelated to your traffic. Details and
-  mitigations: [Read limits are
-  separate](/concepts/rate-limits#read-limits-are-separate-and-one-of-them-is-per-ip).
+  of which code is in the header — and to honour `Retry-After`, which for
+  `FREE_TIER_DAILY_LIMIT` is hours, not a second.
 
 The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 
@@ -10290,7 +10375,7 @@ Default open beta is self-serve. Key **issuance** is not waitlist-gated:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
-| `TIER_REQUIRES_UPGRADE` | 403 | `POST /v1/keys` / `POST /v1/keys/bootstrap` refused a free caller requesting `trade`. **Not retryable** — omit `trade` or upgrade at https://polysimulator.com/pricing. |
+| `TIER_REQUIRES_UPGRADE` | 403 | `POST /v1/keys` / `POST /v1/keys/bootstrap` refused a free caller asking for a paid `tier`, for `admin`, or for `trade` on an expired paid grant (plain free + `trade` is allowed for keys issued on or after 2026-09-05). **Not retryable** — drop the request or upgrade at https://polysimulator.com/pricing. |
 | `CLOSED_BETA` | 403 | Residual emergency close only. Machine code in `X-Polysim-Code`. **Not retryable**. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout variant. Default open beta does not return this for paying Pro / Pro+. |
 | `ACCESS_RESTRICTED` | 403 | Residual runtime gate: an already-issued key (or Bearer JWT) whose account is flagged / under review. Check `X-Polysim-Code`. **Not retryable**. |
@@ -10305,7 +10390,8 @@ resp = requests.post(f"{BASE_URL}/v1/keys", headers={"X-API-Key": KEY}, json={"n
 if resp.status_code == 403:
     code = resp.headers.get("X-Polysim-Code")
     if code == "TIER_REQUIRES_UPGRADE":
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Paid tier / "admin" requested, or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     elif code == "CLOSED_BETA":
         print("Issuance temporarily closed — retry later or contact support")
     elif code == "API_PRO_COMING_SOON":
@@ -10676,14 +10762,13 @@ Markets can resolve at any time. Your bot should handle positions being settled:
 ## 10. Test in Virtual Mode First
 
   PolySimulator is paper trading — develop and test your complete bot logic
-  with zero financial risk against the same REST surface you'll use in
-  production. Switching to live trading on Polymarket is **not** a pure
-  base-URL swap, though: PM's CLOB `POST /order` requires EIP-712-signed
+  with simulated money. PolySimulator never sends orders to Polymarket, and
+  porting a bot to Polymarket's own API is **not** a pure base-URL swap: PM's CLOB `POST /order` requires EIP-712-signed
   orders (maker/taker amounts, salt, signature). The closest drop-in path is
   PolySimulator's PM-shape `POST /v1/order` + `py-clob-client`, which
   approximates PM's wire format — see
   [CLOB Compatibility](/concepts/clob-compatibility) and
-  [Live Migration](/deployment/live-migration) for what changes.
+  [Porting to Polymarket](/deployment/live-migration) for what changes.
 
 ```bash
 # Paper trading on PolySimulator
@@ -10709,27 +10794,36 @@ Use this checklist before deploying your bot:
 - [ ] Tested in virtual mode with full strategy
 
 
-# Live Migration
+# Porting a Bot to Polymarket
 
 <!-- source: /deployment/live-migration -->
 
-# Virtual → Live Migration
+# Porting a Bot to Polymarket
 
-PolySimulator is designed so your entire bot codebase works unchanged when switching from virtual (paper) trading to live (real-money) trading on Polymarket.
+PolySimulator only simulates trades, with virtual money. It does not place orders on
+Polymarket or on any other venue, and it has no live-trading mode.
+
+If you decide to trade on Polymarket, you do that with your own Polymarket account, your
+own wallet and your own code, which talks directly to Polymarket's API. PolySimulator is
+not involved in those trades. This page shows what changes in a bot's code when you port
+it from PolySimulator's API to Polymarket's.
 
 ---
 
 ## Comparison
 
-| Aspect | Virtual Mode | Live Mode |
+| Aspect | PolySimulator (simulated) | Polymarket (your own account, outside PolySimulator) |
 |--------|-------------|-----------|
-| Money at risk | None (simulated API wallet — $10,000 Pro / $25,000 Pro+) | Real funds |
-| Order execution | Local ledger | Polymarket CLOB |
+| Money | Virtual only (simulated API wallet — \$10,000 Pro / \$25,000 Pro+) | Your own funds, in your own wallet |
+| Order execution | Simulated fills on PolySimulator's ledger | Polymarket CLOB, orders sent by your code |
 | Market data | Real prices from Polymarket | Real prices from Polymarket |
-| API surface | Full HFT API v1 | CLOB trading API (different endpoint paths) |
-| Settlement | Automatic on resolution | Polymarket blockchain |
+| API surface | PolySimulator API v1 | Polymarket's CLOB API (different endpoint paths) |
+| Settlement | Simulated, on market resolution | Polymarket, on-chain |
 
-  Live mode executes real trades with real money on Polymarket. Ensure your strategy is thoroughly tested in virtual mode before migrating.
+  Orders on Polymarket use real money. Your code places them with your own credentials,
+  directly on Polymarket; PolySimulator does not send or relay them. Results in
+  PolySimulator are simulated and say nothing about results on Polymarket. Polymarket is
+  a separate service with its own terms.
 
 ---
 
@@ -10744,7 +10838,7 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Polymarket uses **two-layer authentication** — both are required for live trading:
+    Polymarket uses **two-layer authentication** — both are required to trade on Polymarket:
 
     **L1 (wallet-level):** Your Polygon wallet's private key signs an EIP-712 message to derive L2 credentials. Each order also requires an EIP-712 signature from this key.
 
@@ -10770,15 +10864,15 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Change your credentials and client configuration for live mode. Order payload
+    Your ported bot needs Polymarket credentials and client configuration. Order payload
     structure stays highly portable, but endpoint paths/auth handling differ:
 
     ```bash
-    # Virtual mode (PolySimulator) — your current config
+    # PolySimulator (simulated) — your current config
     POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
     POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
 
-    # Live mode (Polymarket) — swap these values
+    # Polymarket (your own account) — used by your code directly
     POLYMARKET_BASE_URL="https://clob.polymarket.com"
     POLY_API_KEY="your_polymarket_api_key"
     POLY_API_SECRET="your_polymarket_api_secret"
@@ -10786,18 +10880,18 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     ```
 
     
-      There is no single `TRADING_MODE` flag. Migration is achieved by switching
-      to Polymarket credentials/client setup and routing order placement through
-      Polymarket's CLOB API flow.
+      PolySimulator has no live mode and no `TRADING_MODE` switch. Porting means
+      your code uses Polymarket's own client and credentials and sends its orders
+      to Polymarket's CLOB API itself.
     
   
 
   
-    The CLOB-compatible endpoint mirrors Polymarket's real CLOB API schema.
-    Your bot code stays identical — only the base URL and auth header change:
+    The CLOB-compatible endpoint takes the same order fields as Polymarket's CLOB API,
+    so the order itself carries over. The client setup and authentication change:
 
     
-    ```python Virtual (PolySimulator)
+    ```python PolySimulator (simulated)
     import requests, os
 
     BASE_URL = os.environ["POLYSIM_BASE_URL"]  # https://api.polysimulator.com/v1
@@ -10814,7 +10908,8 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     print(order.json())
     ```
 
-    ```python Live (Polymarket)
+    ```python Polymarket (outside PolySimulator)
+    import os
     from py_clob_client.client import ClobClient
     from py_clob_client.clob_types import ApiCreds
 
@@ -10856,7 +10951,8 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Start with minimal order sizes to verify live execution:
+    These calls go to Polymarket and use real money from your wallet. Minimal order
+    sizes are enough to check that your integration works:
 
     ```python
     import os
@@ -10913,9 +11009,9 @@ See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details a
 
 ---
 
-## Rollback
+## Switching Back to PolySimulator
 
-To return to virtual mode, change your bot's environment variables back:
+To go back to simulated trading, change your bot's environment variables back:
 
 ```bash
 POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
@@ -10929,12 +11025,12 @@ Restart your bot and it resumes paper trading with the simulated balance.
 
 ## Checklist
 
-- [ ] Bot tested across multiple market scenarios in virtual mode
+- [ ] Bot tested across multiple market scenarios in PolySimulator
 - [ ] Error handling verified (network errors, rate limits, slippage)
 - [ ] Polymarket API credentials obtained and secured
 - [ ] Environment variables updated
-- [ ] Initial live test with minimal order size
-- [ ] Monitoring and alerting configured for live trading
+- [ ] First Polymarket orders placed at minimal size
+- [ ] Monitoring and alerting configured for your Polymarket bot
 
 
 # API Reference
@@ -10959,8 +11055,8 @@ live production environment from this browser tab.
 
   **URL convention for endpoint pages**: each endpoint has a dedicated
   page at `/api-reference/{operationId}` (camelCase) — e.g.,
-  `POST /v1/orders` lives at [/api-reference/postOrder](/api-reference/postOrder),
-  `GET /v1/markets/{condition_id}` at [/api-reference/getMarket](/api-reference/getMarket).
+  `POST /v1/orders` lives at [/api-reference/clob-compat/polymarket-compat-single-order-placement](/api-reference/clob-compat/polymarket-compat-single-order-placement),
+  `GET /v1/markets/{condition_id}` at [/api-reference/market-data/get-market](/api-reference/market-data/get-market).
   For convenience, natural API-path guesses (e.g. `/api-reference/v1/orders`,
   `/api-reference/v1/markets/0xabc...`) are auto-redirected to the
   canonical operationId page, so you can paste live API paths straight

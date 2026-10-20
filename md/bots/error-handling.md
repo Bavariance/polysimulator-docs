@@ -10,46 +10,33 @@ Every API response uses standard HTTP status codes with structured JSON error bo
 
 ## Error Response Format
 
-Every `/v1/*` error returns a **two-field** envelope. `error` holds a stable,
-machine-matchable code; `message` holds the human-readable prose:
+By default, the `/v1/*` surface returns PolySimulator's stable two-field
+envelope: `error` holds the machine-readable code and `message` holds the
+human-readable description.
 
 ```json
-{"error": "INVALID_TOKEN", "message": "Invalid token"}
+{
+  "error": "INSUFFICIENT_BALANCE",
+  "message": "Account balance $12.50 insufficient for order cost $25.00"
+}
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `error` | string | Stable short code. Branch on this. |
-| `message` | string | Human-readable description. For humans and logs — do **not** branch on it, the wording can change. |
+| `error` | string | Stable machine-readable short code, also carried in `X-Polysim-Code` (for example `INSUFFICIENT_BALANCE` or `RATE_LIMIT_EXCEEDED`). |
+| `message` | string | Human-readable description; do not branch on this prose. |
 
-The same code is mirrored in the **`X-Polysim-Code`** response header, so you can
-branch on either. The header is useful when you do not want to parse a body (a
-`HEAD` request, or a proxy layer); the `error` field is usually simpler.
+For stable error handling, branch on `error` or the identical
+`X-Polysim-Code` header, never on `message`. The `X-Request-Id` header
+echoes the request id for log correlation.
 
-`X-Request-Id` echoes the request id for log correlation — include it when you
-contact us about a specific failure.
+This is a documented PolySimulator extension to Polymarket's single-field
+`{"error": ""}` shape. The runtime envelope did not change when
+this documentation was corrected on 2026-08-29.
 
-Verified against production on 2026-09-05:
-
-```
-$ curl -sD - -H "Authorization: Bearer nope" https://api.polysimulator.com/v1/me
-HTTP/2 401
-x-polysim-code: INVALID_TOKEN
-
-{"error":"INVALID_TOKEN","message":"Invalid token"}
-```
-
-An earlier version of this page described a single-field
-`{"error": "&lt;prose&gt;"}` envelope and told you to branch on the header rather
-than the body, because the body supposedly held prose. That was wrong: `error`
-has always held the code. If you wrote a handler against that description, it
-would never have matched. Corrected 2026-09-05.
-
-**`402 UPGRADE_REQUIRED` is the one carve-out** to the PM-shape default:
-its body adds `feature_key` and `upgrade_url` alongside `error` so SDKs
-can render an upsell flow without an extra round-trip. Every other
-status code (401, 403, 404, 429, 5xx, …) sticks with the single-field
-shape and exposes the machine code via `X-Polysim-Code`.
+**`402 UPGRADE_REQUIRED` is the one enriched response**: its body also
+adds `feature_key` and `upgrade_url` so SDKs can render an upsell flow
+without an extra round-trip.
 
 ```json
 // 402 UPGRADE_REQUIRED — feature_key + upgrade_url at the root
@@ -62,32 +49,32 @@ shape and exposes the machine code via `X-Polysim-Code`.
 
 For the runtime allowlist gate (`ACCESS_RESTRICTED` — an already-issued
 key whose account isn't on the API v1 allowlist, or is flagged / under
-review), the body is PM-shape and the code is in the header:
+review), the body uses the same two-field envelope:
 
 ```json
 // 403 ACCESS_RESTRICTED (not on the allowlist / flagged account)
 // + headers: X-Polysim-Code: ACCESS_RESTRICTED
-{"error": "API access restricted. Contact support to request access."}
+{"error": "ACCESS_RESTRICTED", "message": "API access restricted. Contact support to request access."}
 ```
 
 The residual **key-issuance** codes use the same shape. Default open
-beta self-serves keys: free callers get a read-only key, paying Pro /
-Pro+ callers get a trade-capable key. `403 TIER_REQUIRES_UPGRADE` is
-the expected refusal when a free caller requests `trade`.
+beta self-serves keys: every self-serve tier, free included, gets a
+`["read", "trade"]` key (free keys issued on or after 2026-09-05 trade
+against a \$100 non-renewable API wallet; free keys issued before that
+date stay read-only). `403 TIER_REQUIRES_UPGRADE` is the expected
+refusal when a free caller asks for a paid `tier`, for `admin`, or for
+`trade` while holding an expired paid grant.
 `CLOSED_BETA` / `API_PRO_COMING_SOON` remain valid residual codes for
-an emergency close, with the machine code in `X-Polysim-Code` and the
-human message in the body's `error` field. The `feature_key` /
-`upgrade_url` hints are body fields **only on 402** responses, not these
-403s. See [Open Beta Errors](#open-beta-errors) below.
+an emergency close. The `feature_key` / `upgrade_url` hints are body
+fields **only on 402** responses, not these 403s. See
+[Open Beta Errors](#open-beta-errors) below.
 
   **Verbose body opt-in.** Send `X-Polysim-Verbose: true` on any
-  request to get the legacy multi-field shape:
+  request to add diagnostic fields:
   ```json
   {"error": "INVALID_KEY", "message": "Invalid API key",
    "details": null, "request_id": "a1b2c3d4-..."}
   ```
-  Useful when writing or debugging an SDK; PM-shape is the default so
-  Polymarket-CLOB SDK ports work without translation.
 
 ---
 
@@ -100,12 +87,12 @@ human message in the body's `error` field. The `feature_key` /
 | `401` | Invalid or missing API key | No | Check `X-API-Key` header |
 | `403` | Insufficient permissions | No | Check key scopes |
 | `404` | Resource not found | No | Verify market ID or order ID |
-| `409` | Conflict — duplicate idempotency key, **or** `LOCK_BUSY_RETRY` | Depends | Duplicate key: use the original response. `LOCK_BUSY_RETRY`: retry after `Retry-After`. Branch on `error_code`. |
+| `409` | Conflict (duplicate idempotency key) | No | Use original response |
 | `422` | Validation error | No | Fix input fields |
 | `429` | Rate limited | **Yes** | Wait for `Retry-After` header |
 | `500` | Internal server error | **Yes** | Retry with backoff |
 | `502` | Upstream error | **Yes** | Retry with backoff |
-| `503` | Service unavailable | **Only with `Retry-After`** | Retry after `Retry-After`. A 503 **without** the header (`PERSISTENCE_UNKNOWN`, `DEADLINE_OVERSHOT_BUT_PERSISTED`) may already have persisted — poll `GET /v1/orders` instead of retrying. |
+| `503` | Service unavailable | **Yes** | Retry with backoff |
 
 ---
 
@@ -121,7 +108,7 @@ trading pages link here rather than restating the codes.
 | `INSUFFICIENT_BALANCE` | 400 | Not enough funds for order |
 | `INSUFFICIENT_POSITION` | 400 | Sell rejected — your position size for the chosen `token_id` is smaller than the requested `quantity`. PolySimulator does not support naked shorts: every SELL must be backed by an existing position. See **No naked shorts** below for the two-sided-quote workaround. |
 | `INSUFFICIENT_LIQUIDITY` | 400 | The order-book walk cannot source the requested quantity across resting liquidity. |
-| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Trades only execute against live Polymarket book depth. |
+| `NO_EXECUTABLE_DEPTH` | 400 | Refused when order-book depth enforcement is active and the fill would rely on non-depth fallback tiers. Simulated trades are only priced against live Polymarket book depth. |
 | `STALE_QUOTE` | 400 | Fill rejected when the resolved price quote age exceeds the configured maximum age threshold (`TRADE_QUOTE_MAX_AGE_MS` when enforcement is enabled). Retry with a fresh quote. |
 | `INVALID_QUANTITY` | 400 | Non-positive `quantity` rejected by the execution engine. (A schema-level out-of-range value is caught earlier by Pydantic as `422 VALIDATION_FAILED` — see HTTP Status Codes above.) |
 | `PRICE_REQUIRED` | 400 | Market order submitted without the required `price` (worst-price limit). |
@@ -136,22 +123,43 @@ trading pages link here rather than restating the codes.
 | `DUPLICATE_CLIENT_ORDER_ID` | 409 | A new order reused a `client_order_id` already bound to a different order. |
 | `IDEMPOTENCY_KEY_REUSE` | 409 | The same `Idempotency-Key` was replayed with a **different** request body. (An identical replay instead returns the original order — see Idempotency below.) |
 | `IDEMPOTENCY_CONFLICT_PENDING` | 409 | The same `Idempotency-Key` is still being processed; carries `Retry-After: 1`. |
-| `LOCK_BUSY_RETRY` | 409 | **Retryable.** Another order write for the same account is already in flight, and the 2 s cooperative wait elapsed. Body `error` is `TRADE_IN_PROGRESS`. Carries `Retry-After: 1`. Order writes are serialised per account — see [Order writes are serialised per account](/concepts/rate-limits#order-writes-are-serialised-per-account). |
-| `DB_CONTENTION_RETRY` | 503 | **Retryable.** The `accounts` row lock was still held when the 200 ms database `lock_timeout` fired. Body `error` is `SERVER_BUSY`, and the message states the order was **not** placed. `Retry-After: 1` on placement, `Retry-After: 5` on cancellation — read the header rather than assuming. |
 | `EXECUTION_ERROR` | 500 | Server-side error during fill — report with `request_id` |
 
   There is no `409 LIMIT_PRICE_NOT_MET`, `409 IDEMPOTENCY_CONFLICT`,
   `CANNOT_CANCEL`, or `HTTP_409` trading code — those names appeared in
   earlier drafts but are not emitted by the engine. Use the codes above.
 
-  **`LOCK_BUSY_RETRY` and `DB_CONTENTION_RETRY` are self-inflicted in almost
-  every case.** They mean two order writes for the *same account* overlapped —
-  most often a client that fires a cancel without waiting for the preceding
-  placement to return. One account sustains about **3–4 order writes per
-  second** regardless of tier, because each write holds a per-account lock for
-  200–294 ms. Serialise your writes per account, and add accounts (not tier) to
-  go faster. Full contract: [Order writes are serialised per
-  account](/concepts/rate-limits#order-writes-are-serialised-per-account).
+### Deadline, busy, and concurrency errors
+
+Order writes are serialized per **user**, not per API key. A second write
+waits briefly for the first; if the lock is still held, it returns
+`409 TRADE_IN_PROGRESS` with `Retry-After: 1`. Separate keys for the same
+user do not bypass this lock. Wait, then retry the same logical request
+with the same `client_order_id`.
+
+| Error Code | HTTP | Persisted? | Client action |
+|-----------|------|------------|---------------|
+| `TRADE_IN_PROGRESS` | 409 | No new write started | Wait for `Retry-After`, then retry the same request. |
+| `SERVER_BUSY` | 503 | Persistence check confirmed no row | Safe to retry. For order placement, reuse the same `client_order_id` so idempotency deduplicates a late result. |
+| `DEADLINE_OVERSHOT_BUT_PERSISTED` | 503 | **Yes** | **Do not re-place.** Read `X-Polysim-Order-Id` and body `source`. For `source: "pending"`, poll `GET /v1/orders/{order_id}`. For `source: "filled"`, fetch `GET /v1/orders` and match your `client_order_id`; direct numeric ids can collide across the pending and filled tables. |
+| `PERSISTENCE_UNKNOWN` | 503 | Unknown | **Do not auto-retry.** Fetch recent `GET /v1/orders` results and scan for the same `client_order_id` before deciding whether to re-place. This response intentionally has no `Retry-After`. |
+
+```python
+import time
+
+code = response.headers.get("X-Polysim-Code")
+if code in {"TRADE_IN_PROGRESS", "SERVER_BUSY"}:
+    time.sleep(int(response.headers.get("Retry-After", "1")))
+    # Repeat the original request with the SAME client_order_id.
+elif code == "DEADLINE_OVERSHOT_BUT_PERSISTED":
+    order_id = response.headers["X-Polysim-Order-Id"]
+    source = response.json().get("source")
+    # Do not POST again. Poll by id only for a pending row; otherwise scan
+    # GET /v1/orders and match the original client_order_id.
+elif code == "PERSISTENCE_UNKNOWN":
+    # Do not POST again until GET /v1/orders confirms no matching order.
+    pass
+```
 
 ### Order status values
 
@@ -214,34 +222,26 @@ your inventory per `token_id` before submitting a SELL.
 | `ACCESS_RESTRICTED` | 403 | An already-issued key (or Bearer JWT) is not on the API v1 access list (or the account is flagged / under review). Returned on authenticated `/v1/*` requests. Body is PM-shape; check the `X-Polysim-Code` header. |
 | `CLOSED_BETA` | 403 | Residual emergency issuance close on `POST /v1/keys` / `POST /v1/keys/bootstrap`. **Not** the default open-beta outcome. Machine code in `X-Polysim-Code`. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout code. Default open beta does not return this for paying Pro / Pro+. |
-| `TIER_REQUIRES_UPGRADE` | 403 | Free caller requested `trade`. Free keys are read-only. |
+| `TIER_REQUIRES_UPGRADE` | 403 | Free caller asked for a paid `tier`, for `admin`, or for `trade` on an expired paid grant. Plain free + `trade` is allowed for keys issued on or after 2026-09-05. |
 | `UPGRADE_REQUIRED` | 402 | Pro-tier cap reached (sandbox count, etc.). **Only** 402 carries `feature_key` + `upgrade_url` at the root of the response body. |
 
 ### Rate Limit Errors
 
-The backend emits **three distinct 429 codes** (in the `X-Polysim-Code`
-header). All are retryable and all carry `Retry-After` — branch on
-whichever you need, or simply treat any 429 as a back-off signal:
+The backend emits **two distinct 429 codes** (in the `X-Polysim-Code`
+header). Both are retryable and both carry `Retry-After` — branch on
+either, or simply treat any 429 as a back-off signal:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
 | `RATE_LIMIT_EXCEEDED` | 429 | The per-tier in-process concurrency cap (all `/v1/*` paths) or the IP / per-key request-rate limiter. Retry after `Retry-After`. |
 | `RATE_LIMITED` | 429 | The cross-worker **trade-concurrency** limiter on the three trade-write paths (`POST /v1/orders`, `/v1/orders/batch`, `/v1/clob/order`) or the per-account order-rate limiter on session-JWT trade endpoints (`POST /trade`, `POST /limit-order`). Body also carries retry metadata. Retry after `Retry-After`. |
-| `API_KEY_CONCURRENCY_EXCEEDED` | 429 | The **per-key in-flight cap**: too many `/v1/*` requests executing simultaneously for one key on one API worker — a limit on concurrency, not on rate. Carries `Retry-After: 1` plus `X-Concurrency-Key-Limit` and `X-Concurrency-Key-Remaining`. **Enforced in production**; see [Per-key in-flight concurrency](/concepts/rate-limits#per-key-in-flight-concurrency). |
+| `FREE_TIER_DAILY_LIMIT` | 429 | The **free-tier daily order cap** — 100 accepted orders per UTC day, counted per user across all keys. Rejected orders and idempotent replays do not count. `Retry-After` is the number of seconds until `00:00Z`; unlike the two codes above this does not clear in a second, so stop placing orders for the day rather than spin. Per entry inside a batch. The `429` body also carries `upgrade_url` (`/pricing`) and `next_tier` (`pro`, which has no daily cap). See [Rate Limits](/concepts/rate-limits#free-tier-daily-order-cap). |
 
   A bot that branches **only** on `RATE_LIMIT_EXCEEDED` will miss the
   `RATE_LIMITED` 429s from the trade-write paths (and vice-versa). The
   robust pattern is to back off on `resp.status_code == 429` regardless
-  of which code is in the header.
-
-  **Some 429s on public market data are charged per source IP, not per key.**
-  Resolving a key from cold on the public market-data routes charges a shared
-  budget of **2 requests/second (120/minute) keyed on the source IP**, before
-  your tier is known. Every key behind one NAT egress IP shares it, and keys
-  minted in the same second go cold together every 120 seconds, so the
-  rejections arrive in bursts that look unrelated to your traffic. Details and
-  mitigations: [Read limits are
-  separate](/concepts/rate-limits#read-limits-are-separate-and-one-of-them-is-per-ip).
+  of which code is in the header — and to honour `Retry-After`, which for
+  `FREE_TIER_DAILY_LIMIT` is hours, not a second.
 
 The per-tier limits (authoritative source: `GET /v1/keys/tiers`):
 
@@ -263,7 +263,7 @@ Default open beta is self-serve. Key **issuance** is not waitlist-gated:
 
 | Error Code | HTTP | Description |
 |-----------|------|-------------|
-| `TIER_REQUIRES_UPGRADE` | 403 | `POST /v1/keys` / `POST /v1/keys/bootstrap` refused a free caller requesting `trade`. **Not retryable** — omit `trade` or upgrade at https://polysimulator.com/pricing. |
+| `TIER_REQUIRES_UPGRADE` | 403 | `POST /v1/keys` / `POST /v1/keys/bootstrap` refused a free caller asking for a paid `tier`, for `admin`, or for `trade` on an expired paid grant (plain free + `trade` is allowed for keys issued on or after 2026-09-05). **Not retryable** — drop the request or upgrade at https://polysimulator.com/pricing. |
 | `CLOSED_BETA` | 403 | Residual emergency close only. Machine code in `X-Polysim-Code`. **Not retryable**. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout variant. Default open beta does not return this for paying Pro / Pro+. |
 | `ACCESS_RESTRICTED` | 403 | Residual runtime gate: an already-issued key (or Bearer JWT) whose account is flagged / under review. Check `X-Polysim-Code`. **Not retryable**. |
@@ -278,7 +278,8 @@ resp = requests.post(f"{BASE_URL}/v1/keys", headers={"X-API-Key": KEY}, json={"n
 if resp.status_code == 403:
     code = resp.headers.get("X-Polysim-Code")
     if code == "TIER_REQUIRES_UPGRADE":
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Paid tier / "admin" requested, or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     elif code == "CLOSED_BETA":
         print("Issuance temporarily closed — retry later or contact support")
     elif code == "API_PRO_COMING_SOON":

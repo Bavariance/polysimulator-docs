@@ -38,7 +38,7 @@ Mirror of Polymarket's [`POST /order`](https://docs.polymarket.com/clob/post-ord
     "makerAmount": "500000",
     "takerAmount": "1000000",
     "side": "BUY",
-    "expiration": "0",
+    "expiration": 0,
     "salt": 1234567890,
     "maker": "0x0000000000000000000000000000000000000000",
     "signer": "0x0000000000000000000000000000000000000000",
@@ -65,7 +65,7 @@ for both USDC and outcome-token amounts:
 | `BUY`  | `round(price × qty × 1e6)` USDC | `round(qty × 1e6)` shares | `makerAmount / takerAmount` | `takerAmount / 1e6` |
 | `SELL` | `round(qty × 1e6)` shares | `round(price × qty × 1e6)` USDC | `takerAmount / makerAmount` | `makerAmount / 1e6` |
 
-Example: BUY 1 share at $0.50 ⇒ `makerAmount=500000`,
+Example: BUY 1 share at \$0.50 ⇒ `makerAmount=500000`,
 `takerAmount=1000000`.
 
 **On-chain fields are accepted and ignored:** `salt`, `maker`, `signer`,
@@ -238,7 +238,7 @@ Polymarket-shaped `OrdersResponse`:
       "size_matched": "0.2480",
       "price": "0.5000",
       "outcome": "Yes",
-      "expiration": "0",
+      "expiration": 0,
       "order_type": "GTC",
       "associate_trades": [],
       "created_at": 1778103749
@@ -310,7 +310,7 @@ the exact shape PM emits.
 | `GET /v1/markets-by-token/{token_id}` | Resolve `tokenId` → `(condition_id, outcome)` | (PolySim convenience; PM does not expose this directly) |
 | `GET /v1/midpoint?token_id=` | Midpoint price | `GET /midpoint` |
 | `POST /v1/midpoints` | Batch midpoints | `POST /midpoints` |
-| `GET /v1/spread?token_id=` | Bid/ask spread (capped at $0.10 per PM parity) | `GET /spread` |
+| `GET /v1/spread?token_id=` | Bid/ask spread (capped at \$0.10 per PM parity) | `GET /spread` |
 | `POST /v1/spreads` | Batch spreads | `POST /spreads` |
 | `GET /v1/book?token_id=` | L2 order book | `GET /book` |
 | `POST /v1/books` | Batch books | `POST /books` |
@@ -328,7 +328,7 @@ the exact shape PM emits.
     `{"server_time": ...}` object — this matches Polymarket's wire.
 
 **Spread cap:** PolySim mirrors Polymarket's documented behaviour of
-capping reported spread at $0.10. Markets with a `bid=0.001 ask=0.999`
+capping reported spread at \$0.10. Markets with a `bid=0.001 ask=0.999`
 book report `spread="0.10"`, not `0.998`. This stops arbitrage
 filters from treating every illiquid book as a free-money signal.
 

@@ -25,7 +25,7 @@ from polysim_sdk.ws import prices_stream
 
 prev = {}
 with PolySimClient() as client:                  # POLYSIM_API_KEY from env
-    cids = [m["condition_id"] for m in client.list_markets(limit=2)]
+    cids = [m["condition_id"] for m in client.list_markets(limit=20, active_only=True)][:2]
     for ev in prices_stream(client, condition_ids=cids):
         if ev.get("best_bid") is None:           # skip the subscribe ack
             continue

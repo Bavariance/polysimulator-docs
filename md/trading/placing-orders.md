@@ -66,16 +66,13 @@ order = resp.json()
 
 ### FAK (Fill-and-Kill) Market Order
 
-`time_in_force: "FAK"` (alias `"IOC"`) is accepted. Engine behavior depends
-on the **PM-faithful order semantics** rollout (see the callout below):
-
-* **Legacy behavior (rollout off)**: FAK executes **atomically** — it fills
-  your full quantity at the touch price or cancels entirely.
-* **Rolling out**: Polymarket-faithful partial fills — the engine walks the
-  displayed order-book depth within your price limit, fills what's actually
-  available (VWAP across levels), and cancels the remainder. A partial fill
-  returns `status: "FILLED"` with `quantity` set to the filled slice and a
-  `partial_fill:…` entry in `warnings` naming filled vs requested size.
+`time_in_force: "FAK"` (alias `"IOC"`) is accepted, and it is the **default for
+market orders**. As on Polymarket, the engine walks the displayed order-book
+depth within your price limit, fills what's actually available (VWAP across
+levels), and cancels the remainder. A partial fill returns `status: "FILLED"`
+with `quantity` set to the filled slice and a `partial_fill:…` entry in
+`warnings` naming filled vs requested size. If nothing is fillable within your
+limit, the order comes back `CANCELLED`.
 
 ```json
 {
@@ -91,15 +88,15 @@ on the **PM-faithful order semantics** rollout (see the callout below):
 
   **Polymarket migration tip**: `FAK` and `IOC` are equivalent in
   PolySimulator. If your Polymarket bot uses FAK, it works here unchanged.
-  If you omit `time_in_force`, market orders default to **FOK** (Fill-or-Kill)
-  — the entire order fills or is cancelled.
+  If you omit `time_in_force`, market orders default to **FAK/IOC** (since
+  2026-08-21): what is available within your price limit fills and the rest
+  is cancelled. Send `"FOK"` when your bot needs all-or-nothing.
 
 ---
 
-  **Rolling out: PM-faithful order semantics.** A flag-gated engine upgrade
-  is rolling out that brings seven behaviors in line with real Polymarket.
-  While the rollout completes, behavior depends on the deployment flag —
-  the legacy behavior is documented alongside each. Once fully live:
+  **Live: PM-faithful order semantics.** Since 2026-06-16 the engine matches
+  real Polymarket on seven behaviors (the earlier legacy behavior is noted
+  where it differed):
 
   1. **FAK/IOC partial fills** — fill what's available within your limit
      against displayed depth (VWAP across levels), cancel the remainder.
@@ -143,7 +140,7 @@ on the **PM-faithful order semantics** rollout (see the callout below):
      *Legacy: resting orders filled at the later touch/VWAP price —
      systematically better than the maker's own limit.*
 
-  Watch the [changelog](/changelog) for the activation announcement.
+  See the [changelog](/changelog) entry for 2026-06-16.
 
 ## Limit Orders
 
@@ -188,7 +185,7 @@ order = resp.json()
 All-or-nothing immediate fill — matches Polymarket's FOK order type.
 If the full quantity can't fill at the limit price, the entire order is cancelled.
 
-With the PM-faithful semantics rollout (see the callout above), FOK is
+Since the PM-faithful semantics went live (see the callout above), FOK is
 **depth-aware**: the engine computes the fillable quantity within your limit
 across displayed book levels first, fills the whole order at the walked VWAP
 iff depth covers your size, and kills cleanly otherwise. (Legacy behavior
@@ -272,7 +269,7 @@ else:
   **When to use IOC**: Sniping a specific price level without the risk of stale orders sitting in the book.
   If the current market price is worse than your limit, the order cancels immediately.
 
-With the PM-faithful semantics rollout (see the callout above), IOC limit
+Since the PM-faithful semantics went live (see the callout above), IOC limit
 orders **partial-fill** like on real Polymarket: the available size within
 your limit fills at the depth-walk VWAP and the unfilled remainder is
 cancelled + refunded in the same request. (Legacy behavior was atomic
@@ -295,10 +292,10 @@ full-fill-or-cancel.)
 | `amount` | string | One of `quantity`/`amount` | **BUY market orders only.** USD amount to spend (Polymarket convention). Mutually exclusive with `quantity`. The handler derives `quantity = floor4(amount / price)` using your worst-price limit (the `price` field, not the eventual fill price) rounded down to 4 decimal places (the matching engine's share quantum), so the trade can't spend more than `amount` USD even at the worst acceptable price. |
 | `order_type` | string | No | `market` (default) or `limit` |
 | `price` | string | Yes | For limit orders: the limit price (0.01–0.99). For market orders: worst-price limit — required (Polymarket-style slippage protection) |
-| `time_in_force` | string | No | `GTC` (default for limit), `FOK` (default for market), `FAK`, or `IOC`. `GTD` is rolling out (flag-dependent — see the callout above); it requires `expiration`. |
+| `time_in_force` | string | No | `GTC` (default for limit), `FAK`/`IOC` (default for market), `FOK`, or `GTD` (limit only; requires `expiration` — see the callout above). |
 | `client_order_id` | string | No | Idempotency key |
-| `expiration` | string | With `GTD` | **Rolling out.** Unix-seconds timestamp at which a `GTD` resting limit auto-cancels. Must be strictly in the future at placement (`INVALID_ORDER_EXPIRATION` otherwise). Ignored for every other TIF. |
-| `post_only` | boolean | No | **Rolling out.** Polymarket's `postOnly`: the order must rest — rejected with `INVALID_POST_ONLY_ORDER` if marketable at placement. GTC/GTD limit orders only. Advisory (ignored) until the rollout activates. |
+| `expiration` | string | With `GTD` | Unix-seconds timestamp at which a `GTD` resting limit auto-cancels. Must be strictly in the future at placement (`INVALID_ORDER_EXPIRATION` otherwise). Ignored for every other TIF. |
+| `post_only` | boolean | No | Polymarket's `postOnly`: the order must rest — rejected with `INVALID_POST_ONLY_ORDER` if marketable at placement. GTC/GTD limit orders only; combined with FOK/FAK/IOC or a market order it is rejected with `INVALID_POST_ONLY_ORDER_TYPE`. |
 
 ### `quantity` (shares) vs `amount` (USD) — Polymarket parity
 
@@ -307,7 +304,7 @@ Polymarket's BUY market-order convention uses `amount` (USD) — the dollar amou
 PolySimulator accepts **either** field, with these rules:
 
 - **`quantity`** is shares for both BUY and SELL (the polysim-native convention). Always usable.
-- **`amount`** is USD for BUY market orders only. Sending `amount=5` with `side=BUY, order_type=market` means "spend up to $5"; the handler derives `quantity = floor4(amount / price)` — using your worst-price limit (the `price` field, not the eventual fill price) and rounding down to the matching engine's 4-decimal share quantum. Sending `amount` with `side=SELL` or `order_type=limit` returns 400.
+- **`amount`** is USD for BUY market orders only. Sending `amount=5` with `side=BUY, order_type=market` means "spend up to \$5"; the handler derives `quantity = floor4(amount / price)` — using your worst-price limit (the `price` field, not the eventual fill price) and rounding down to the matching engine's 4-decimal share quantum. Sending `amount` with `side=SELL` or `order_type=limit` returns 400.
 - Sending **both** `quantity` and `amount` returns 400 with `"Specify either quantity or amount, not both"`.
 
 Bots ported from Polymarket's SDK should keep using `amount` for BUY market orders unchanged. Bots written for PolySimulator can keep using `quantity` for everything.
@@ -324,15 +321,48 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 }
 ```
 
+### Outcome Labels vs Token IDs
+
+PolySimulator's `POST /v1/orders` endpoint accepts the human-readable **outcome label** in the `outcome` field (e.g. `"Yes"`, `"No"`, or custom labels like `"Trump"`, `"Harris"`, `"Up"`, `"Down"`), **NOT** Polymarket's 77-digit decimal token ID.
+
+If you are migrating from Polymarket's CLOB SDK (which is token-id-native) and have a `token_id`:
+1. Use `GET /v1/markets-by-token/{token_id}` to resolve the token ID to its `condition_id` and outcome label (`outcomes[].label`).
+2. Or use the token-native endpoints `POST /v1/order` (Polymarket nested `{order: {tokenId: ...}}` shape) or `POST /v1/clob/order` (`tokenId`-keyed flat shape).
+
+#### Worked Examples
+
+**1. Binary market (Yes/No):**
+```json
+{
+  "market_id": "0x0f49db970d47fe90c606ab5f171cb61d497c41bc227582eb7d8c47f3b8ddf594",
+  "side": "BUY",
+  "outcome": "Yes",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.55"
+}
+```
+
+**2. Categorical / multi-outcome market:**
+```json
+{
+  "market_id": "0x1b48e3e4a2c0f64c12d45c613e55c68b75e2f3d45c613e55c68b75e2f3d45c61",
+  "side": "BUY",
+  "outcome": "Trump",
+  "quantity": "10",
+  "order_type": "limit",
+  "price": "0.48"
+}
+```
 ### Time in Force
 
 | Value | Description | Polymarket Equivalent |
 |-------|-------------|----------------------|
-| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired. Overridden to FOK for market orders. | GTC |
-| `FOK` | Fill-or-Kill — all-or-nothing immediate fill (default for market orders). Depth-aware with the PM-semantics rollout. | FOK |
-| `FAK` | Fill-and-Kill — fill available quantity, cancel remainder (Polymarket term). Partial fills land with the PM-semantics rollout; legacy behavior is atomic. | FAK |
+| `GTC` | Good-till-Cancelled — persists until filled, cancelled, or expired. On a market order it is replaced by `IOC`. | GTC |
+| `FOK` | Fill-or-Kill — all-or-nothing immediate fill; fills only when displayed depth within your limit covers the full size. | FOK |
+| `FAK` | Fill-and-Kill — fill available quantity, cancel remainder (Polymarket term). **Default for market orders.** | FAK |
 | `IOC` | Immediate-or-Cancel — same behavior as FAK (PolySimulator alias) | FAK |
-| `GTD` | Good-Til-Date — resting limit auto-expiring at `expiration` (unix seconds). **Rolling out** (flag-dependent); until activation GTD routes through GTC on the PM-compat endpoints and is rejected here. | GTD |
+| `GTD` | Good-Til-Date — resting limit auto-expiring at `expiration` (unix seconds). Limit orders only; an `expiration` in the past is rejected with `INVALID_ORDER_EXPIRATION`. | GTD |
 
 ---
 
@@ -369,8 +399,8 @@ Bots ported from Polymarket's SDK should keep using `amount` for BUY market orde
 
   **`fee` is a real per-category taker fee — not zero.** Every taker fill
   is charged Polymarket's V2 per-category schedule, and the charged amount is
-  price-dependent (it peaks near $0.50 and shrinks toward the price extremes).
-  The example above is a 10-share BUY at $0.65 on a crypto market, returned as
+  price-dependent (it peaks near \$0.50 and shrinks toward the price extremes).
+  The example above is a 10-share BUY at \$0.65 on a crypto market, returned as
   `0.16`. Always read `OrderResponse.fee` when computing realized PnL — see
   the canonical formula and full rate table on [Trading Fees](/trading/fees).
   Discover a market's rate programmatically via
@@ -452,6 +482,16 @@ If the same key is submitted twice, the second request returns the result of the
   Include a timestamp or sequence number in your idempotency key to make
   debugging easier: `"bot-alpha-20260206-001"`
 
+### Per-User Trade Write Serialization
+
+Order writes (`POST /v1/orders`, `POST /v1/orders/batch`, `DELETE /v1/orders/{id}`, etc.) are serialized per **user**, not per API key. If a second write arrives while a prior write for the same user is still executing:
+
+* The engine waits cooperatively up to 2 seconds for the first write to release the lock.
+* If the lock is still held when the wait window elapses, the second request returns **HTTP 409** with `X-Polysim-Code: TRADE_IN_PROGRESS` and `Retry-After: 1`.
+* **Separate API keys do not bypass this lock.** Multiple keys belonging to the same account contend on the same per-user lock.
+* Callers should wait for the duration specified in `Retry-After` (typically 1 second) and retry the same logical request with the **same `client_order_id`**.
+* **Validation timing note:** Syntactic/schema validation errors (e.g. invalid types or missing required schema fields) fail immediately with HTTP 422 before the lock is acquired. Semantic/business validation errors evaluated inside the trade transaction (such as missing worst-price limits or closed markets) occur after lock acquisition, so if another trade is in flight, the request returns 409 `TRADE_IN_PROGRESS` rather than a business validation error.
+
 ---
 
 ## Error Handling
@@ -470,16 +510,18 @@ codes most relevant to order placement:
 | `400` | `MARKET_CLOSED` | Market has resolved or is no longer accepting orders |
 | `400` | `INVALID_QUANTITY` | Quantity must be a positive decimal string |
 | `400` | `FOK_ORDER_NOT_FILLED_ERROR` | The order couldn't fill entirely at or beyond your worst-price limit (best available price moved past your cap). This is the worst-price rejection — there is **no** `409 LIMIT_PRICE_NOT_MET`. |
-| `400` | `INVALID_ORDER_EXPIRATION` | **Rolling out.** GTD order with a missing, unparseable, or past `expiration` (PM convention: unix seconds, strictly in the future) |
-| `400` | `INVALID_POST_ONLY_ORDER` (`X-Polysim-Code: POST_ONLY_WOULD_CROSS`) | **Rolling out.** `post_only` order is marketable at placement — it would cross the book instead of resting |
-| `400` | `INVALID_POST_ONLY_ORDER_TYPE` | **Rolling out.** `post_only` combined with a market order type (FOK/FAK/IOC or `order_type=market`) — GTC/GTD limits only |
-| `400` | `INVALID_ORDER_MIN_SIZE` (`X-Polysim-Code: ORDER_BELOW_MIN_SIZE`) | **Rolling out.** Order size below the market's minimum (the `min_order_size` that `GET /v1/book` advertises — 5 shares on standard binary markets) |
+| `400` | `INVALID_ORDER_EXPIRATION` | GTD order with a missing, unparseable, or past `expiration` (PM convention: unix seconds, strictly in the future) |
+| `400` | `INVALID_POST_ONLY_ORDER` (`X-Polysim-Code: POST_ONLY_WOULD_CROSS`) | `post_only` order is marketable at placement — it would cross the book instead of resting |
+| `400` | `INVALID_POST_ONLY_ORDER_TYPE` | `post_only` combined with a market order type (FOK/FAK/IOC or `order_type=market`) — GTC/GTD limits only |
+| `400` | `INVALID_ORDER_MIN_SIZE` (`X-Polysim-Code: ORDER_BELOW_MIN_SIZE`) | Order size below the market's minimum (the `min_order_size` that `GET /v1/book` advertises — 5 shares on standard binary markets) |
 | `401` | `INVALID_KEY` | API key is invalid, expired, or revoked (`MISSING_API_KEY` if the header is absent) |
 | `403` | `INSUFFICIENT_PERMISSION` | Key lacks `trade` permission |
 | `404` | `MARKET_NOT_FOUND` | Unknown `market_id` |
 | `409` | `DUPLICATE_CLIENT_ORDER_ID` | A new order reused a `client_order_id` already bound to a different order |
 | `409` | `IDEMPOTENCY_KEY_REUSE` | Same `Idempotency-Key` replayed with a different request body (an identical replay returns the original order) |
+| `409` | `TRADE_IN_PROGRESS` | Another trade for this user is already in flight. Order writes serialize per user (not per API key). Wait for `Retry-After: 1`, then retry the same logical request with the same `client_order_id`. |
 | `429` | `RATE_LIMITED` / `RATE_LIMIT_EXCEEDED` | Too many requests — both are 429; check `Retry-After`. See [Error Handling](/bots/error-handling#rate-limit-errors) for the two-code distinction. |
+| `429` | `FREE_TIER_DAILY_LIMIT` | Free tier only: the account's 100 accepted orders for the UTC day are spent (per user, all keys). Returned before the order is validated; rejected orders and replays never count. `Retry-After` is the wait until `00:00Z`. See [Rate Limits](/concepts/rate-limits#free-tier-daily-order-cap). |
 
 ```python
 resp = requests.post(
@@ -506,9 +548,13 @@ elif resp.status_code == 400:
     else:
         print(f"Order rejected [{code}]: {resp.json().get('error')}")
 elif resp.status_code == 409:
-    # Idempotency / client_order_id conflicts.
+    # Idempotency / client_order_id conflicts and trade concurrency.
     code = resp.headers.get("X-Polysim-Code")
-    if code in ("IDEMPOTENCY_KEY_REUSE", "DUPLICATE_CLIENT_ORDER_ID"):
+    if code == "TRADE_IN_PROGRESS":
+        retry_after = int(resp.headers.get("Retry-After", 1))
+        print(f"Trade in flight for user — back off {retry_after}s and retry same client_order_id")
+        time.sleep(retry_after)
+    elif code in ("IDEMPOTENCY_KEY_REUSE", "DUPLICATE_CLIENT_ORDER_ID"):
         print(f"Idempotency conflict [{code}] — reuse the original order, don't retry with a new body")
     else:
         print(f"Conflict [{code}]: {resp.json().get('error')}")

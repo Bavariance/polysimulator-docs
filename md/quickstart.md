@@ -6,18 +6,22 @@ Source: /quickstart
 
   
     1. Sign up at [polysimulator.com/signin](https://polysimulator.com/signin).
-    2. Open [polysimulator.com/api-keys](https://polysimulator.com/api-keys).
-    3. Click **Create your first API key**, give it a name, and copy
-       the `ps_live_…` value shown once.
+    2. Open the developer console at [polysimulator.com/console](https://polysimulator.com/console).
+    3. Click **Create a free API key** (on a paid plan the button names your
+       plan) and copy the `ps_live_…` value shown once.
 
     
       **Open beta.** Anyone can mint a key from the dashboard or
-      `POST /v1/keys/bootstrap`. A **free** key is **read-only**
-      (`permissions: ["read"]`) — use it to explore markets, books, and
-      account reads. **Paid Pro / Pro+** keys are trade-capable
-      (`["read", "trade"]`) against an isolated API wallet. See
-      [API Keys](/concepts/api-keys) and
-      [Authentication](/authentication#open-beta).
+      `POST /v1/keys/bootstrap`. **A free key issued on or after
+      2026-09-05 can trade**: it is minted with `["read", "trade"]` and
+      places orders against a **\$100 API wallet** that cannot be reset
+      or topped up, capped at **100 order placements per UTC day** per
+      account. **A free key issued before 2026-09-05 is read-only**
+      (`["read"]`) — `trade` is stripped on every request even if the
+      key was stored with it; create a new key to get a trade-capable
+      one. **Paid Pro / Pro+** keys trade against a \$10,000 / \$25,000
+      API wallet with no daily cap. See [API Keys](/concepts/api-keys)
+      and [Authentication](/authentication#open-beta).
     
 
     
@@ -56,20 +60,23 @@ Source: /quickstart
         "key_prefix": "ps_live_kJ9mNx2p",
         "name": "my-first-bot",
         "rate_limit_tier": "free",
-        "permissions": ["read"],
-        "created_at": "2026-03-04T12:00:00Z"
+        "permissions": ["read", "trade"],
+        "created_at": "2026-09-12T12:00:00Z"
       }
       ```
 
-      A free-tier key is **read-only** (`["read"]`); trading needs a
-      paid tier. See [API Keys](/concepts/api-keys#create-a-key).
+      A free-tier key issued on or after **2026-09-05** carries
+      `["read", "trade"]` and trades against the \$100 free API wallet;
+      one issued before 2026-09-05 is read-only (`["read"]`). A
+      paid tier lifts the \$100 budget and the daily order cap. See
+      [API Keys](/concepts/api-keys#create-a-key).
 
       | Status | Meaning |
       |--------|--------|
       | `201` | Key created — save `raw_key` |
       | `400` | You already have key(s) — use `POST /v1/keys` with `X-API-Key` instead |
       | `401` | Invalid or expired Supabase JWT |
-      | `403` | `TIER_REQUIRES_UPGRADE` if a free caller requested `trade`, or a residual issuance/runtime gate — branch on `X-Polysim-Code`. See [Authentication](/authentication#open-beta). |
+      | `403` | `TIER_REQUIRES_UPGRADE` if a free caller asked for a paid `tier` it is not subscribed to, for `admin`, or for `trade` while holding an expired paid grant; or a residual issuance/runtime gate — branch on `X-Polysim-Code`. See [Authentication](/authentication#open-beta). |
       | `429` | Bootstrap rate limit hit — wait and retry |
 
       `Authorization: Bearer` is accepted on the dashboard surface
@@ -122,7 +129,8 @@ Source: /quickstart
     from polysim_sdk import PolySimClient
 
     with PolySimClient() as client:                 # reads POLYSIM_API_KEY from env
-        market = client.list_markets(limit=1)[0]   # an actively-traded market
+        # active_only=True skips closed markets: an order on one is cancelled, not filled
+        market = client.list_markets(limit=20, active_only=True)[0]
         fill = client.place_order(
             market_id=market["condition_id"],
             side="BUY",
@@ -139,6 +147,8 @@ Source: /quickstart
     
 
     
+      **`outcome` takes the human-readable label** (`"Yes"`, `"No"`, or custom labels like `"Trump"`), not Polymarket's 77-digit token ID. To map a token ID to its outcome label, use `GET /v1/markets-by-token/{token_id}`.
+
       **Market orders require `price` as a worst-price limit** — Polymarket-faithful
       slippage protection. A BUY won't fill above it; a SELL won't fill below it.
       `"0.99"` on a YES means "accept any fill" (great for your first trade); for
@@ -150,9 +160,13 @@ Source: /quickstart
 
     
       ```bash cURL
-      # 1. grab a live market_id (jq)
+      # 1. grab a TRADEABLE market_id (jq)
+      #    Without active_only=true, /v1/markets also returns closed markets,
+      #    and an order against one is cancelled rather than filled. The jq
+      #    select is a second guard.
       MARKET_ID=$(curl -s -H "X-API-Key: $POLYSIM_API_KEY" \
-        "$POLYSIM_BASE_URL/v1/markets?limit=1" | jq -r '.[0].condition_id')
+        "$POLYSIM_BASE_URL/v1/markets?limit=20&active_only=true" \
+        | jq -r '[.[] | select(.closed == false)][0].condition_id')
 
       # 2. place the trade
       curl -X POST $POLYSIM_BASE_URL/v1/orders \
@@ -167,7 +181,10 @@ Source: /quickstart
       h = {"X-API-Key": key, "Content-Type": "application/json"}
 
       # resolve a live market, then trade
-      market_id = requests.get(f"{base}/v1/markets?limit=1", headers=h).json()[0]["condition_id"]
+      # active_only=true skips closed markets (an order on one is cancelled);
+      # the client-side check below is a second guard.
+      markets = requests.get(f"{base}/v1/markets?limit=20&active_only=true", headers=h).json()
+      market_id = next(m for m in markets if not m["closed"])["condition_id"]
       resp = requests.post(f"{base}/v1/orders", headers=h, json={
           "market_id": market_id, "side": "BUY", "outcome": "Yes",
           "quantity": "10", "order_type": "market",
@@ -180,11 +197,14 @@ Source: /quickstart
       const base = process.env.POLYSIM_BASE_URL, key = process.env.POLYSIM_API_KEY;
       const h = { "X-API-Key": key, "Content-Type": "application/json" };
 
-      const markets = await (await fetch(`${base}/v1/markets?limit=1`, { headers: h })).json();
+      // active_only=true skips closed markets (an order on one is cancelled);
+      // the client-side check below is a second guard.
+      const markets = await (await fetch(`${base}/v1/markets?limit=20&active_only=true`, { headers: h })).json();
+      const market = markets.find((m) => !m.closed);
       const resp = await fetch(`${base}/v1/orders`, {
         method: "POST", headers: h,
         body: JSON.stringify({
-          market_id: markets[0].condition_id, side: "BUY", outcome: "Yes",
+          market_id: market.condition_id, side: "BUY", outcome: "Yes",
           quantity: "10", order_type: "market",
           price: "0.99",  // worst-price limit (slippage cap)
         }),
@@ -212,11 +232,12 @@ Source: /quickstart
 
     
       `account_balance` is your **API wallet** balance after the fill,
-      not the dashboard MAIN wallet. API keys start at $10,000 (Pro) or
-      $25,000 (Pro+); Free-tier keys are read-only with no API wallet.
-      Here a $6.50 fill plus the $0.09 taker fee (PM-V2 per-category
-      schedule — see [Trading Fees](/trading/fees)) against the $10,000
-      Pro wallet leaves $9,993.41.
+      not the dashboard MAIN wallet. API wallets start at \$100 (Free,
+      keys issued on or after 2026-09-05 — non-renewable), \$10,000 (Pro)
+      or \$25,000 (Pro+); a free key issued before 2026-09-05 is read-only
+      and cannot place this order. Here a \$6.50 fill plus the \$0.09 taker
+      fee (PM-V2 per-category schedule — see [Trading Fees](/trading/fees))
+      against the \$10,000 Pro wallet leaves \$9,993.41.
     
   
 

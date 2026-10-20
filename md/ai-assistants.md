@@ -47,6 +47,25 @@ After connecting, ask your assistant things like *"how do I place a FOK order on
 PolySimulator?"* or *"what's the rate limit for the beta tier?"* and it will
 query these docs directly.
 
+## Trading MCP server: let the agent paper-trade
+
+The docs server above answers questions. To let an agent **act** (find the current
+BTC Up/Down round, read the book, place and cancel paper orders, check positions),
+run the trading MCP server from the repository (`mcp/trading/polysim_trading_mcp.py`). Fills are
+simulated against Polymarket's real order book; no real money moves.
+
+```bash
+pip install "mcp>=1.2" httpx
+claude mcp add polysimulator-trading \
+  --env POLYSIMULATOR_API_KEY=ps_live_... \
+  -- python mcp/trading/polysim_trading_mcp.py
+```
+
+Tools: `find_markets`, `updown_round`, `order_book`, `spot_price` (no key needed),
+plus `place_order`, `cancel_order`, `open_orders`, `positions`, `balance` and
+`trade_history` (key needed; a free key trades a \$100 API wallet, 100 orders per UTC
+day). Create a key at [polysimulator.com/console](https://polysimulator.com/console).
+
 ## One-click: open any page in ChatGPT or Claude
 
 Every docs page has a **Copy / View / Open in ChatGPT / Open in Claude** menu in
