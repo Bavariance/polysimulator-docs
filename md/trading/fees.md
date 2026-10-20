@@ -27,14 +27,14 @@ fee = C × feeRate × p × (1 − p)
 | `feeRate` | The market category's taker rate (table below) |
 | `p` | Fill price (0–1) |
 
-The `p × (1 − p)` factor makes the fee symmetric around $0.50 — it peaks
-there and shrinks toward the price extremes, so a fill at $0.99 pays a tiny
-fraction of what the same share count pays at $0.50. Fees are rounded to 5
+The `p × (1 − p)` factor makes the fee symmetric around \$0.50 — it peaks
+there and shrinks toward the price extremes, so a fill at \$0.99 pays a tiny
+fraction of what the same share count pays at \$0.50. Fees are rounded to 5
 decimal places; the smallest charged fee is 0.00001 USD (amounts below that
 round to zero). The amount actually debited from your balance is settled at
 cent precision.
 
-**Worked example** — 10-share BUY at $0.65 on a crypto market:
+**Worked example** — 10-share BUY at \$0.65 on a crypto market:
 
 ```
 fee = 10 × 0.07 × 0.65 × 0.35 = 0.15925 USD

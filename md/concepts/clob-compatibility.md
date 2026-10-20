@@ -11,21 +11,22 @@ PolySimulator mirrors **Polymarket's real execution model**:
 - **The `price` field is the worst-price limit** — slippage protection built into the order, not a separate parameter
 - **FOK (Fill-or-Kill)** is the immediate-execution order type on this endpoint. Polymarket's real CLOB also supports **FAK (Fill-and-Kill)**; on PolySimulator, FAK lives on the PM-raw [`POST /v1/order`](/concepts/pm-raw-http) path, and `POST /v1/clob/order` accepts `GTC`/`FOK`/`GTD` only (see below)
 
-The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, enabling one-URL-swap migration from paper trading to live trading.
+The `POST /v1/clob/order` endpoint mirrors **Polymarket's real CLOB API schema**, so a bot written for Polymarket's order fields can be tested here. PolySimulator never forwards these orders to Polymarket.
 
 ---
 
-## The Migration Promise
+## Porting to Polymarket
 
-  **Change only the base URL and credentials to go live** — the request and
-  response schemas are identical.
+  PolySimulator never forwards orders to Polymarket. To trade on Polymarket, your
+  own code sends orders to Polymarket's API with your own credentials and signed
+  orders. The order fields carry over; the client setup and authentication change.
 
-| Mode | `/clob/order` endpoint |
+| Where | `/clob/order` endpoint |
 |------|------------------------|
-| **Virtual** (PolySimulator) | `https://api.polysimulator.com/v1/clob/order` |
-| **Live** (Polymarket) | `https://clob.polymarket.com/order` |
+| **PolySimulator** (simulated) | `https://api.polysimulator.com/v1/clob/order` |
+| **Polymarket** (your own account, outside PolySimulator) | `https://clob.polymarket.com/order` |
 
-```python Virtual Mode (PolySimulator)
+```python PolySimulator (simulated)
 import requests
 
 BASE = "https://api.polysimulator.com/v1"
@@ -40,7 +41,7 @@ order = requests.post(f"{BASE}/clob/order", headers=headers, json={
 }).json()
 ```
 
-```python Live Mode (Polymarket)
+```python Polymarket (outside PolySimulator)
 from py_clob_client.client import ClobClient
 
 client = ClobClient("https://clob.polymarket.com", key=PRIVATE_KEY, chain_id=137)
@@ -57,9 +58,9 @@ order = client.create_and_post_order(OrderArgs(
 ```
 
   **Authentication difference**: PolySimulator uses the `X-API-Key` header.
-  Polymarket's live CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
+  Polymarket's CLOB requires **L2 HMAC credentials** (API key + secret + passphrase)
   derived from your wallet's private key via `py_clob_client`. See the
-  [Live Migration Guide](/deployment/live-migration) for full credential setup.
+  [porting guide](/deployment/live-migration) for full credential setup.
 
 ---
 
@@ -275,7 +276,7 @@ The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
 |----------|---------------------|
 | New bot development | `POST /v1/orders` — richer features, string numerics |
 | Porting existing Polymarket bot | `POST /v1/clob/order` — minimal code changes |
-| Planning to go live on Polymarket | `POST /v1/clob/order` — URL-swap ready |
+| Planning to port the bot to Polymarket later | `POST /v1/clob/order` — same order fields as Polymarket's CLOB |
 | Advanced features (batch, limit, slippage) | `POST /v1/orders` — full feature set |
 
 ---
@@ -284,4 +285,4 @@ The `cancel-market-orders` endpoint accepts either `market` (condition_id) or
 
 - [Placing Orders](/trading/placing-orders) — Full-featured native order API
 - [Live Migration](/deployment/live-migration) — Step-by-step migration guide
-- [Polymarket Perfect-Fit Delta](/concepts/polymarket-perfect-fit-delta) — Exact endpoint and schema gaps to close for full Polymarket parity
+- [py-sdk Compatibility](/concepts/py-sdk-compatibility) — Published compatibility matrix and differences from live Polymarket

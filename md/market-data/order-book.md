@@ -81,7 +81,7 @@ order-independently — see the warning below.
 | `neg_risk` | `boolean \| null` | `true` when the market is a negative-risk (multi-outcome) market, `false` for a standard binary, or `null` when unknown. SDKs use this for order-routing. |
 | `last_trade_price` | `string \| null` | The most recent trade price for this token (string, e.g. `"0.65"`), or `null` if no trades yet. |
 | `mid` | `string \| null` | Average of best bid and best ask (Polysimulator extension, stringified). |
-| `spread` | `string \| null` | Difference between best ask and best bid, **capped at $0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
+| `spread` | `string \| null` | Difference between best ask and best bid, **capped at \$0.10** for PM parity. Markets with extreme thin-liquidity books (e.g. `bid=0.001 ask=0.999`) report `spread="0.10"`, not the raw difference. This stops arbitrage filters from treating every illiquid book as a free-money signal. |
 | `stale` | `boolean \| null` | Present and `true` only when the live CLOB fetch failed and the snapshot was served from a recent cached book. Absent (`null`) on a fresh read. Treat a `stale` book as a best-effort fallback, not a real-time quote. |
 | `price` | `string` | Price level (inside a `bids`/`asks` entry; 0.00–1.00 implied probability, stringified). |
 | `size` | `string` | Total shares available at that price level (stringified).

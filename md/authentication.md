@@ -11,8 +11,8 @@ PolySimulator uses **two auth methods, scoped to different jobs**:
 | **API key** (primary) | `X-API-Key: ps_live_…` | Everything bots touch: trading, market data, websockets, balance/positions/history reads |
 | **Supabase Bearer JWT** (dashboard / one-time) | `Authorization: Bearer …` | Self-service surfaces the dashboard reads with your signed-in session: `POST /v1/keys/bootstrap`, key management (`GET/POST/DELETE /v1/keys`, `/v1/keys/tiers`, `/v1/keys/ws-token`), `GET /v1/me`, `/v1/account/me/entitlements`, and `/v1/me/wallets/*` |
 
-Most users only ever see the API key — the dashboard at
-[polysimulator.com/api-keys](https://polysimulator.com/api-keys)
+Most users only ever see the API key — the developer console at
+[polysimulator.com/console](https://polysimulator.com/console)
 handles the Bearer-JWT bootstrap with your signed-in Supabase
 session, so you click a button and copy the `ps_live_…` value.
 The Bearer-JWT API path exists for headless setups (CI, dev tooling)
@@ -21,7 +21,7 @@ where there's no browser session.
 The Polymarket-CLOB-compatible read endpoints (e.g. `/v1/book`,
 `/v1/midpoint`, `/v1/spread`, `/v1/markets-by-token`) are **public**
 and don't require a key. For convenience, PolySimulator also accepts
-the single-value header aliases `POLY_API_KEY` and
+the single-value header aliases `POLY_API_KEY`, `Poly-API-Key`, and
 `Authorization: Bearer ps_live_…`, each carrying the whole `ps_live_`
 key, on authenticated routes (`X-API-Key` takes precedence when
 several are sent).
@@ -33,6 +33,10 @@ curl -H "X-API-Key: ps_live_abc123..." \
 
 # Equivalent — single-value POLY_API_KEY alias (PolySimulator convenience)
 curl -H "POLY_API_KEY: ps_live_abc123..." \
+     https://api.polysimulator.com/v1/markets
+
+# Equivalent — single-value Poly-API-Key (dashed form)
+curl -H "Poly-API-Key: ps_live_abc123..." \
      https://api.polysimulator.com/v1/markets
 ```
 
@@ -55,7 +59,7 @@ curl -H "POLY_API_KEY: ps_live_abc123..." \
   `DELETE /v1/orders/{id}`, `GET /v1/markets*`, `GET /v1/book`,
   `GET /v1/midpoint*`, the websocket connect URL, and
   `GET /v1/account/{balance,positions,portfolio,history,equity}`
-  all require `X-API-Key` (or the `POLY_API_KEY` alias). This keeps
+  all require `X-API-Key` (or the `POLY_API_KEY` / `Poly-API-Key` alias). This keeps
   the surface short-lived JWTs can reach narrow and auditable —
   short-lived browser tokens cannot reach the trade engine.
 
@@ -124,9 +128,9 @@ Keys support granular permissions:
   (`POST`/`GET`/`PATCH`/`DELETE /v1/keys`, `/v1/keys/{id}/rotate`) only
   require a valid credential for your account — any active `ps_live_` key
   (even a read-only one) or your dashboard Supabase JWT. You don't need a
-  `trade`-scoped key to manage keys. (Free-tier keys are still read-only
-  for trading and can't be created *with* `trade` — that's enforced at
-  creation, see below.)
+  `trade`-scoped key to manage keys. (Whether a free key can *trade*
+  depends on when it was issued — on or after 2026-09-05 it can, earlier
+  it is read-only; see [Open Beta](#open-beta) below.)
 
 ---
 
@@ -235,9 +239,10 @@ Common auth/permission codes — branch on the response body's `error`:
 | `ACCESS_RESTRICTED` | 403 | Residual runtime gate: an already-issued key (or Bearer JWT) whose account is flagged or under review. Not the default open-beta path. |
 | `CLOSED_BETA` | 403 | Residual emergency issuance close (`CLOSED_BETA_MODE=true`). Default open beta does **not** return this. |
 | `API_PRO_COMING_SOON` | 403 | Residual cohort-rollout code. Default open beta does **not** return this for paying Pro / Pro+ — they self-serve trade-capable keys. |
-| `TIER_REQUIRES_UPGRADE` | 403 | A free caller requested `trade` on key creation. Free keys are read-only; upgrade to Pro / Pro+ to trade. |
+| `TIER_REQUIRES_UPGRADE` | 403 | On key creation, a free caller asked for a paid `tier` it is not subscribed to, for `admin`, or for `trade` while holding an expired paid grant. Plain free + `trade` is allowed for keys issued on or after 2026-09-05. |
 | `INSUFFICIENT_PERMISSION` | 403 | Key lacks `trade` / other scope |
 | `RATE_LIMIT_EXCEEDED` | 429 | Per-key or per-IP burst exceeded |
+| `FREE_TIER_DAILY_LIMIT` | 429 | A free key has placed its 100 accepted orders for the UTC day. Counted per user across all of the account's keys; resets at `00:00Z`, and `Retry-After` carries the wait. Rejected orders and idempotent replays do not count. The body carries `upgrade_url` and `next_tier`; `limit`, `used` and `resets_at` are in `details` with `X-Polysim-Verbose: true`. See [Rate Limits → Free-tier daily order cap](/concepts/rate-limits#free-tier-daily-order-cap). |
 | `VENUE_UNAVAILABLE` | 503 | Polymarket is down. Market orders and IOC / FOK / FAK orders are paused; limit orders are still accepted and still rest. |
 
   On `429` responses, check the `Retry-After` header for exact wait time in seconds.
@@ -307,9 +312,9 @@ except VenueUnavailableError as exc:
 
 ## Bootstrap Flow (First-Time Setup)
 
-The recommended path is the dashboard at
-[polysimulator.com/api-keys](https://polysimulator.com/api-keys).
-Sign in, click **Create your first API key**, and copy the
+The recommended path is the developer console at
+[polysimulator.com/console](https://polysimulator.com/console).
+Sign in, click **Create a free API key**, and copy the
 `ps_live_…` value shown once. The dashboard handles the Supabase
 JWT exchange transparently.
 
@@ -344,8 +349,8 @@ elif resp.status_code == 401:
 elif resp.status_code == 403:
     code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
-        # Free self-serve keys are read-only. Drop "trade" or upgrade.
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Asked for a paid tier / "admin", or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     elif code == "ACCESS_RESTRICTED":
         # Residual runtime gate: flagged / under-review account.
         print("Access restricted — contact support")
@@ -397,12 +402,17 @@ key. The default path is self-serve:
 
 | Account | First key (`POST /v1/keys/bootstrap`) | Trading |
 | --- | --- | --- |
-| Free | Read-only (`permissions: ["read"]`, no API wallet) | Markets, books, and account reads only |
-| Active Pro / Pro+ | Trade-capable (`["read", "trade"]`) against an isolated API wallet | Paper trading at the paid tier's rate limits |
+| Free, key issued **on or after 2026-09-05** | Trade-capable (`permissions: ["read", "trade"]`) against a **\$100** API wallet | Paper trading at free-tier rate limits. The \$100 cannot be reset or topped up, and placements are capped at **100 per UTC day** per account (`429 FREE_TIER_DAILY_LIMIT`) |
+| Free, key issued **before 2026-09-05** | Read-only (`["read"]`) — `trade` is stripped on every request even if the stored key carries it | Markets, books, and account reads only. Create a new key to get a trade-capable one |
+| Active Pro / Pro+ | Trade-capable (`["read", "trade"]`) against an isolated \$10,000 / \$25,000 API wallet | Paper trading at the paid tier's rate limits, no daily cap |
 
-Free + `trade` is rejected as `403 TIER_REQUIRES_UPGRADE`. Paying
-subscribers are not blocked by a waitlist or `API_PRO_COMING_SOON` on
-the default path.
+The cutoff is the key's `created_at` (UTC). A free account whose paid grant
+has expired stays read-only regardless of the date, and `admin` is never
+self-issued at any tier. Free + `trade` is no longer rejected;
+`403 TIER_REQUIRES_UPGRADE` is now returned only when a free caller asks for
+a paid `tier`, for `admin`, or for `trade` on an expired paid grant. Paying
+subscribers are not blocked by a waitlist or `API_PRO_COMING_SOON` on the
+default path.
 
 `CLOSED_BETA` and `API_PRO_COMING_SOON` remain valid `X-Polysim-Code`
 values for a residual emergency close or a leftover cohort grant, but
@@ -420,7 +430,8 @@ if resp.status_code == 201:
 elif resp.status_code == 403:
     code = resp.json()["error"]
     if code == "TIER_REQUIRES_UPGRADE":
-        print("Free keys are read-only — upgrade at https://polysimulator.com/pricing")
+        # Paid tier / "admin" requested, or "trade" on an expired paid grant.
+        print("Requested tier or permission needs an upgrade — https://polysimulator.com/pricing")
     else:
         print(f"403 [{code}]: {resp.json().get('error')}")
 ```

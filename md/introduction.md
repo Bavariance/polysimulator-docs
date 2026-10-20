@@ -4,9 +4,9 @@ Source: /introduction
 
 # PolySimulator HFT API v1
 
-Build, test, and deploy prediction market trading bots in a risk-free environment
-powered by **real-time Polymarket data**. When you're ready, switch to live trading
-by changing a single environment variable.
+Build and test prediction market trading bots against **real-time Polymarket data**,
+with simulated money only. PolySimulator does not place orders on Polymarket or on any
+other venue: every order you send here is filled against a simulated paper account.
 
   
 
@@ -14,7 +14,7 @@ by changing a single environment variable.
     Get your API key and place your first trade in under 2 minutes.
   
   
-    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` or py-sdk bot? Drop-ins included.
+    `pip install polysimulator` — the official `PolySimClient`. Porting a `py-clob-client` **v1** or py-sdk bot? Drop-ins included.
   
   
     Interactive playground — test every endpoint with your API key.
@@ -36,7 +36,7 @@ by changing a single environment variable.
 | **Batch Orders** | Tier-dependent batch size (free 1, pro 5, pro+ 10, enterprise 25; see `GET /v1/keys/tiers`) |
 | **WebSocket Feeds** | Real-time price ticks and execution notifications |
 | **OHLCV Candles** | Historical candlestick data for backtesting |
-| **CLOB-Compatible** | `/v1/clob/order` mirrors Polymarket's schema — URL-swap migration |
+| **CLOB-Compatible** | `/v1/clob/order` mirrors Polymarket's order schema — easier to port a bot later |
 | **String Numerics** | All price/size/balance values are strings — no float precision loss |
 
 ---
@@ -46,9 +46,10 @@ by changing a single environment variable.
 Your bot talks to a single endpoint. The API streams **live order books, prices,
 and markets from Polymarket's CLOB and Gamma feeds** and serves them from an
 **in-memory cache (Redis)** — so your strategy reads current market data with
-low latency, without a database round-trip on the hot path. Orders execute
-against your **simulated paper account**, and the wire contract is identical to
-live Polymarket, so going live is a config change — not a rewrite.
+low latency, without a database round-trip on the hot path. Orders are filled
+only against your **simulated paper account**; nothing is sent to Polymarket.
+Request shapes follow Polymarket's API closely (see
+[CLOB Compatibility](/concepts/clob-compatibility)).
 
 ```mermaid
 flowchart TD
@@ -80,23 +81,28 @@ Keep the base URL **without** `/v1` so each path can prepend its own
 
 ---
 
-## One Config Change to Go Live
+## From Simulation to Polymarket
 
   
-    Develop and test your bot against the virtual API. Free keys are
-    read-only (no API wallet). Paid Pro / Pro+ keys trade a simulated
-    API wallet ($10,000 on Pro, $25,000 on Pro+).
+    Develop and test your bot against the virtual API. Free keys issued
+    on or after 2026-09-05 trade a \$100 non-renewable API wallet (free
+    keys issued earlier are read-only). Paid Pro / Pro+ keys trade a
+    simulated API wallet of \$10,000 / \$25,000.
   
   
-    Review your portfolio, trade history, and equity curve to confirm your edge.
+    Review your portfolio, trade history, and equity curve. These results are
+    simulated and say nothing about results with real money.
   
   
-    Set `TRADING_MODE=live` and add your Polymarket credentials. Same API, real money.
+    PolySimulator never sends orders to Polymarket. If you decide to trade on Polymarket, you do that
+    with your own Polymarket account, wallet and API credentials, and your code talks to Polymarket's
+    API directly. PolySimulator is not involved in those trades. The
+    [porting guide](/deployment/live-migration) shows what changes in your code.
   
 
-  The `/v1/clob/order` endpoint uses the same schema as Polymarket's real CLOB API.
-  When migrating to live, you can even point your bot directly at `clob.polymarket.com`
-  with zero code changes.
+  The `/v1/clob/order` endpoint accepts the same order fields as Polymarket's CLOB API.
+  Polymarket's API needs its own credentials and signed orders, so porting a bot changes
+  its client setup and authentication.
 
 ---
 

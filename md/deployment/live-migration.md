@@ -1,24 +1,33 @@
-# Live Migration
+# Porting a Bot to Polymarket
 
 Source: /deployment/live-migration
 
-# Virtual → Live Migration
+# Porting a Bot to Polymarket
 
-PolySimulator is designed so your entire bot codebase works unchanged when switching from virtual (paper) trading to live (real-money) trading on Polymarket.
+PolySimulator only simulates trades, with virtual money. It does not place orders on
+Polymarket or on any other venue, and it has no live-trading mode.
+
+If you decide to trade on Polymarket, you do that with your own Polymarket account, your
+own wallet and your own code, which talks directly to Polymarket's API. PolySimulator is
+not involved in those trades. This page shows what changes in a bot's code when you port
+it from PolySimulator's API to Polymarket's.
 
 ---
 
 ## Comparison
 
-| Aspect | Virtual Mode | Live Mode |
+| Aspect | PolySimulator (simulated) | Polymarket (your own account, outside PolySimulator) |
 |--------|-------------|-----------|
-| Money at risk | None (simulated API wallet — $10,000 Pro / $25,000 Pro+) | Real funds |
-| Order execution | Local ledger | Polymarket CLOB |
+| Money | Virtual only (simulated API wallet — \$10,000 Pro / \$25,000 Pro+) | Your own funds, in your own wallet |
+| Order execution | Simulated fills on PolySimulator's ledger | Polymarket CLOB, orders sent by your code |
 | Market data | Real prices from Polymarket | Real prices from Polymarket |
-| API surface | Full HFT API v1 | CLOB trading API (different endpoint paths) |
-| Settlement | Automatic on resolution | Polymarket blockchain |
+| API surface | PolySimulator API v1 | Polymarket's CLOB API (different endpoint paths) |
+| Settlement | Simulated, on market resolution | Polymarket, on-chain |
 
-  Live mode executes real trades with real money on Polymarket. Ensure your strategy is thoroughly tested in virtual mode before migrating.
+  Orders on Polymarket use real money. Your code places them with your own credentials,
+  directly on Polymarket; PolySimulator does not send or relay them. Results in
+  PolySimulator are simulated and say nothing about results on Polymarket. Polymarket is
+  a separate service with its own terms.
 
 ---
 
@@ -33,7 +42,7 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Polymarket uses **two-layer authentication** — both are required for live trading:
+    Polymarket uses **two-layer authentication** — both are required to trade on Polymarket:
 
     **L1 (wallet-level):** Your Polygon wallet's private key signs an EIP-712 message to derive L2 credentials. Each order also requires an EIP-712 signature from this key.
 
@@ -59,15 +68,15 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Change your credentials and client configuration for live mode. Order payload
+    Your ported bot needs Polymarket credentials and client configuration. Order payload
     structure stays highly portable, but endpoint paths/auth handling differ:
 
     ```bash
-    # Virtual mode (PolySimulator) — your current config
+    # PolySimulator (simulated) — your current config
     POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
     POLYSIM_API_KEY="ps_live_kJ9mNx2p..."
 
-    # Live mode (Polymarket) — swap these values
+    # Polymarket (your own account) — used by your code directly
     POLYMARKET_BASE_URL="https://clob.polymarket.com"
     POLY_API_KEY="your_polymarket_api_key"
     POLY_API_SECRET="your_polymarket_api_secret"
@@ -75,18 +84,18 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     ```
 
     
-      There is no single `TRADING_MODE` flag. Migration is achieved by switching
-      to Polymarket credentials/client setup and routing order placement through
-      Polymarket's CLOB API flow.
+      PolySimulator has no live mode and no `TRADING_MODE` switch. Porting means
+      your code uses Polymarket's own client and credentials and sends its orders
+      to Polymarket's CLOB API itself.
     
   
 
   
-    The CLOB-compatible endpoint mirrors Polymarket's real CLOB API schema.
-    Your bot code stays identical — only the base URL and auth header change:
+    The CLOB-compatible endpoint takes the same order fields as Polymarket's CLOB API,
+    so the order itself carries over. The client setup and authentication change:
 
     
-    ```python Virtual (PolySimulator)
+    ```python PolySimulator (simulated)
     import requests, os
 
     BASE_URL = os.environ["POLYSIM_BASE_URL"]  # https://api.polysimulator.com/v1
@@ -103,7 +112,8 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
     print(order.json())
     ```
 
-    ```python Live (Polymarket)
+    ```python Polymarket (outside PolySimulator)
+    import os
     from py_clob_client.client import ClobClient
     from py_clob_client.clob_types import ApiCreds
 
@@ -145,7 +155,8 @@ PolySimulator is designed so your entire bot codebase works unchanged when switc
   
 
   
-    Start with minimal order sizes to verify live execution:
+    These calls go to Polymarket and use real money from your wallet. Minimal order
+    sizes are enough to check that your integration works:
 
     ```python
     import os
@@ -202,9 +213,9 @@ See [CLOB Compatibility](/concepts/clob-compatibility) for full schema details a
 
 ---
 
-## Rollback
+## Switching Back to PolySimulator
 
-To return to virtual mode, change your bot's environment variables back:
+To go back to simulated trading, change your bot's environment variables back:
 
 ```bash
 POLYSIM_BASE_URL="https://api.polysimulator.com/v1"
@@ -218,9 +229,9 @@ Restart your bot and it resumes paper trading with the simulated balance.
 
 ## Checklist
 
-- [ ] Bot tested across multiple market scenarios in virtual mode
+- [ ] Bot tested across multiple market scenarios in PolySimulator
 - [ ] Error handling verified (network errors, rate limits, slippage)
 - [ ] Polymarket API credentials obtained and secured
 - [ ] Environment variables updated
-- [ ] Initial live test with minimal order size
-- [ ] Monitoring and alerting configured for live trading
+- [ ] First Polymarket orders placed at minimal size
+- [ ] Monitoring and alerting configured for your Polymarket bot

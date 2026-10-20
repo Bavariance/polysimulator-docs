@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
   "name": "PolySimulator",
-  "description": "Virtual prediction market trading API — practice with real Polymarket data, go live with one config change.",
+  "description": "Virtual prediction market trading API — practice with real Polymarket data and simulated money.",
   "colors": {
     "primary": "#00d26a",
     "light": "#e6fff2",
@@ -130,7 +130,7 @@
             ]
           },
           {
-            "group": "Going Live",
+            "group": "Porting to Polymarket",
             "icon": "rocket-launch",
             "pages": [
               "deployment/live-migration"
@@ -229,239 +229,239 @@
   "redirects": [
     {
       "source": "/api-reference/v1/markets/:condition_id/candles",
-      "destination": "/api-reference/getMarketCandles"
+      "destination": "/api-reference/market-data/get-candles"
     },
     {
       "source": "/api-reference/v1/me/wallets/:wallet_id/reset",
-      "destination": "/api-reference/resetWallet"
+      "destination": "/api-reference/wallets/reset-wallet"
     },
     {
       "source": "/api-reference/v1/markets/:condition_id/book",
-      "destination": "/api-reference/getMarketOrderBook"
+      "destination": "/api-reference/market-data/get-order-book"
     },
     {
       "source": "/api-reference/v1/markets-by-token/:token_id",
-      "destination": "/api-reference/getMarketByToken"
+      "destination": "/api-reference/clob-read-public/get-market-by-token"
     },
     {
       "source": "/api-reference/v1/account/reset-api-balance",
-      "destination": "/api-reference/resetApiBalance"
+      "destination": "/api-reference/account/reset-api-balance"
     },
     {
       "source": "/api-reference/v1/markets/updown/intervals",
-      "destination": "/api-reference/listUpdownIntervals"
+      "destination": "/api-reference/list-updown-intervals"
     },
     {
       "source": "/api-reference/v1/account/profile-analysis",
-      "destination": "/api-reference/getProfileAnalysis"
+      "destination": "/api-reference/profile-analysis/full-profile-analysis-for-llmmcp-consumption"
     },
     {
       "source": "/api-reference/v1/account/me/entitlements",
-      "destination": "/api-reference/getEntitlements"
+      "destination": "/api-reference/account/get-entitlements"
     },
     {
       "source": "/api-reference/v1/billing/topup/checkout",
-      "destination": "/api-reference/createTopupCheckout"
+      "destination": "/api-reference/billing/create-topup-checkout"
     },
     {
       "source": "/api-reference/v1/markets/:condition_id",
-      "destination": "/api-reference/getMarket"
+      "destination": "/api-reference/market-data/get-market"
     },
     {
       "source": "/api-reference/v1/markets/by-slug/:slug",
-      "destination": "/api-reference/getMarketBySlug"
+      "destination": "/api-reference/market-data/get-market-by-slug"
     },
     {
       "source": "/api-reference/v1/me/wallets/:wallet_id",
-      "destination": "/api-reference/getWallet"
+      "destination": "/api-reference/wallets/get-wallet"
     },
     {
       "source": "/api-reference/v1/cancel-market-orders",
-      "destination": "/api-reference/cancelMarketOrders"
+      "destination": "/api-reference/trading/cancel-market-orders"
     },
     {
       "source": "/api-reference/v1/data/order/:order_id",
-      "destination": "/api-reference/getDataOrder"
+      "destination": "/api-reference/clob-compat/polymarket-compat-single-order-lookup-pm-shape-data-path"
     },
     {
       "source": "/api-reference/v1/billing/subscription",
-      "destination": "/api-reference/getSubscription"
+      "destination": "/api-reference/billing/get-subscription"
     },
     {
       "source": "/api-reference/v1/tick-size/:token_id",
-      "destination": "/api-reference/getTickSize"
+      "destination": "/api-reference/clob-read-public/get-tick-size"
     },
     {
       "source": "/api-reference/v1/neg-risk/:token_id",
-      "destination": "/api-reference/getNegRisk"
+      "destination": "/api-reference/clob-read-public/get-neg-risk"
     },
     {
       "source": "/api-reference/v1/account/positions",
-      "destination": "/api-reference/listPositions"
+      "destination": "/api-reference/account/get-positions"
     },
     {
       "source": "/api-reference/v1/account/portfolio",
-      "destination": "/api-reference/getPortfolio"
+      "destination": "/api-reference/account/get-portfolio"
     },
     {
       "source": "/api-reference/v1/last-trade-price",
-      "destination": "/api-reference/getLastTradePrice"
+      "destination": "/api-reference/clob-read-public/get-last-trade-price"
     },
     {
       "source": "/api-reference/v1/orders/:order_id",
-      "destination": "/api-reference/cancelOrderById"
+      "destination": "/api-reference/trading/cancel-order"
     },
     {
       "source": "/api-reference/v1/billing/checkout",
-      "destination": "/api-reference/createCheckout"
+      "destination": "/api-reference/billing/create-checkout"
     },
     {
       "source": "/api-reference/v1/account/balance",
-      "destination": "/api-reference/getBalance"
+      "destination": "/api-reference/account/get-balance"
     },
     {
       "source": "/api-reference/v1/account/history",
-      "destination": "/api-reference/getTradeHistory"
+      "destination": "/api-reference/account/get-trade-history"
     },
     {
       "source": "/api-reference/v1/order/:order_id",
-      "destination": "/api-reference/getOrder"
+      "destination": "/api-reference/clob-compat/polymarket-compat-single-order-lookup-legacy-top-level-path"
     },
     {
       "source": "/api-reference/v1/prices-history",
-      "destination": "/api-reference/getPricesHistory"
+      "destination": "/api-reference/overview"
     },
     {
       "source": "/api-reference/v1/account/equity",
-      "destination": "/api-reference/getEquityCurve"
+      "destination": "/api-reference/account/get-equity-curve"
     },
     {
       "source": "/api-reference/v1/keys/bootstrap",
-      "destination": "/api-reference/bootstrapApiKey"
+      "destination": "/api-reference/api-keys/bootstrap-first-api-key-via-bearer-jwt-advanced-headless"
     },
     {
       "source": "/api-reference/v1/billing/portal",
-      "destination": "/api-reference/createPortal"
+      "destination": "/api-reference/billing/create-portal"
     },
     {
       "source": "/api-reference/v1/keys/ws-token",
-      "destination": "/api-reference/getWsToken"
+      "destination": "/api-reference/api-keys/get-ws-token"
     },
     {
       "source": "/api-reference/v1/ws/executions",
-      "destination": "/api-reference/ws_executions_upgrade_hint_v1_ws_executions_get"
+      "destination": "/api-reference/websocket/ws-executions-upgrade-hint"
     },
     {
       "source": "/api-reference/v1/status/uptime",
-      "destination": "/api-reference/statusUptime"
+      "destination": "/api-reference/status/status-uptime"
     },
     {
       "source": "/api-reference/v1/health/ready",
-      "destination": "/api-reference/readinessCheck"
+      "destination": "/api-reference/health/readiness-check"
     },
     {
       "source": "/api-reference/v1/prices/batch",
-      "destination": "/api-reference/getPricesBatchInternal"
+      "destination": "/api-reference/market-data/batch-prices"
     },
     {
       "source": "/api-reference/v1/orders/batch",
-      "destination": "/api-reference/placeBatch"
+      "destination": "/api-reference/trading/batch-orders"
     },
     {
       "source": "/api-reference/v1/keys/:key_id",
-      "destination": "/api-reference/revokeApiKey"
+      "destination": "/api-reference/api-keys/revoke-key"
     },
     {
       "source": "/api-reference/v1/data/orders",
-      "destination": "/api-reference/listOrdersPmShape"
+      "destination": "/api-reference/clob-compat/list-user-orders-polymarket-shape-—-recommended-for-sdk-clients"
     },
     {
       "source": "/api-reference/v1/clob/order",
-      "destination": "/api-reference/placeClobOrder"
+      "destination": "/api-reference/trading/clob-order"
     },
     {
       "source": "/api-reference/v1/cancel-all",
-      "destination": "/api-reference/cancelAll"
+      "destination": "/api-reference/trading/cancel-all-pending-limit-orders-canonical-verb"
     },
     {
       "source": "/api-reference/v1/keys/tiers",
-      "destination": "/api-reference/listTiers"
+      "destination": "/api-reference/api-keys/list-tiers"
     },
     {
       "source": "/api-reference/v1/me/wallets",
-      "destination": "/api-reference/listMyWallets"
+      "destination": "/api-reference/wallets/list-my-wallets"
     },
     {
       "source": "/api-reference/v1/heartbeats",
-      "destination": "/api-reference/postHeartbeat"
+      "destination": "/api-reference/heartbeats/heartbeat-dead-mans-switch-—-auto-cancel-orders-on-missed-pings"
     },
     {
       "source": "/api-reference/v1/midpoints",
-      "destination": "/api-reference/getMidpoints"
+      "destination": "/api-reference/clob-read-public/post-midpoints-batch"
     },
     {
       "source": "/api-reference/v1/ws/prices",
-      "destination": "/api-reference/ws_prices_upgrade_hint_v1_ws_prices_get"
+      "destination": "/api-reference/websocket/ws-prices-upgrade-hint"
     },
     {
       "source": "/api-reference/v1/midpoint",
-      "destination": "/api-reference/getMidpoint"
+      "destination": "/api-reference/clob-read-public/get-midpoint"
     },
     {
       "source": "/api-reference/v1/markets",
-      "destination": "/api-reference/listMarkets"
+      "destination": "/api-reference/market-data/list-markets-bare-array;-opt-in-pm-shape-envelope"
     },
     {
       "source": "/api-reference/v1/spreads",
-      "destination": "/api-reference/getSpreads"
+      "destination": "/api-reference/clob-read-public/post-spreads-batch"
     },
     {
       "source": "/api-reference/v1/health",
-      "destination": "/api-reference/healthCheck"
+      "destination": "/api-reference/health/health-check"
     },
     {
       "source": "/api-reference/v1/status",
-      "destination": "/api-reference/systemStatus"
+      "destination": "/api-reference/health/system-status"
     },
     {
       "source": "/api-reference/v1/prices",
-      "destination": "/api-reference/getPrices"
+      "destination": "/api-reference/clob-read-public/get-prices-batch"
     },
     {
       "source": "/api-reference/v1/spread",
-      "destination": "/api-reference/getSpread"
+      "destination": "/api-reference/clob-read-public/get-spread"
     },
     {
       "source": "/api-reference/v1/orders",
-      "destination": "/api-reference/placeOrder"
+      "destination": "/api-reference/trading/place-order-dispatcher"
     },
     {
       "source": "/api-reference/v1/price",
-      "destination": "/api-reference/getPrice"
+      "destination": "/api-reference/clob-read-public/get-price"
     },
     {
       "source": "/api-reference/v1/books",
-      "destination": "/api-reference/getBooks"
+      "destination": "/api-reference/clob-read-public/post-books-batch"
     },
     {
       "source": "/api-reference/v1/order",
-      "destination": "/api-reference/cancelOrder"
+      "destination": "/api-reference/clob-compat/polymarket-compat-single-order-cancel-body-payload"
     },
     {
       "source": "/api-reference/v1/book",
-      "destination": "/api-reference/getOrderBook"
+      "destination": "/api-reference/clob-read-public/get-book-by-token"
     },
     {
       "source": "/api-reference/v1/time",
-      "destination": "/api-reference/getServerTime"
+      "destination": "/api-reference/clob-read-public/get-server-time"
     },
     {
       "source": "/api-reference/v1/keys",
-      "destination": "/api-reference/listApiKeys"
+      "destination": "/api-reference/api-keys/list-keys"
     },
     {
       "source": "/api-reference/v1/me",
-      "destination": "/api-reference/getMe"
+      "destination": "/api-reference/health/get-api-me"
     }
   ]
 }

@@ -62,7 +62,7 @@ deliberately diverges is enumerated here:
   On maker/taker: the sim classifies a marketable-at-placement GTC (one that
   crosses the book on submit) as a **taker** and charges the taker fee, matching
   Polymarket; only a genuinely-resting GTC that is filled later — when the market
-  moves into it — is booked as a $0-fee maker. This is a fidelity *match*, not a gap.
+  moves into it — is booked as a \$0-fee maker. This is a fidelity *match*, not a gap.
 
   **The market universe is PolySimulator's, NOT Polymarket's live universe.** Reads
   resolve against the markets PolySimulator carries, which is a curated subset of

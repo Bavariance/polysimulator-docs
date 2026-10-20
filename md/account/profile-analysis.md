@@ -90,7 +90,7 @@ string, alongside these sections:
 | `ui_balance` | string | UI (MAIN) trading balance — always the MAIN wallet, regardless of `wallet_id` |
 | `api_balance` | string | Cash of the **scoped wallet** (the API wallet by default; the field name is historical) |
 | `starting_ui_balance` | string | UI baseline = seed + top-ups + grants |
-| `starting_api_balance` | string | PnL baseline of the **scoped wallet** — its actual `starting_balance` (tier-aware: Pro $10,000 / Pro+ $25,000) |
+| `starting_api_balance` | string | PnL baseline of the **scoped wallet** — its actual `starting_balance` (tier-aware: Pro \$10,000 / Pro+ \$25,000) |
 | `ui_pnl` | string | UI profit/loss (`ui_balance − starting_ui_balance`) |
 | `api_pnl` | string | Scoped-wallet profit/loss (`total_portfolio_value − starting_api_balance`) |
 | `ui_pnl_percentage` | string | UI P&L as percentage |
@@ -136,10 +136,10 @@ string, alongside these sections:
 - **API PnL %** = `api_pnl / starting_api_balance * 100`
 
 `starting_api_balance` is the scoped wallet's **actual** `starting_balance`
-(tier-aware: Pro $10,000 / Pro+ $25,000 for the API wallet; a specific
+(tier-aware: Pro \$10,000 / Pro+ \$25,000 for the API wallet; a specific
 wallet's own baseline when `wallet_id=`), so `api_pnl` here agrees with
 `GET /v1/account/balance` and `GET /v1/account/portfolio` for the same
-wallet. Before 2026-06-10 this endpoint used a fixed $10,000 baseline
+wallet. Before 2026-06-10 this endpoint used a fixed \$10,000 baseline
 regardless of tier — that caveat no longer applies.
 
 ### Open Position Valuation
@@ -313,7 +313,7 @@ See [Trade History](/account/trade-history) for the full per-trade semantics.
 
 A pre-computed human-readable summary of the profile:
 
-> "trader123 is a PolySimulator paper trader who joined 45 days ago. Current API balance: $9,750.00 (started at $10,000.00, P&L: -$250.00, -2.50%). Has made 127 trades across 34 markets over 22 active trading days. Win rate: 62.5%. Currently holding 5 open positions worth ~$1,100.00. Top categories: crypto (45.5%), sports (27.3%), politics (18.2%)."
+> "trader123 is a PolySimulator paper trader who joined 45 days ago. Current API balance: \$9,750.00 (started at \$10,000.00, P&L: -\$250.00, -2.50%). Has made 127 trades across 34 markets over 22 active trading days. Win rate: 62.5%. Currently holding 5 open positions worth ~\$1,100.00. Top categories: crypto (45.5%), sports (27.3%), politics (18.2%)."
 
 ## MCP Server
 

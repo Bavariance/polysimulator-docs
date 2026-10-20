@@ -10,6 +10,11 @@ WS /v1/ws/executions?token=
 
 Receives automatic fill notifications when your limit orders are matched. No subscription required — all your executions are streamed automatically.
 
+  Fills are pushed here for **resting** limit orders: a `GTC`/`GTD` order that fills later, or one that is
+  marketable and fills as it is placed. An `IOC`/`FAK`/`FOK` order that fills immediately is **not** sent on
+  this stream; its fill comes back in the `POST /v1/orders` response. Treat that response (or `GET /v1/orders`)
+  as the record for immediate orders.
+
 ---
 
 ## Connection

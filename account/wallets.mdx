@@ -15,9 +15,9 @@ authenticated**.
 
 | Wallet | Starting balance | Reset / top-up | Used by |
 |---|---|---|---|
-| **API** | Plan-dependent baseline (Free: **$100**, Pro: $10,000, Pro+: $25,000) | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
-| **MAIN** | $1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
-| **SANDBOX** | Plan-dependent baseline (Free: $0, Pro: $10,000, Pro+: $25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
+| **API** | Plan-dependent baseline (Free: **\$100**, Pro: \$10,000, Pro+: \$25,000). On Free, only keys issued on or after 2026-09-05 can trade against it — earlier free keys are read-only | Resets to your tier baseline; cooldown is `API_RESET_COOLDOWN_DAYS` (currently 0). **Not available on Free** — returns `402 UPGRADE_REQUIRED` | Any request authenticated with `X-API-Key` |
+| **MAIN** | \$1,000 | Free resets capped per 30 days (Free: 1, Pro: 4, Pro+: unlimited). Paid `topup_main_reset` SKU bypasses the cooldown. | UI trading on `polysimulator.com` |
+| **SANDBOX** | Plan-dependent baseline (Free: \$0, Pro: \$10,000, Pro+: \$25,000) | Paid top-ups (`topup_500`, `topup_2000`, `topup_10000`) credit on top of the baseline | Pro-tier UI users running paid experiments |
 | **COMPETITION** | Varies per event | Event-scoped, frozen during competition | Event entrants only |
 
 <Note>
@@ -27,24 +27,29 @@ authenticated**.
 
 ## The API wallet
 
-When you create your first key with `POST /v1/keys/bootstrap`, your account is
-seeded with your tier's API wallet baseline ($10,000 on Pro, $25,000 on Pro+;
-Free-tier API keys are read-only and have no API wallet seeded). Every order
+Your API wallet is seeded at your tier's baseline the first time it is needed
+— \$100 on Free, \$10,000 on Pro, \$25,000 on Pro+. On Free, the wallet is only
+reachable from a key issued on or after **2026-09-05**: a free key issued
+before that date is read-only (`["read"]`) and cannot place orders against
+it. The \$100 is a one-off budget — it cannot be reset or topped up — and free
+accounts are additionally capped at 100 order placements per UTC day
+(`429 FREE_TIER_DAILY_LIMIT`, with `Retry-After` and `resets_at`). Every order
 you place via `X-API-Key` debits this wallet — `GET /v1/account/balance`
 always reports the API wallet balance for API-authenticated requests.
 
 ```bash
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/balance
+# Free tier → {"balance": "94.10", "starting_balance": "100.00", ...}
 # Pro tier → {"balance": "9745.20", "starting_balance": "10000.00", ...}
 # Pro+ tier → {"balance": "24745.20", "starting_balance": "25000.00", ...}
 ```
 
 ### Resetting the API wallet
 
-You can reset the API wallet to your tier's starting balance at any time —
-this also closes any open API-sourced positions. Pro keys reset to $10,000;
-Pro+ keys reset to $25,000.
+On a paid tier you can reset the API wallet to your tier's starting balance at
+any time — this also closes any open API-sourced positions. Pro keys reset to
+\$10,000; Pro+ keys reset to \$25,000. Free cannot reset (see below).
 
 ```bash
 curl -X POST -H "X-API-Key: $POLYSIM_API_KEY" \
@@ -73,39 +78,62 @@ The reset response carries four fields:
   is `API_RESET_COOLDOWN_DAYS`, presently 0, and a daily cooldown may be
   enabled later. Use them freely to test strategies from a clean baseline.
 
-  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the $100
+  **Not available on Free.** Reset returns `402 UPGRADE_REQUIRED`: the \$100
   free budget is deliberately non-renewable, so spending it is the upgrade
   prompt rather than a reset away.
 </Tip>
 
 ## Scoping account reads to a wallet
 
-The account read endpoints accept a `wallet_id` query parameter with three
+The account endpoints accept a `wallet_id` query parameter with three
 forms (case-insensitive keywords):
 
 | Value | Meaning |
 |---|---|
-| *(omitted)* | **Your API wallet** — the default on every account read |
+| *(omitted)* | **Your API wallet** — the default on account reads. `GET /v1/orders` differs: omitted merges every wallet you own |
 | `api` | Your API wallet, explicitly (includes legacy rows recorded before per-wallet attribution) |
 | `all` | Every wallet you own — UI MAIN/SANDBOX/COMPETITION included |
 | `<integer id>` | One specific wallet you own (ids from `GET /v1/me/wallets`); 404 `WALLET_NOT_FOUND` otherwise. MAIN/API wallet ids fold in legacy rows recorded before per-wallet attribution |
 
-Supported on [Positions](/account/positions),
-[Trade History](/account/trade-history),
-[Profile Analysis](/account/profile-analysis),
-[Portfolio](/account/portfolio) and [Equity Curve](/account/equity-curve).
-[Balance](/account/balance) is always API-wallet scoped. Any other
-`wallet_id` value returns 422 `VALIDATION_FAILED`.
+Supported on:
+- [`GET /v1/account/positions`](/account/positions)
+- [`GET /v1/account/history`](/account/trade-history)
+- [`GET /v1/account/profile-analysis`](/account/profile-analysis)
+- [`GET /v1/account/portfolio`](/account/portfolio)
+- [`GET /v1/account/equity`](/account/equity-curve)
+
+Note that [`GET /v1/account/balance`](/account/balance) is always API-wallet scoped (`wallet_id` is a no-op). On the account
+endpoints, any invalid `wallet_id` string returns 422 `VALIDATION_FAILED`.
+
+<Note>
+`GET /v1/orders` accepts only an **integer** `wallet_id` (404 `WALLET_NOT_FOUND` for a wallet you do not own). It does not
+accept the `api` or `all` keywords; a non-integer value returns 422. Omit `wallet_id` to get orders from every wallet you own.
+</Note>
 
 ```bash
 # Default — API wallet only
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   https://api.polysimulator.com/v1/account/positions
 
+# Specific wallet ID
+curl -H "X-API-Key: $POLYSIM_API_KEY" \
+  "https://api.polysimulator.com/v1/orders?wallet_id=1327"
+
 # Everything you own, including UI wallets
 curl -H "X-API-Key: $POLYSIM_API_KEY" \
   "https://api.polysimulator.com/v1/account/positions?wallet_id=all"
 ```
+
+### Multi-wallet querying
+
+To enumerate all wallets associated with your account and discover their numeric IDs, call:
+
+```bash
+curl -H "Authorization: Bearer $SUPABASE_JWT" \
+  https://api.polysimulator.com/v1/me/wallets
+```
+
+This returns your complete wallet roster (`id`, `kind`, `label`, `balance`). You can then pass any of your wallet IDs as `?wallet_id=<id>` to inspect positions, trade history, orders, or equity for that specific wallet.
 
 <Warning>
   **Migration note (2026-06-10):** `GET /v1/account/positions`,
@@ -114,19 +142,18 @@ curl -H "X-API-Key: $POLYSIM_API_KEY" \
   Since 2026-06-10 they default to the **API wallet**, consistent with
   Balance/Portfolio/Equity. Pass `wallet_id=all` to keep the old behaviour.
 </Warning>
-
 ## Why the wallets are separate
 
 The split exists so that:
 
 - **Bots can crash without nuking your UI portfolio.** A runaway loop that
-  blows the API wallet doesn't touch your $1,000 MAIN balance or any SANDBOX
+  blows the API wallet doesn't touch your \$1,000 MAIN balance or any SANDBOX
   experiment.
 - **The leaderboard stays clean.** Only MAIN-wallet trades count toward
   leaderboard ranking — bot performance is tracked separately on the API beta
   dashboard.
 - **Paid top-ups don't mix with sacred state.** Top-ups always credit
-  SANDBOX wallets; the MAIN $1,000 is preserved as the canonical
+  SANDBOX wallets; the MAIN \$1,000 is preserved as the canonical
   "fresh-account" baseline for any user.
 
 ## Top-ups (paid)
@@ -137,10 +164,10 @@ the API wallet.
 
 | SKU | Price | Credits |
 |---|---|---|
-| `topup_500` | $2.99 | $500 to SANDBOX |
-| `topup_2000` | $4.99 | $2,000 to SANDBOX |
-| `topup_10000` | $9.99 | $10,000 to SANDBOX |
-| `topup_main_reset` | $2.99 | Resets MAIN to its seed baseline ($1,000); credits no new funds (bypasses the reset cooldown) |
+| `topup_500` | \$2.99 | \$500 to SANDBOX |
+| `topup_2000` | \$4.99 | \$2,000 to SANDBOX |
+| `topup_10000` | \$9.99 | \$10,000 to SANDBOX |
+| `topup_main_reset` | \$2.99 | Resets MAIN to its seed baseline (\$1,000); credits no new funds (bypasses the reset cooldown) |
 
 If you only use the API, you can ignore this entire section.
 

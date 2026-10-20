@@ -63,7 +63,7 @@ Your limit:  $0.55
 <Info>
   **Polymarket migration**: This is identical to how Polymarket's `price`
   field works. Your existing slippage logic transfers directly to
-  PolySimulator — and vice versa when you migrate to live trading.
+  PolySimulator — and back again if you port the bot to Polymarket.
 </Info>
 
 ---
@@ -87,15 +87,16 @@ You always control the worst price you'll accept.
 
 ## Time in Force
 
-Market orders default to **FOK** (Fill-or-Kill), matching Polymarket.
-You can also use **FAK** (Fill-and-Kill), Polymarket's term for IOC.
+Market orders default to **FAK** (Fill-and-Kill, alias `IOC`): what is
+available within your price limit fills and the rest is cancelled. Send
+**FOK** (Fill-or-Kill) when you need all-or-nothing.
 
 | Value | Behavior | Polymarket Equivalent |
 |-------|----------|----------------------|
-| `FOK` | All-or-nothing — fill entirely or cancel (default for market orders) | FOK |
-| `FAK` | Fill available quantity, cancel remainder | FAK |
+| `FAK` | Fill available quantity, cancel remainder (default for market orders) | FAK |
 | `IOC` | Same as FAK (PolySimulator alias) | FAK |
-| `GTC` | Overridden to FOK for market orders | — |
+| `FOK` | All-or-nothing — fill entirely or cancel | FOK |
+| `GTC` | Replaced by `IOC` on market orders | — |
 
 ```json
 {
@@ -110,8 +111,8 @@ You can also use **FAK** (Fill-and-Kill), Polymarket's term for IOC.
 ```
 
 <Tip>
-  If you omit `time_in_force` on a market order, it defaults to FOK.
-  If you explicitly set `GTC`, it is overridden to FOK — market orders
+  If you omit `time_in_force` on a market order, it defaults to FAK/IOC.
+  If you explicitly set `GTC`, it is replaced by `IOC` — market orders
   never persist in the book.
 </Tip>
 
@@ -188,9 +189,9 @@ today, from highest to lowest confidence:
 
 | Strategy | Approach |
 |----------|----------|
-| Scalping / HFT | `price` = best ask + $0.01 (tight limit, minimal overpay) |
-| Swing trading | `price` = best ask + $0.03 (moderate buffer) |
-| Bulk accumulation | `price` = best ask + $0.05 (wider buffer for fill certainty) |
+| Scalping / HFT | `price` = best ask + \$0.01 (tight limit, minimal overpay) |
+| Swing trading | `price` = best ask + \$0.03 (moderate buffer) |
+| Bulk accumulation | `price` = best ask + \$0.05 (wider buffer for fill certainty) |
 | Illiquid markets | Use **limit orders** (GTC) for price certainty |
 
 <Warning>
@@ -207,10 +208,10 @@ today, from highest to lowest confidence:
 |---------|-----------|---------------|
 | Slippage protection | `price` field (worst-price limit) | `price` field (identical) |
 | Price required on market orders | Yes | Yes |
-| Default time-in-force (market) | FOK | FOK |
+| Default time-in-force (market) | FOK | FAK/IOC |
 | Execution model | BUY at best ask, SELL at best bid | BUY at best ask, SELL at best bid |
 | Price improvement | Yes — fill at best available | Yes — fill at best available |
-| Order types (`/v1/orders`) | FOK, FAK, GTC, GTD | GTC (default for limit), FOK (default for market), FAK, IOC; GTD rolling out |
+| Order types (`/v1/orders`) | FOK, FAK, GTC, GTD | GTC (default for limit), FAK/IOC (default for market), FOK, GTD |
 | Fees | Per-category taker fees | Per-category taker fees (PM-V2 schedule, mirrored) |
 
 ---

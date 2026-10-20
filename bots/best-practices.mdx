@@ -231,14 +231,13 @@ Markets can resolve at any time. Your bot should handle positions being settled:
 
 <Info>
   PolySimulator is paper trading — develop and test your complete bot logic
-  with zero financial risk against the same REST surface you'll use in
-  production. Switching to live trading on Polymarket is **not** a pure
-  base-URL swap, though: PM's CLOB `POST /order` requires EIP-712-signed
+  with simulated money. PolySimulator never sends orders to Polymarket, and
+  porting a bot to Polymarket's own API is **not** a pure base-URL swap: PM's CLOB `POST /order` requires EIP-712-signed
   orders (maker/taker amounts, salt, signature). The closest drop-in path is
   PolySimulator's PM-shape `POST /v1/order` + `py-clob-client`, which
   approximates PM's wire format — see
   [CLOB Compatibility](/concepts/clob-compatibility) and
-  [Live Migration](/deployment/live-migration) for what changes.
+  [Porting to Polymarket](/deployment/live-migration) for what changes.
 </Info>
 
 ```bash

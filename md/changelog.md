@@ -8,10 +8,38 @@ integration to the behaviors documented here and re-check after the dates
 listed. A formal versioning and deprecation policy will be published when the
 API leaves beta.
 
+## 2026-09-05 — Free keys can trade (keys issued from this date)
+
+- **Free API keys issued on or after 2026-09-05 (UTC) are trade-capable.**
+  `POST /v1/keys` and `POST /v1/keys/bootstrap` now mint `["read", "trade"]`
+  at every self-serve tier, free included. Free trading is bounded by a
+  **\$100 API wallet** that cannot be reset (`POST /v1/account/reset-api-balance`
+  returns `402 UPGRADE_REQUIRED`) or topped up, and by **100 order placements
+  per UTC day per account** (`429 FREE_TIER_DAILY_LIMIT`, with `Retry-After`,
+  `limit`, `used` and `resets_at`).
+- **Free keys issued before 2026-09-05 are unchanged: read-only.** The
+  `trade` permission is stripped on every request even where the stored key
+  carries it, and rotating such a key preserves its read-only scope. Create a
+  new key to get a trade-capable one.
+- A free account whose paid grant has expired stays read-only regardless of
+  the key's issue date; `admin` is never self-issued at any tier.
+- `403 TIER_REQUIRES_UPGRADE` on key creation is now returned only for a paid
+  `tier` you are not subscribed to, for `admin`, or for `trade` on an expired
+  paid grant — no longer for plain free + `trade`. See
+  [Authentication → Open Beta](/authentication#open-beta) and
+  [Wallets](/account/wallets).
+
 ## 2026-08-29 — Structured errors and cache-safe market data
 
 - `/v1/*` errors now expose the stable machine code in the JSON `error` field,
   with human prose in `message`; `X-Polysim-Code` carries the same code.
+  **Clarification only (no runtime change):** this two-field envelope was
+  already the deployed behavior. Earlier pages incorrectly described the
+  Polymarket single-field `{"error": ""}` shape. Clients should
+  branch on body `error` or the identical `X-Polysim-Code`, not on `message`.
+- The public error catalog now documents `TRADE_IN_PROGRESS`, `SERVER_BUSY`,
+  `DEADLINE_OVERSHOT_BUT_PERSISTED`, and `PERSISTENCE_UNKNOWN`, including
+  which responses are safe to retry and which require an order lookup first.
 - Invalid account `side`, position `status`, and malformed price-history token
   filters now fail with 4xx errors instead of returning misleading empty data.
 - Successful order-book and market-by-slug responses explicitly use
@@ -38,8 +66,10 @@ API leaves beta.
 
 - **Key issuance is self-serve.** Sign in, mint a key from the dashboard or
   `POST /v1/keys/bootstrap`. Free keys are read-only; active Pro / Pro+ keys
-  are trade-capable. `CLOSED_BETA` / `API_PRO_COMING_SOON` are residual codes,
-  not the default path. See [Authentication → Open Beta](/authentication#open-beta).
+  are trade-capable. *(Superseded for free keys issued on or after 2026-09-05
+  — see that entry above.)* `CLOSED_BETA` / `API_PRO_COMING_SOON` are residual
+  codes, not the default path. See
+  [Authentication → Open Beta](/authentication#open-beta).
 - **Honest limits** now include the full V2 fee table (including the 5%
   unknown-category fallback) and numeric exceptions. See
   [Honest Limits](/concepts/honest-limits) and [Fees](/trading/fees).
@@ -94,7 +124,7 @@ actual) and by 91x on `will-adanech-abiebie-be-the-next-prime-minis…` (77,573,
   you get `null` rather than a number from the wrong window. As before, `null` means
   "no data" and `"0"` means a real zero — a market that traded nothing in 24 hours
   reports `volume_24h: "0"`, not `null`.
-- **`is_hot` is unchanged.** Its $5,000 threshold reads the cumulative figure and
+- **`is_hot` is unchanged.** Its \$5,000 threshold reads the cumulative figure and
   always did, so no market changes hotness because of this release, and `hot_only=true`
   returns the same set it did yesterday.
 - **`live_price.volume` is unchanged** and is an all-time figure — it now says so in
